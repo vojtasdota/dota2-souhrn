@@ -1,0 +1,2478 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dota 2 — Souhrn zápasů</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0b0e13;
+    --bg2:#141922;
+    --bg3:#1b212c;
+    --row:#161b24;
+    --row-hover:#1f2632;
+    --border:#2a313d;
+    --border-soft:#222834;
+    --gold:#c8a657;
+    --gold-dim:#9c8147;
+    --win:#74b94e;
+    --win-glow:#9bdb5e;
+    --loss:#d24a37;
+    --loss-glow:#e8624d;
+    --text:#e7e2d4;
+    --muted:#8a8676;
+    --muted-dim:#5f5d54;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:
+      radial-gradient(1200px 600px at 18% -10%, rgba(116,185,78,.07), transparent 60%),
+      radial-gradient(1100px 600px at 88% -5%, rgba(210,74,55,.07), transparent 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Rajdhani',system-ui,sans-serif;
+    min-height:100vh;
+    line-height:1.4;
+    font-size:16px;
+  }
+  .wrap{max-width:920px;margin:0 auto;padding:38px 20px 80px;position:relative}
+
+  /* ---------- Header ---------- */
+  header{text-align:center;margin-bottom:30px}
+  .kicker{
+    font-size:.72rem;letter-spacing:.42em;text-transform:uppercase;
+    color:var(--gold-dim);font-weight:600;margin-bottom:10px;padding-left:.42em;
+  }
+  h1{
+    font-family:'Cinzel',serif;font-weight:700;
+    font-size:clamp(2rem,6vw,3.1rem);line-height:1;
+    letter-spacing:.02em;
+    background:linear-gradient(180deg,#f1ead5 0%,var(--gold) 70%,var(--gold-dim) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 2px 14px rgba(200,166,87,.18));
+  }
+  .sub{color:var(--muted);font-size:.95rem;margin-top:10px;font-weight:500}
+
+  /* ---------- Search bar ---------- */
+  .searchbar{
+    display:flex;gap:10px;margin:26px auto 8px;max-width:560px;flex-wrap:wrap;
+  }
+  .field{flex:1 1 240px;position:relative}
+  input[type=text]{
+    width:100%;background:var(--bg2);border:1px solid var(--border);
+    color:var(--text);font-family:'Rajdhani',sans-serif;font-weight:600;
+    font-size:1.05rem;padding:13px 15px;border-radius:9px;outline:none;
+    transition:border-color .15s,box-shadow .15s;
+  }
+  input[type=text]::placeholder{color:var(--muted-dim);font-weight:500}
+  input[type=text]:focus{border-color:var(--gold-dim);box-shadow:0 0 0 3px rgba(200,166,87,.12)}
+  button.load{
+    background:linear-gradient(180deg,#d9b766,var(--gold) 60%,var(--gold-dim));
+    color:#1a1408;border:none;font-family:'Rajdhani',sans-serif;font-weight:700;
+    font-size:1rem;letter-spacing:.06em;text-transform:uppercase;
+    padding:0 26px;border-radius:9px;cursor:pointer;
+    transition:transform .1s,filter .15s;white-space:nowrap;
+  }
+  button.load:hover{filter:brightness(1.08)}
+  button.load:active{transform:translateY(1px)}
+  button.load:disabled{opacity:.5;cursor:default;filter:none}
+  .hint{text-align:center;font-size:.82rem;color:var(--muted);max-width:560px;margin:0 auto}
+  .hint a{color:var(--gold-dim);text-decoration:none;border-bottom:1px dotted var(--gold-dim)}
+  .hint a:hover{color:var(--gold)}
+
+  /* ---------- Status ---------- */
+  .status{text-align:center;padding:48px 20px;color:var(--muted);font-size:1.05rem;font-weight:500}
+  .status.error{color:var(--loss-glow)}
+  .spinner{
+    width:34px;height:34px;margin:0 auto 16px;border-radius:50%;
+    border:3px solid var(--border);border-top-color:var(--gold);
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  /* ---------- Profile card ---------- */
+  .profile{
+    display:flex;align-items:center;gap:20px;margin:30px 0 4px;
+    background:linear-gradient(135deg,var(--bg2),rgba(20,25,34,.4));
+    border:1px solid var(--border);border-radius:14px;padding:20px 22px;flex-wrap:wrap;
+  }
+  .profile.noprof{display:block;background:var(--bg2);border:1px dashed var(--border)}
+  .profile.noprof .prank{font-weight:500;line-height:1.5;color:var(--muted);margin-top:4px}
+  .profile.noprof .prank b{color:var(--gold-dim)}
+  .avatar{
+    width:74px;height:74px;border-radius:11px;border:2px solid var(--gold-dim);
+    background:var(--bg3);object-fit:cover;flex-shrink:0;
+  }
+  .pmeta{flex:1 1 180px;min-width:0}
+  .pname{font-family:'Cinzel',serif;font-weight:600;font-size:1.45rem;color:var(--text);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .prank{color:var(--gold);font-weight:600;font-size:.92rem;letter-spacing:.04em;margin-top:3px}
+  .ptotals{display:flex;gap:26px;align-items:center;flex-wrap:wrap}
+  .tstat{text-align:center}
+  .tstat .n{font-size:1.8rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+  .tstat .l{font-size:.68rem;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-top:5px}
+  .tstat.w .n{color:var(--win-glow)}
+  .tstat.l .n{color:var(--loss-glow)}
+  .tstat.wr .n{color:var(--gold)}
+
+  /* ---------- Tabs ---------- */
+  .tabs{display:flex;gap:5px;margin:28px 0 0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:thin}
+  .tabs::-webkit-scrollbar{height:5px}
+  .tabs::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+  .tab{
+    flex:1 1 0;min-width:0;background:var(--bg2);border:1px solid var(--border-soft);
+    border-bottom:none;color:var(--muted);font-family:'Rajdhani',sans-serif;
+    font-weight:600;font-size:.8rem;letter-spacing:.03em;text-transform:uppercase;
+    padding:10px 8px;border-radius:9px 9px 0 0;cursor:pointer;
+    transition:color .15s,background .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .tab small{display:block;font-size:.58rem;letter-spacing:.01em;text-transform:none;color:var(--muted-dim);font-weight:500;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tab:hover{color:var(--text)}
+  .tab.active{background:var(--bg3);color:var(--gold);border-color:var(--border)}
+  .tab.active small{color:var(--muted)}
+
+  /* ---------- Controls ---------- */
+  .panel{background:var(--bg3);border:1px solid var(--border);border-radius:0 0 14px 14px;padding:16px 18px 20px}
+  .controls{display:flex;gap:14px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .controls input[type=text]{padding:9px 12px;font-size:.95rem;flex:1 1 160px;border-radius:7px;background:var(--bg)}
+  .minsel{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:.85rem;font-weight:600;white-space:nowrap}
+  .minsel select{
+    background:var(--bg);border:1px solid var(--border);color:var(--text);
+    font-family:'Rajdhani',sans-serif;font-weight:600;padding:8px 10px;border-radius:7px;cursor:pointer;font-size:.95rem;
+  }
+
+  /* ---------- Table ---------- */
+  .tablewrap{overflow-x:auto}
+  table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+  thead th{
+    text-align:right;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--muted);font-weight:600;padding:6px 10px 10px;cursor:pointer;user-select:none;
+    border-bottom:1px solid var(--border);white-space:nowrap;
+  }
+  thead th:first-child{text-align:left}
+  thead th.sortable:hover{color:var(--gold)}
+  thead th .arr{color:var(--gold);font-size:.7rem;margin-left:3px}
+  tbody td{padding:9px 10px;border-bottom:1px solid var(--border-soft);font-size:1rem;font-weight:600;text-align:right}
+  tbody tr:hover{background:var(--row-hover)}
+  tbody tr:last-child td{border-bottom:none}
+  .hero{display:flex;align-items:center;gap:11px;text-align:left}
+  .hero img{width:30px;height:30px;border-radius:5px;background:var(--bg);flex-shrink:0;border:1px solid var(--border-soft)}
+  .hero span{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cw{color:var(--win-glow)}
+  .cl{color:var(--loss-glow)}
+  .cg{color:var(--text)}
+
+  /* win/loss bar */
+  .wrcell{min-width:160px}
+  .barbox{display:flex;align-items:center;gap:10px;justify-content:flex-end}
+  .pct{font-weight:700;font-size:1rem;min-width:46px;text-align:right;font-variant-numeric:tabular-nums}
+  .bar{
+    position:relative;height:9px;width:96px;border-radius:5px;overflow:hidden;
+    background:var(--loss);box-shadow:inset 0 0 0 1px rgba(0,0,0,.25);flex-shrink:0;
+  }
+  .bar .fill{
+    position:absolute;left:0;top:0;bottom:0;
+    background:linear-gradient(90deg,var(--win),var(--win-glow));
+    box-shadow:0 0 8px rgba(155,219,94,.4);
+  }
+  .empty{text-align:center;color:var(--muted);padding:34px 10px;font-size:1rem;font-weight:500}
+  .note{font-size:.84rem;color:var(--muted);margin-bottom:13px;line-height:1.5}
+  .note b{color:var(--gold-dim);font-weight:700}
+  .kda-sub{color:var(--muted-dim);font-weight:500;font-size:.76rem}
+
+  /* ---------- Draft / counter-pick ---------- */
+  .ic{border-radius:4px;background:var(--bg);object-fit:cover}
+  img.ic{display:block}
+  .draft-intro{font-size:.9rem;color:var(--muted);margin-bottom:14px;line-height:1.5}
+  .draft-intro b{color:var(--gold-dim)}
+  .enemy-row{display:flex;align-items:center;gap:10px;margin-bottom:15px;flex-wrap:wrap}
+  .enemy-label{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .chips{display:flex;gap:7px;flex-wrap:wrap;flex:1 1 auto}
+  .chips-empty{color:var(--muted-dim);font-size:.9rem;font-style:italic}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);color:var(--text);padding:4px 6px 4px 5px;border-radius:20px;font-size:.92rem;font-weight:600}
+  .chip img{border-radius:50%}
+  .chip .cn{white-space:nowrap}
+  .chip .cx{background:none;border:none;color:var(--muted);font-size:1.05rem;line-height:.9;cursor:pointer;padding:0 2px;font-weight:700}
+  .chip:hover .cx{color:var(--text)}
+  .chip.enemy{border-color:var(--loss)} .chip.enemy .cx:hover{color:var(--loss-glow)}
+  .chip.ally{border-color:var(--win)} .chip.ally .cx:hover{color:var(--win-glow)}
+  .lane-badge{background:var(--bg);border:1px solid var(--border);color:var(--gold);font-family:inherit;font-weight:800;font-size:.72rem;min-width:20px;height:20px;border-radius:10px;cursor:default;padding:0 6px;line-height:1}
+  .lane-badge.multi{cursor:pointer}
+  .lane-badge.multi:hover{border-color:var(--gold);background:var(--bg3)}
+  .enemy-label.red{color:var(--loss-glow)}
+  .enemy-label.green{color:var(--win-glow)}
+  .pe.lane-foe{outline:2px solid var(--gold);outline-offset:1px;border-radius:5px;padding:1px 4px}
+  .enemy-label.gold{color:var(--gold)}
+  .fav-chip{border-color:var(--gold-dim)}
+  .fav-chip .cx{color:var(--gold-dim)} .fav-chip:hover .cx{color:var(--gold)}
+  .fav-star{position:absolute;top:3px;right:5px;font-size:.82rem;color:var(--muted-dim);line-height:1}
+  .fav-star.on{color:var(--gold)}
+  .hg:hover .fav-star{color:var(--muted)} .hg:hover .fav-star.on{color:var(--gold)}
+  .grade{display:inline-block;border:1.5px solid;border-radius:6px;font-weight:800;font-size:.8rem;padding:1px 6px;min-width:30px;text-align:center}
+  .score-num{margin-left:9px;font-weight:800;font-size:1.08rem;font-variant-numeric:tabular-nums}
+  .pref-plus{margin-left:7px;font-size:.7rem;font-weight:700;color:var(--gold)}
+  .score-cell{white-space:nowrap}
+  .fav-row{background:none;border:none;color:var(--muted-dim);font-size:1rem;cursor:pointer;padding:0 7px 0 0;line-height:1;margin-right:1px}
+  .fav-row.on{color:var(--gold)}
+  .fav-row:hover{color:var(--gold)}
+  tr.pref-row td{background:rgba(200,166,87,.06)}
+  .go-build{cursor:pointer;border-bottom:1px dotted transparent}
+  .cnt-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0 4px}
+  .cnt-col{background:var(--bg);border:1px solid var(--border-soft);border-radius:10px;padding:8px 8px 10px}
+  .cnt-h{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:3px 4px 8px;margin-bottom:4px;border-bottom:1px solid var(--border-soft)}
+  .cnt-h.bad{color:var(--loss-glow)} .cnt-h.good{color:var(--win-glow)}
+  .cnt-row{display:flex;align-items:center;gap:8px;padding:3px 4px;border-radius:6px}
+  .cnt-row:hover{background:var(--bg3)}
+  .cnt-ic{width:26px;height:26px;border-radius:4px;background:var(--bg2);flex-shrink:0}
+  .cnt-name{flex:1;font-size:.84rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cnt-wr{font-weight:700;font-size:.84rem;font-variant-numeric:tabular-nums}
+  .hc-target{display:flex;align-items:center;gap:12px;margin:6px 0 14px}
+  .hc-grid{display:grid;grid-template-columns:repeat(5,minmax(168px,1fr));gap:10px;overflow-x:auto;padding-bottom:4px}
+  .hc-col{background:var(--bg);border:1px solid var(--border-soft);border-radius:10px;padding:8px}
+  .hc-h{font-size:.82rem;font-weight:800;color:var(--gold);padding:2px 4px 8px;border-bottom:1px solid var(--border-soft);margin-bottom:4px;display:flex;justify-content:space-between;align-items:baseline}
+  .hc-h span{font-size:.68rem;color:var(--muted);font-weight:600;text-transform:uppercase}
+  .hc-row{display:flex;align-items:center;gap:7px;padding:4px;border-radius:6px}
+  .hc-row:hover{background:var(--bg3)}
+  .hc-rank{width:14px;text-align:center;color:var(--muted-dim);font-size:.72rem;font-weight:700;flex-shrink:0}
+  .hc-ic{width:26px;height:26px;border-radius:4px;background:var(--bg2);flex-shrink:0}
+  .hc-name{flex:1;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hc-adv{font-weight:800;font-size:.82rem;font-variant-numeric:tabular-nums}
+  .hc-wr2{font-size:.74rem;color:var(--muted);font-variant-numeric:tabular-nums;min-width:30px;text-align:right}
+  .hc-prewarm{display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap}
+  .hc-pw-status{font-size:.82rem;color:var(--gold-dim);font-weight:600}
+  .hc-brk{font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:6px}
+  .hc-brk select{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:.82rem;padding:6px 8px;border-radius:8px;cursor:pointer}
+  @media(max-width:640px){ .hc-grid{grid-template-columns:repeat(5,minmax(150px,1fr))} }
+  @media(max-width:560px){ .cnt-grid{grid-template-columns:1fr} }
+  .go-build:hover{color:var(--gold);border-bottom-color:var(--gold-dim)}
+  .build-head{display:flex;align-items:center;gap:14px;margin:4px 0 18px}
+  .build-head img{border-radius:9px;border:2px solid var(--gold-dim)}
+  .bh-name{font-family:'Cinzel',serif;font-weight:600;font-size:1.4rem;color:var(--text)}
+  .bh-sub{color:var(--gold-dim);font-weight:600;font-size:.86rem;margin-top:3px}
+  .bsec{margin-bottom:14px}
+  .bsec-t{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-bottom:8px}
+  .items{display:flex;gap:7px;flex-wrap:wrap}
+  .iitem{width:44px;height:32px;border-radius:5px;border:1px solid var(--border-soft);background:var(--bg);object-fit:cover}
+  .tl td .iitem{width:36px;height:27px}
+  .hg.sel{border-color:var(--gold);background:var(--bg3);color:var(--gold)}
+  .build-inline:not(:empty){margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}
+  .build-close{margin-left:auto;background:none;border:1px solid var(--border);color:var(--muted);width:30px;height:30px;border-radius:7px;cursor:pointer;font-size:1.15rem;font-weight:700;line-height:1;flex-shrink:0}
+  .build-close:hover{color:var(--text);border-color:var(--gold-dim)}
+  .match-list{display:flex;flex-direction:column;gap:7px}
+  .match{display:flex;align-items:center;gap:13px;background:var(--bg3);border:1px solid var(--border-soft);border-left:4px solid var(--loss);border-radius:9px;padding:9px 13px;text-decoration:none;color:var(--text);flex-wrap:wrap}
+  .match.w{border-left-color:var(--win)}
+  .match:hover{background:var(--row-hover);border-color:var(--border)}
+  .m-res{font-weight:700;font-size:.76rem;letter-spacing:.04em;text-transform:uppercase;width:56px;flex-shrink:0}
+  .match.w .m-res{color:var(--win-glow)} .match.l .m-res{color:var(--loss-glow)}
+  .m-hero{display:flex;align-items:center;gap:9px;flex:1 1 150px;min-width:0}
+  .m-hero img{border-radius:6px;flex-shrink:0}
+  .m-htxt{min-width:0}
+  .m-name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-mode{font-size:.73rem;color:var(--muted);font-weight:600}
+  .m-kda,.m-stat{text-align:center;flex-shrink:0;font-variant-numeric:tabular-nums}
+  .m-kda b,.m-stat b{display:block;font-weight:700;font-size:.95rem}
+  .m-kda span,.m-stat span{font-size:.58rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted-dim)}
+  .m-kda{width:66px}.m-stat{width:44px}
+  .m-items{display:flex;gap:3px;flex-wrap:wrap}
+  .m-items .iitem{width:32px;height:24px}
+  .match{cursor:pointer}
+  .match-filters{display:flex;align-items:center;gap:10px;margin-bottom:13px;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .sgb{background:var(--bg2);border:none;color:var(--muted);font-family:inherit;font-weight:700;font-size:.85rem;padding:7px 13px;cursor:pointer}
+  .sgb:not(:last-child){border-right:1px solid var(--border)}
+  .sgb.on{background:var(--bg3);color:var(--gold)}
+  .mf-sel{background:var(--bg2);border:1px solid var(--border);color:var(--text);font-family:inherit;font-weight:600;padding:7px 10px;border-radius:8px;cursor:pointer;font-size:.88rem}
+  .mf-count{font-size:.8rem;color:var(--muted);font-weight:600;margin-left:auto}
+  .md-back{background:var(--bg2);border:1px solid var(--border);color:var(--muted);font-family:inherit;font-weight:700;font-size:.86rem;padding:8px 14px;border-radius:8px;cursor:pointer;margin-bottom:14px}
+  .md-back:hover{color:var(--text);border-color:var(--gold-dim)}
+  .md-top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .md-top .md-back{margin-bottom:0}
+  table.sb.sb-ext{min-width:900px}
+  .m-right{margin-left:auto;text-align:right;flex-shrink:0}
+  .m-ago{font-size:.73rem;color:var(--muted);font-weight:600}
+  .m-id{font-size:.7rem;color:var(--muted-dim);font-weight:600;margin-top:2px;display:flex;align-items:center;gap:4px;justify-content:flex-end}
+  .copy-id{background:none;border:1px solid var(--border);color:var(--muted);border-radius:5px;cursor:pointer;font-size:.72rem;line-height:1;padding:1px 5px}
+  .copy-id:hover{color:var(--gold);border-color:var(--gold-dim)}
+  .md-mid{font-size:.82rem;color:var(--muted);font-weight:600;margin-top:6px;display:inline-flex;align-items:center;gap:6px}
+  .md-mid b{color:var(--text)}
+  .wmatch{align-items:center}
+  .w-teams{display:flex;align-items:center;gap:8px;flex:1 1 280px;flex-wrap:wrap}
+  .w-side{display:flex;gap:2px;padding:3px 5px;border-radius:6px;flex-wrap:wrap}
+  .w-side.won{background:rgba(116,185,78,.12);outline:1px solid rgba(116,185,78,.35)}
+  .w-vs{color:var(--muted-dim);font-size:.72rem;font-weight:700}
+  .wic{width:26px;height:26px;border-radius:4px;background:var(--bg)}
+  .w-meta{font-size:.74rem;color:var(--muted);font-weight:600;flex:0 0 auto}
+  .w-pro{flex:1 1 240px;font-weight:600}
+  .w-pro b{font-weight:700}
+  .w-diag{font-size:.74rem;color:var(--muted);background:var(--bg2);border:1px solid var(--border-soft);border-radius:7px;padding:6px 10px;margin-bottom:10px}
+  .w-diag b{color:var(--text)}
+  .meta-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+  .meta-col{background:var(--bg2);border:1px solid var(--border-soft);border-radius:10px;padding:8px 8px 10px}
+  .meta-h{font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--gold);font-size:.92rem;text-transform:uppercase;letter-spacing:.04em;padding:4px 4px 8px;border-bottom:1px solid var(--border-soft);margin-bottom:6px}
+  .meta-h span{color:var(--muted);font-weight:600;font-size:.7rem}
+  .meta-row{display:flex;align-items:center;gap:7px;padding:4px 4px;border-radius:6px}
+  .meta-row:hover{background:var(--bg3)}
+  .mr-rank{width:15px;color:var(--muted-dim);font-size:.72rem;font-weight:700;text-align:center;flex-shrink:0}
+  .mr-ic{width:26px;height:26px;border-radius:4px;background:var(--bg);flex-shrink:0}
+  .mr-name{flex:1;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mr-wr{font-weight:700;font-size:.84rem;font-variant-numeric:tabular-nums}
+  .live-cards{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .live-card{flex:1 1 200px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:15px 18px}
+  .lc-lbl{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700}
+  .lc-load{color:var(--gold-dim);font-weight:600;text-transform:none;letter-spacing:0}
+  .lc-big{font-size:2.4rem;font-weight:800;font-family:'Rajdhani',sans-serif;font-variant-numeric:tabular-nums;color:var(--win-glow);line-height:1.15;margin-top:2px}
+  .lc-big.gold{color:var(--gold)}
+  .lc-sub{font-size:.78rem;color:var(--muted);margin-top:2px}
+  .live-chart{background:var(--bg2);border:1px solid var(--border-soft);border-radius:12px;padding:8px 8px 4px;margin-bottom:14px}
+  .msum{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:13px 15px;margin-bottom:16px}
+  .msum-h{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin-bottom:9px}
+  .wrw-row{display:flex;gap:7px;flex-wrap:wrap}
+  .wrw{background:var(--bg);border:1px solid var(--border-soft);border-radius:8px;padding:6px 9px;text-align:center;min-width:52px}
+  .wrw-n{font-size:.68rem;color:var(--muted-dim);font-weight:700}
+  .wrw-wr{font-size:1.02rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+  .wrw-rec{font-size:.66rem;color:var(--muted)}
+  .lane-box{margin-top:13px;padding-top:12px;border-top:1px solid var(--border-soft)}
+  .lane-head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
+  .lane-head b{color:var(--text)}
+  .lane-head span{font-size:.76rem;color:var(--muted)}
+  .lane-stats{display:flex;gap:16px;flex-wrap:wrap;font-size:.9rem;margin-bottom:9px}
+  .lane-stats b{font-variant-numeric:tabular-nums}
+  .ls-w{color:var(--win-glow)} .ls-l{color:var(--loss-glow)} .ls-t{color:var(--muted)} .ls-p{color:var(--gold)}
+  .lane-prog{color:var(--gold-dim);font-weight:600}
+  .lane-note{font-size:.76rem;color:var(--muted-dim);margin-bottom:9px;line-height:1.45}
+  .lane-note b{color:var(--muted)}
+  .lane-btn{background:var(--bg3);border:1px solid var(--gold-dim);color:var(--gold);font-family:inherit;font-weight:700;font-size:.82rem;padding:7px 14px;border-radius:8px;cursor:pointer}
+  .lane-btn:hover{filter:brightness(1.1)}
+  .lane-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .lane-btn.alt{border-color:var(--border);color:var(--muted)}
+  .lane-btn.alt:hover{color:var(--gold);border-color:var(--gold-dim)}
+  .lane-btn:disabled{opacity:.6;cursor:default}
+  .search-res{margin-top:26px;display:flex;flex-direction:column;gap:6px}
+  .sr-h{font-size:.85rem;color:var(--text);font-weight:600;margin-bottom:6px}
+  .sr-h span{color:var(--muted);font-weight:500}
+  .sr-row{display:flex;align-items:center;gap:12px;background:var(--bg2);border:1px solid var(--border-soft);border-radius:10px;padding:10px 14px;cursor:pointer;font-family:inherit;text-align:left;transition:background .12s,border-color .12s}
+  .sr-row:hover{background:var(--bg3);border-color:var(--gold-dim)}
+  .sr-av{width:40px;height:40px;border-radius:8px;background:var(--bg);flex-shrink:0}
+  .sr-name{font-weight:700;color:var(--text);font-size:.98rem;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .sr-meta{font-size:.76rem;color:var(--muted);flex-shrink:0}
+  .sr-id{font-size:.74rem;color:var(--muted-dim);font-variant-numeric:tabular-nums;flex-shrink:0}
+  @media(max-width:560px){ .sr-meta{display:none} }
+  #quick{margin-top:0}
+  .account-area{position:absolute;top:18px;right:20px;z-index:5}
+  .account-area .quick-wrap{justify-content:flex-end;align-items:center}
+  .quick-hint{background:var(--bg2);border:1px dashed var(--border);color:var(--muted);font-family:inherit;font-weight:600;font-size:.78rem;padding:5px 11px;border-radius:20px;cursor:pointer}
+  .quick-hint:hover{color:var(--gold);border-color:var(--gold-dim)}
+  .quick-wrap{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .quick-lbl{font-size:.72rem;color:var(--muted-dim);font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+  .quick-chip{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border-soft);border-radius:20px;padding:3px 6px 3px 3px;cursor:pointer;color:var(--text);font-size:.82rem;font-weight:600}
+  .quick-chip:hover{border-color:var(--gold-dim);background:var(--bg3)}
+  .quick-chip img{width:22px;height:22px;border-radius:50%;background:var(--bg);flex-shrink:0}
+  .qc-name{max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .quick-x{color:var(--muted-dim);font-size:.7rem;padding:1px 4px;border-radius:5px}
+  .quick-x:hover{color:var(--dire);background:rgba(0,0,0,.2)}
+  .quick-save{background:var(--bg3);border:1px solid var(--gold-dim);color:var(--gold);font-family:inherit;font-weight:700;font-size:.8rem;padding:5px 11px;border-radius:20px;cursor:pointer}
+  .quick-save:hover{filter:brightness(1.1)}
+  @media(max-width:620px){ .account-area{position:static;margin:14px auto 0} .account-area .quick-wrap{justify-content:center} }
+  .wmatch .m-id{margin-top:0}
+  .load-more-wrap{text-align:center;margin-top:14px}
+  .load-more{background:var(--bg2);border:1px solid var(--border);color:var(--gold);font-family:inherit;font-weight:700;font-size:.9rem;padding:9px 22px;border-radius:8px;cursor:pointer}
+  .load-more:hover:not(:disabled){background:var(--bg3);border-color:var(--gold-dim)}
+  .load-more:disabled{opacity:.6;cursor:default}
+  .md-head{text-align:center;margin-bottom:18px}
+  .md-win{font-family:'Cinzel',serif;font-weight:700;font-size:1.5rem;color:var(--win-glow);letter-spacing:.04em}
+  .md-loss{font-family:'Cinzel',serif;font-weight:700;font-size:1.5rem;color:var(--loss-glow);letter-spacing:.04em}
+  .md-score{font-size:1.5rem;font-weight:800;font-variant-numeric:tabular-nums;margin-top:4px}
+  .md-meta{color:var(--muted);font-size:.86rem;font-weight:600;margin-top:4px}
+  .team-h{font-family:'Cinzel',serif;font-weight:600;font-size:1.05rem;margin:16px 0 8px;padding-left:2px}
+  .team-h.won{color:var(--win-glow)} .team-h.lost{color:var(--loss-glow)}
+  .team-h span{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.06em;opacity:.85}
+  table.sb{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;min-width:680px}
+  table.sb th{text-align:right;font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;padding:5px 8px 8px;border-bottom:1px solid var(--border)}
+  table.sb th:first-child{text-align:left}
+  table.sb td{padding:6px 8px;border-bottom:1px solid var(--border-soft);text-align:right;font-weight:600;font-size:.92rem}
+  table.sb td.hero{text-align:left}
+  table.sb tr.me-row td{background:rgba(200,166,87,.1)}
+  table.sb .m-items{justify-content:flex-end}
+  table.sb .m-items .iitem{width:28px;height:21px}
+  .md-foot{text-align:center;margin-top:16px}
+  .md-foot a{color:var(--muted);text-decoration:none;font-size:.82rem;font-weight:600;border-bottom:1px dotted var(--muted-dim)}
+  .md-foot a:hover{color:var(--gold-dim)}
+  .md-hint{font-size:.78rem;color:var(--muted-dim);font-weight:500;margin-top:8px}
+  .go-player{cursor:pointer;border-bottom:1px dotted var(--gold-dim)}
+  .go-player:hover{color:var(--gold)}
+  .anon{color:var(--muted-dim)}
+  .grade-mini{color:var(--muted-dim);font-weight:700}
+  table.sb .grade{font-size:.72rem;min-width:26px;padding:1px 4px}
+  .pick-mode{display:flex;align-items:center;gap:8px;font-size:.82rem;color:var(--muted);font-weight:600;margin-bottom:10px;flex-wrap:wrap}
+  .pm{background:var(--bg2);border:1px solid var(--border);color:var(--muted);font-family:inherit;font-weight:700;font-size:.85rem;padding:6px 13px;border-radius:7px;cursor:pointer}
+  .pm:hover{color:var(--text)}
+  .pm.active.red{border-color:var(--loss);color:var(--loss-glow);background:rgba(210,74,55,.13)}
+  .pm.active.green{border-color:var(--win);color:var(--win-glow);background:rgba(116,185,78,.13)}
+  .pos-row{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+  .pos-chips{display:flex;gap:6px;flex-wrap:wrap}
+  .pos{background:var(--bg2);border:1px solid var(--border-soft);color:var(--muted);font-family:inherit;font-weight:700;font-size:.82rem;padding:6px 12px;border-radius:8px;cursor:pointer;text-align:center;line-height:1.1}
+  .pos small{display:block;font-size:.6rem;font-weight:600;color:var(--muted-dim);text-transform:uppercase;letter-spacing:.04em;margin-top:2px}
+  .pos:hover{color:var(--text);border-color:var(--gold-dim)}
+  .pos.active{background:var(--bg3);border-color:var(--gold);color:var(--gold)}
+  .pos.active small{color:var(--muted)}
+  .clear-pos{background:none;border:1px solid var(--border);color:var(--muted);font-weight:700;width:30px;height:30px;border-radius:7px;cursor:pointer}
+  .clear-pos:hover{color:var(--text);border-color:var(--gold-dim)}
+  .clear-enemies{background:none;border:1px solid var(--border);color:var(--muted);font-family:inherit;font-weight:600;font-size:.82rem;padding:5px 11px;border-radius:7px;cursor:pointer}
+  .clear-enemies:hover{color:var(--loss-glow);border-color:var(--loss)}
+  .picker{margin-bottom:14px}
+  #pickerSearch{width:100%;background:var(--bg);border:1px solid var(--border);color:var(--text);font-family:inherit;font-weight:600;font-size:.95rem;padding:9px 12px;border-radius:7px;outline:none;margin-bottom:10px}
+  #pickerSearch:focus{border-color:var(--gold-dim);box-shadow:0 0 0 3px rgba(200,166,87,.1)}
+  .hero-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));gap:6px;max-height:228px;overflow-y:auto;padding:5px;background:var(--bg);border:1px solid var(--border-soft);border-radius:9px}
+  .hg{position:relative;display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid transparent;border-radius:7px;padding:5px 22px 5px 7px;cursor:pointer;color:var(--text);font-family:inherit;font-size:.77rem;font-weight:600;text-align:left;overflow:hidden}
+  .hg span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .hg:hover{border-color:var(--gold-dim);background:var(--row-hover)}
+  .picker-empty{color:var(--muted);font-size:.9rem;padding:14px;text-align:center}
+  .draft-opts{margin-bottom:6px;display:flex;gap:18px;flex-wrap:wrap}
+  .help{margin:0 0 15px;border:1px solid var(--border-soft);border-radius:9px;background:var(--bg2);overflow:hidden}
+  .help summary{cursor:pointer;padding:10px 13px;font-weight:600;color:var(--gold-dim);font-size:.88rem;list-style:none;user-select:none}
+  .help summary::-webkit-details-marker{display:none}
+  .help summary::before{content:"▸ ";color:var(--gold-dim)}
+  .help[open] summary::before{content:"▾ "}
+  .help summary:hover{color:var(--gold)}
+  .help-body{padding:2px 14px 13px;font-size:.85rem;color:var(--muted);line-height:1.5;display:flex;flex-direction:column;gap:7px}
+  .help-body b{color:var(--text);font-weight:700}
+  .help-body .g{color:var(--gold)}
+  .chk{display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:var(--muted);font-size:.92rem}
+  .chk input{accent-color:var(--gold);width:16px;height:16px;cursor:pointer}
+  .pe-row{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}
+  .pe{display:inline-flex;align-items:center;gap:3px;font-size:.78rem;font-weight:700;font-variant-numeric:tabular-nums}
+  .pe img{border-radius:4px}
+  .maxnote{font-size:.8rem;color:var(--gold-dim);font-weight:600}
+  .prewarm{display:flex;align-items:center;gap:12px;margin-bottom:15px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px 13px}
+  .pw-btn{background:linear-gradient(180deg,#d9b766,var(--gold) 60%,var(--gold-dim));color:#1a1408;border:none;font-family:inherit;font-weight:700;font-size:.9rem;padding:9px 15px;border-radius:8px;cursor:pointer;white-space:nowrap}
+  .pw-btn:hover:not(:disabled){filter:brightness(1.08)}
+  .pw-btn:disabled{opacity:.6;cursor:default}
+  .pw-status{font-size:.86rem;color:var(--muted);font-weight:600;white-space:nowrap}
+  .pw-bar{flex:1 1 110px;height:7px;background:var(--bg);border-radius:5px;overflow:hidden;min-width:70px}
+  .pw-fill{height:100%;background:linear-gradient(90deg,var(--gold-dim),var(--gold));transition:width .25s}
+
+  footer{text-align:center;margin-top:30px;color:var(--muted-dim);font-size:.78rem;letter-spacing:.03em}
+  footer a{color:var(--muted);text-decoration:none}
+  footer a:hover{color:var(--gold-dim)}
+
+  @media(max-width:560px){
+    .tab small{display:none}
+    .ptotals{gap:18px}
+    .tstat .n{font-size:1.5rem}
+    .bar{width:64px}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="kicker">Statistiky zápasů</div>
+    <h1>Dota&nbsp;2 Souhrn</h1>
+    <p class="sub">Výhry, prohry a poměry s každým hrdinou — i proti němu</p>
+    <div id="quick" class="account-area"></div>
+  </header>
+
+  <div class="searchbar">
+    <div class="field">
+      <input type="text" id="accId" placeholder="Steam jméno, account ID nebo odkaz na profil" autocomplete="off">
+    </div>
+    <button class="load" id="loadBtn">Načíst</button>
+  </div>
+  <p class="hint">Napiš svoje <b>Steam jméno</b> a vyber se ze seznamu, nebo zadej account ID / odkaz z <a href="https://www.opendota.com" target="_blank" rel="noopener">opendota.com</a>. Profil musí mít veřejnou historii zápasů.</p>
+
+  <div id="content"></div>
+
+  <footer>Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota API</a> &nbsp;·&nbsp; Není napojeno na Valve / Steam &nbsp;·&nbsp; <b style="color:var(--gold-dim)">build B45 · web</b></footer>
+</div>
+
+<script>
+const HERO_CDN = "https://cdn.cloudflare.steamstatic.com/apps/dota2/images/dota_react/heroes/icons/";
+const RANKS = {1:"Herald",2:"Guardian",3:"Crusader",4:"Archon",5:"Legend",6:"Ancient",7:"Divine",8:"Immortal"};
+// Přibližné mapování pozice -> role hrdiny (z OpenDota "roles")
+const POSITIONS = [
+  {id:1, label:"Pos 1", sub:"Carry",    roles:["Carry"]},
+  {id:2, label:"Pos 2", sub:"Mid",      roles:["Carry","Nuker"]},
+  {id:3, label:"Pos 3", sub:"Offlane",  roles:["Initiator","Durable"]},
+  {id:4, label:"Pos 4", sub:"Soft sup", roles:["Support","Disabler","Initiator"]},
+  {id:5, label:"Pos 5", sub:"Hard sup", roles:["Support"]},
+];
+function heroMatchesPos(id, pos){ return heroPositions(id).includes(pos); }
+const ALL_POS = [1,2,3,4,5]; // každý hrdina může být na každé lajně
+const POS_CYCLE = [1,2,3,4,5,"4/5"]; // cyklus odznáčku; "4/5" = nejistý support
+// Kurátorovaná tabulka pozic (běžné meta usage; primární pozice první). Co tu není, padá na odhad podle rolí.
+const HERO_POS = {
+  "Anti-Mage":[1],"Axe":[3],"Bane":[5,4],"Bloodseeker":[1,3],"Crystal Maiden":[5],
+  "Drow Ranger":[1],"Earthshaker":[4,3,5],"Juggernaut":[1],"Mirana":[4,2],"Morphling":[1,2],
+  "Shadow Fiend":[2,1],"Phantom Lancer":[1],"Puck":[2],"Pudge":[4,3],"Razor":[3,2,1],
+  "Sand King":[3,4],"Storm Spirit":[2],"Sven":[1,3],"Tiny":[3,2,4],"Vengeful Spirit":[4,5],
+  "Windranger":[2,4],"Zeus":[2],"Kunkka":[2,3],"Lina":[2,4],"Lion":[5,4],
+  "Shadow Shaman":[4,5],"Slardar":[3],"Tidehunter":[3],"Witch Doctor":[5,4],"Lich":[5],
+  "Riki":[4,1],"Enigma":[4,3],"Tinker":[2],"Sniper":[1,2],"Necrophos":[3,2],
+  "Warlock":[5],"Beastmaster":[3],"Queen of Pain":[2],"Venomancer":[4,3],"Faceless Void":[1],
+  "Wraith King":[1,3],"Death Prophet":[2,3],"Phantom Assassin":[1],"Pugna":[2,4],"Templar Assassin":[2],
+  "Viper":[2,3,1],"Luna":[1],"Dragon Knight":[2,3],"Dazzle":[5,4],"Clockwerk":[3,4],
+  "Leshrac":[2,3],"Nature's Prophet":[3,1,4],"Lifestealer":[1],"Dark Seer":[3],"Clinkz":[1],
+  "Omniknight":[5,4],"Enchantress":[4,5],"Huskar":[1,2],"Night Stalker":[3],"Broodmother":[1,3],
+  "Bounty Hunter":[4],"Weaver":[1,3],"Jakiro":[5,4],"Batrider":[3,4],"Chen":[4],
+  "Spectre":[1],"Ancient Apparition":[5,4],"Doom":[3,4],"Ursa":[1,3],"Spirit Breaker":[4,3],
+  "Gyrocopter":[1,4],"Alchemist":[1,3],"Invoker":[2,1],"Silencer":[5,4],"Outworld Destroyer":[2],
+  "Outworld Devourer":[2],"Lycan":[1,3],"Brewmaster":[3],"Shadow Demon":[5,4],"Lone Druid":[1],
+  "Chaos Knight":[1,3],"Meepo":[1],"Treant Protector":[5,4],"Ogre Magi":[4,5],"Undying":[4,3,5],
+  "Rubick":[4,5],"Disruptor":[5,4],"Nyx Assassin":[4],"Naga Siren":[1,5],"Keeper of the Light":[5,4],
+  "Io":[5,4],"Visage":[3,4],"Slark":[1],"Medusa":[1],"Troll Warlord":[1],
+  "Centaur Warrunner":[3],"Magnus":[3,2],"Timbersaw":[3,2],"Bristleback":[3],"Tusk":[4,3],
+  "Skywrath Mage":[5,4],"Abaddon":[3,5],"Elder Titan":[4,5],"Legion Commander":[3,4],"Techies":[4,5],
+  "Ember Spirit":[2,1],"Earth Spirit":[4],"Underlord":[3],"Terrorblade":[1],"Phoenix":[4,5],
+  "Oracle":[5,4],"Winter Wyvern":[5,4],"Arc Warden":[1,2],"Monkey King":[1,3],"Dark Willow":[4,5],
+  "Pangolier":[3,2,4],"Grimstroke":[5,4],"Hoodwink":[4,5],"Void Spirit":[2],"Snapfire":[4,5],
+  "Mars":[3],"Dawnbreaker":[3,4],"Marci":[4,3],"Primal Beast":[3],"Muerta":[1,4],
+  "Kez":[1,2],"Ringmaster":[5,4]
+};
+function heroPositions(id){
+  const nm = heroMap[id] && heroMap[id].name;
+  if(nm && HERO_POS[nm]) return HERO_POS[nm];
+  const roles=(heroMap[id]&&heroMap[id].roles)||[];           // záloha podle rolí
+  return POSITIONS.filter(p=> roles.some(r=> p.roles.includes(r))).map(p=>p.id);
+}
+// Pravděpodobný lane oponent podle tvé pozice (safelane 1+5 vs offlane 3+4, mid vs mid)
+const LANE_OPP = {1:[3,4], 5:[3,4], 3:[1,5], 4:[1,5], 2:[2]};
+
+let heroMap = {};      // hero_id -> {name, short}
+let state = {
+  accId: "",
+  loaded: false,       // je načtený profil hráče?
+  savedAccounts: [],   // uložené účty (Moje účty)
+  tab: "self",         // self | with | against | farm
+  minGames: 1,
+  search: "",
+  sortKey: "g",
+  sortDir: -1,
+  heroes: [],          // processed rows (with/against/self)
+  farmHeroes: [],      // processed rows (benchmarks)
+  farmLoaded: false,
+  farmLoading: false,
+  draftEnemies: [],    // selected enemy hero ids
+  draftAllies: [],     // selected ally hero ids
+  pickMode: "enemy",   // kam přidávat z gridu: enemy | ally
+  draftPos: null,      // moje pozice 1–5 (null = bez filtru)
+  draftStrictPos: false, // přísné filtrování návrhů podle pozice
+  laneOf: {},          // heroId -> přiřazená pozice/lajna
+  draftPickerSearch: "",
+  draftOnlyMine: false,
+  matchupCache: {},    // heroId -> {oppId:{g,w}} (global, persists across players)
+  prewarming: false,   // probíhá hromadné přednačítání
+  preferred: [],       // oblíbení hrdinové (heroId) – ukládá se do localStorage
+  buildHero: null,     // vybraný hrdina pro item build
+  buildPickerSearch: "",
+  buildCache: {},      // heroId -> spočítaný build
+  buildLoading: false,
+  itemConst: null,     // metadata itemů (id/name/img)
+  matchHist: null,     // historie zápasů
+  laneStats: null, laneLoading: false, laneProg: 0, laneByMatch: {},
+  parseRunning: false, parseMsg: "",
+  matchHistLoaded: false,
+  matchHistLoading: false,
+  matchFilter: {result:"all", mode:"all", hero:0},
+  matchDetailId: null, // otevřený detail zápasu
+  matchDetailCache: {},
+  matchDetailLoading: false,
+  matchDetailExtended: false, // podrobný (herní) scoreboard
+  matchDetailReturn: "matches", // kam se vrátit ze detailu
+  worldMode: "public",  // public | pro
+  worldRank: 0,         // 0 = vše, jinak medaile 1–8 (min)
+  worldHeroA: 0, worldHeroB: 0, worldRel: "any", // any | with | vs
+  worldPublic: null, worldPublicLoading: false, worldErr: null, worldExplorerDead: false,
+  metaStats: null, metaLoading: false, metaRank: 0, metaMinPicks: 100,
+  baseWR: null, baseWRLoading: false,
+  counterHero: null, counterSearch: "",
+  hcData: {}, hcLoadingId: null, hcErr: null, hcPrewarm: {running:false, done:0, total:0},
+  counterBracket: "all",
+  liveHistory: [], liveNow: null, liveLoading: false, liveErr: null, liveTimerStarted: false,
+  worldPro: null, worldProLoading: false,
+};
+
+const $ = s => document.querySelector(s);
+const content = $("#content");
+
+/* ---------- Persistent matchup cache (localStorage; works when run locally) ---------- */
+const MU_LS_KEY = "dota_matchups_v2";
+const MU_TTL = 7*24*3600*1000; // 7 dní
+
+function loadMatchupCache(){
+  try{
+    const raw = localStorage.getItem(MU_LS_KEY);
+    if(!raw) return;
+    const obj = JSON.parse(raw), now = Date.now();
+    Object.entries(obj).forEach(([id,rec])=>{
+      if(rec && rec.t && rec.map && (now-rec.t) < MU_TTL) state.matchupCache[id] = rec.map;
+    });
+  }catch(e){ /* localStorage nedostupný (např. náhled) – cache jen v paměti */ }
+}
+function saveMatchup(id, map){
+  state.matchupCache[id] = map;
+  try{
+    let obj = {};
+    try{ obj = JSON.parse(localStorage.getItem(MU_LS_KEY) || "{}"); }catch(_){ obj = {}; }
+    obj[id] = { t: Date.now(), map };
+    localStorage.setItem(MU_LS_KEY, JSON.stringify(obj));
+  }catch(e){ /* ignoruj – cache zůstane v paměti */ }
+}
+loadMatchupCache();
+
+/* ---------- Oblíbení hrdinové (localStorage) ---------- */
+const PREF_LS_KEY = "dota_pref_v1";
+const PREF_BONUS = 12; // bonusové body pro oblíbené
+function loadPreferred(){
+  try{ const raw=localStorage.getItem(PREF_LS_KEY); if(raw){ const a=JSON.parse(raw); if(Array.isArray(a)) state.preferred=a.map(Number); } }catch(e){}
+}
+function savePreferred(){
+  try{ localStorage.setItem(PREF_LS_KEY, JSON.stringify(state.preferred)); }catch(e){}
+}
+function togglePreferred(id){
+  id=+id;
+  if(state.preferred.includes(id)) state.preferred=state.preferred.filter(x=>x!==id);
+  else state.preferred.push(id);
+  savePreferred();
+  if(state.tab==="draft") renderDraftPanel();
+}
+loadPreferred();
+
+/* ---------- Moje účty (uložené profily) ---------- */
+const ACC_LS_KEY = "dota_accounts_v1";
+function loadSavedAccounts(){
+  try{ const r = localStorage.getItem(ACC_LS_KEY); state.savedAccounts = r ? JSON.parse(r) : []; }
+  catch(e){ state.savedAccounts = []; }
+}
+function persistAccounts(){ try{ localStorage.setItem(ACC_LS_KEY, JSON.stringify(state.savedAccounts)); }catch(e){} }
+function isAccSaved(id){ return state.savedAccounts.some(a=> +a.id===+id); }
+function saveAccount(a){
+  if(!a || !a.id || isAccSaved(a.id)) return;
+  state.savedAccounts.unshift({ id:+a.id, name:a.name||"", avatar:a.avatar||"" });
+  state.savedAccounts = state.savedAccounts.slice(0,12);
+  persistAccounts(); renderQuickBar();
+}
+function removeAccount(id){
+  state.savedAccounts = state.savedAccounts.filter(a=> +a.id!==+id);
+  persistAccounts(); renderQuickBar();
+}
+function renderQuickBar(){
+  const q = $("#quick"); if(!q) return;
+  const chips = state.savedAccounts.map(a=>`<span class="quick-chip" data-acc="${a.id}" title="${escapeHtml(a.name||('#'+a.id))}">
+      <img src="${a.avatar||''}" onerror="this.style.display='none'" alt="">
+      <span class="qc-name">${escapeHtml(a.name||('#'+a.id))}</span>
+      <span class="quick-x" data-rm="${a.id}" title="odebrat">✕</span>
+    </span>`).join("");
+  let saveChip = "";
+  if(state.loaded && state.curAccount && state.curAccount.id && !isAccSaved(state.curAccount.id)){
+    saveChip = `<button class="quick-save" id="quickSave" title="uložit načtený účet mezi Moje účty">☆ Uložit tenhle</button>`;
+  }
+  if(!chips && !saveChip){
+    q.innerHTML = `<button class="quick-hint" id="quickHint" title="Načti svůj profil a ulož si ho sem">★ Moje účty</button>`;
+    const h=$("#quickHint"); if(h) h.onclick=()=>{ const inp=$("#accId"); if(inp){ inp.focus(); inp.scrollIntoView({behavior:'smooth',block:'center'}); } };
+    return;
+  }
+  q.innerHTML = `<div class="quick-wrap">${state.savedAccounts.length?'<span class="quick-lbl">Moje účty</span>':''}${chips}${saveChip}</div>`;
+  q.querySelectorAll(".quick-chip").forEach(el=>{
+    el.onclick=(e)=>{
+      const rm = e.target && e.target.dataset ? e.target.dataset.rm : null;
+      if(rm){ removeAccount(+rm); return; }
+      const inp=$("#accId"); if(inp) inp.value=el.dataset.acc;
+      loadProfile(+el.dataset.acc);
+    };
+  });
+  const qs=$("#quickSave"); if(qs) qs.onclick=()=> saveAccount(state.curAccount);
+}
+loadSavedAccounts();
+loadLiveHistory();
+
+// Skóre 1–100 -> známka
+function gradeInfo(s){
+  if(s>=92) return {g:"S+", c:"#ffd24a"};
+  if(s>=82) return {g:"S",  c:"var(--gold)"};
+  if(s>=72) return {g:"A",  c:"var(--win-glow)"};
+  if(s>=60) return {g:"B",  c:"#9bcf6a"};
+  if(s>=45) return {g:"C",  c:"var(--text)"};
+  if(s>=30) return {g:"D",  c:"#d99a5b"};
+  if(s>=1)  return {g:"E",  c:"var(--loss-glow)"};
+  return {g:"F", c:"#ff4d4d"};
+}
+
+const sleep = ms => new Promise(r=>setTimeout(r,ms));
+function cachedCount(){ return Object.keys(heroMap).filter(id=> state.matchupCache[id]).length; }
+function pwRefresh(extra){
+  const total=Object.keys(heroMap).length, c=cachedCount();
+  const s=$("#prewarmStatus"); if(s) s.textContent = extra || `${c} / ${total} hrdinů v cache`;
+  const f=$("#prewarmFill"); if(f) f.style.width=(total?Math.round(c/total*100):0)+"%";
+  const b=$("#prewarmBtn"); if(b){ b.disabled=state.prewarming; b.textContent = state.prewarming ? "Stahuji…" : "⬇ Přednačíst všechny hrdiny"; }
+}
+async function prewarmAll(){
+  if(state.prewarming) return;
+  if(!Object.keys(heroMap).length){ return; }
+  state.prewarming=true; pwRefresh("Spouštím…");
+  const ids=Object.keys(heroMap).map(Number).filter(id=> !state.matchupCache[id]);
+  if(!ids.length){ state.prewarming=false; pwRefresh("Vše už je v cache ✓"); return; }
+
+  const CONC=4;           // paralelně, ať nepřekročíme ~60/min
+  let idx=0, fails=0;
+  async function worker(){
+    while(idx<ids.length){
+      const id=ids[idx++];
+      let ok=false;
+      for(let a=0; a<3 && !ok; a++){
+        try{
+          const data=await getJSON(`https://api.opendota.com/api/heroes/${id}/matchups`);
+          const map={}; (data||[]).forEach(r=>{ map[r.hero_id]={g:r.games_played||0,w:r.wins||0}; });
+          saveMatchup(id,map); ok=true;
+        }catch(e){ await sleep(1500*(a+1)); } // backoff při limitu
+      }
+      if(!ok) fails++;
+      pwRefresh();
+    }
+  }
+  await Promise.all(Array.from({length:CONC},()=>worker()));
+  state.prewarming=false;
+  pwRefresh(fails ? `Hotovo, ${cachedCount()}/${Object.keys(heroMap).length} (${fails} se nepodařilo – zkus znovu)` : "Hotovo ✓ vše v cache");
+  if(state.tab==="draft" && state.draftEnemies.length) renderDraftResults();
+}
+
+function rankText(tier){
+  if(!tier) return "Nehodnoceno";
+  const medal = Math.floor(tier/10), star = tier%10;
+  const name = RANKS[medal];
+  if(!name) return "Nehodnoceno";
+  if(medal===8) return "Immortal";
+  return name + (star ? " " + star : "");
+}
+
+function parseId(raw){
+  const m = (raw||"").match(/\d{3,}/);
+  return m ? m[0] : "";
+}
+
+const _sleep=ms=>new Promise(r=>setTimeout(r,ms));
+let _inflight=0; const _qwaiters=[];
+function _acquire(){ return new Promise(res=>{ if(_inflight<6){ _inflight++; res(); } else _qwaiters.push(res); }); }
+function _release(){ if(_qwaiters.length){ _qwaiters.shift()(); } else { _inflight--; } }
+async function getJSON(url){
+  await _acquire();
+  try{
+    for(let a=0;a<5;a++){
+      const r=await fetch(url);
+      if(r.status===429){ await _sleep(1200*(a+1)); continue; } // limit OpenDoty – počkej a zkus znovu
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      return await r.json();
+    }
+    throw new Error("HTTP 429");
+  } finally { _release(); }
+}
+
+async function load(){
+  const raw = ($("#accId").value||"").trim();
+  if(!raw){ content.innerHTML = '<div class="status error">Zadej Steam jméno, account ID nebo odkaz na profil.</div>'; return; }
+  const id = parseId(raw);
+  if(id) return loadProfile(id);
+  return searchPlayers(raw);
+}
+
+async function searchFetch(q){
+  // mimo frontu getJSON, ať hledání nečeká na ostatní dotazy
+  const r = await fetch("https://api.opendota.com/api/search?q="+encodeURIComponent(q));
+  if(!r.ok) throw new Error("HTTP "+r.status);
+  return r.json();
+}
+function renderSearchResults(list){
+  if(!list.length){
+    content.innerHTML = '<div class="status error">Nikdo s tímhle jménem nenalezen.<br>Zkus jiné jméno, nebo zadej account ID / odkaz na profil.</div>';
+    return;
+  }
+  content.innerHTML = `<div class="search-res">
+    <div class="sr-h">Vyber hráče — <span>jména nejsou unikátní, vyber podle avataru a posledního zápasu</span></div>
+    ${list.map(p=>{
+      const lm = p.last_match_time ? new Date(p.last_match_time) : null;
+      const lmTxt = (lm && !isNaN(lm)) ? "poslední zápas "+lm.toLocaleDateString('cs-CZ') : "bez záznamu zápasu";
+      return `<button class="sr-row" data-acc="${p.account_id}">
+        <img class="sr-av" src="${p.avatarfull||''}" loading="lazy" alt="" onerror="this.style.visibility='hidden'">
+        <span class="sr-name">${escapeHtml(p.personaname||'—')}</span>
+        <span class="sr-meta">${lmTxt}</span>
+        <span class="sr-id">#${p.account_id}</span>
+      </button>`;
+    }).join("")}
+  </div>`;
+  document.querySelectorAll(".sr-row").forEach(el=>{
+    el.onclick=()=>{ const inp=$("#accId"); if(inp) inp.value=el.dataset.acc; loadProfile(+el.dataset.acc); };
+  });
+}
+function prepSearch(res){
+  const arr = (res||[]).filter(p=>p && p.account_id);
+  arr.sort((a,b)=> (new Date(b.last_match_time||0)) - (new Date(a.last_match_time||0)));
+  return arr.slice(0,18);
+}
+async function searchPlayers(q){
+  const seq = (state.searchSeq = (state.searchSeq||0)+1);
+  const key = q.toLowerCase();
+  state.searchCache = state.searchCache || {};
+  if(state.searchCache[key]){ renderSearchResults(state.searchCache[key]); return; } // hned z paměti
+  $("#loadBtn").disabled = true;
+  content.innerHTML = '<div class="status"><div class="spinner"></div>Hledám hráče „'+escapeHtml(q)+'"…</div>';
+  try{
+    const res = await searchFetch(q);
+    if(seq!==state.searchSeq) return;
+    const list = prepSearch(res);
+    state.searchCache[key] = list;
+    renderSearchResults(list);
+  }catch(e){
+    if(seq!==state.searchSeq) return;
+    content.innerHTML = '<div class="status error">Hledání selhalo ('+escapeHtml(e.message)+'). OpenDota má limit ~60 dotazů/min — zkus to za chvíli.</div>';
+  }finally{
+    $("#loadBtn").disabled = false;
+  }
+}
+
+async function loadProfile(id){
+  $("#loadBtn").disabled = true;
+  content.innerHTML = '<div class="status"><div class="spinner"></div>Načítám zápasy hráče…</div>';
+
+  try{
+    // hero list (cached after first load)
+    if(!Object.keys(heroMap).length){
+      const heroes = await getJSON("https://api.opendota.com/api/heroes");
+      heroes.forEach(h=>{
+        heroMap[h.id] = { name:h.localized_name, short:h.name.replace("npc_dota_hero_",""), roles:h.roles||[] };
+      });
+    }
+
+    const [profile, wl, hstats] = await Promise.all([
+      getJSON(`https://api.opendota.com/api/players/${id}`),
+      getJSON(`https://api.opendota.com/api/players/${id}/wl`),
+      getJSON(`https://api.opendota.com/api/players/${id}/heroes`),
+    ]);
+
+    if(!profile || !profile.profile){
+      content.innerHTML = '<div class="status error">Hráč nenalezen, nebo má soukromou historii zápasů.<br>Zkontroluj ID a v Dota 2 zapni „Expose Public Match Data“.</div>';
+      $("#loadBtn").disabled = false;
+      return;
+    }
+
+    state.accId = id;
+    state.loaded = true;
+    state.curAccount = { id:+id, name:profile.profile.personaname||"", avatar:profile.profile.avatarfull||profile.profile.avatar||"" };
+    state.farmLoaded = false; state.farmLoading = false; state.farmHeroes = [];
+    state.matchHist = null; state.matchHistLoaded = false; state.matchHistLoading = false;
+    state.laneStats = null; state.laneLoading = false; state.laneProg = 0; state.laneByMatch = {};
+    state.parseRunning = false; state.parseMsg = "";
+    state.matchFilter = {result:"all", mode:"all", hero:0}; state.matchDetailId = null;
+    state.draftEnemies = []; state.draftAllies = []; state.draftPos = null; state.laneOf = {};
+    state.pickMode = "enemy"; state.draftPickerSearch = "";
+    state.buildHero = null; state.buildPickerSearch = "";
+    state.tab = "self"; state.sortKey = "g"; state.sortDir = -1;
+
+    state.heroes = (hstats||[]).map(h=>{
+      const meta = heroMap[h.hero_id] || {name:"Hrdina #"+h.hero_id, short:""};
+      return {
+        id:h.hero_id, name:meta.name, short:meta.short,
+        self:{ g:h.games||0, w:h.win||0 },
+        with:{ g:h.with_games||0, w:h.with_win||0 },
+        against:{ g:h.against_games||0, w:h.against_win||0 },
+      };
+    });
+
+    render(profile, wl);
+  }catch(e){
+    content.innerHTML = '<div class="status error">Nepodařilo se načíst data ('+e.message+').<br>Zkontroluj ID a připojení. OpenDota má limit ~60 dotazů/min.</div>';
+  }finally{
+    $("#loadBtn").disabled = false;
+  }
+}
+
+function render(profile, wl){
+  const hasP = !!(profile && profile.profile);
+  let card;
+  if(hasP){
+    const p = profile.profile;
+    const total = (wl.win||0)+(wl.lose||0);
+    const wr = total ? Math.round((wl.win/total)*1000)/10 : 0;
+    card = `
+    <div class="profile">
+      <img class="avatar" src="${p.avatarfull||p.avatar||''}" alt="" onerror="this.style.visibility='hidden'">
+      <div class="pmeta">
+        <div class="pname">${escapeHtml(p.personaname||"Neznámý hráč")}</div>
+        <div class="prank">${rankText(profile.rank_tier)}${profile.leaderboard_rank?" · #"+profile.leaderboard_rank:""}</div>
+      </div>
+      <div class="ptotals">
+        <div class="tstat w"><div class="n">${wl.win||0}</div><div class="l">Výhry</div></div>
+        <div class="tstat l"><div class="n">${wl.lose||0}</div><div class="l">Prohry</div></div>
+        <div class="tstat wr"><div class="n">${wr}%</div><div class="l">Win rate</div></div>
+      </div>
+    </div>`;
+  } else {
+    card = `<div class="profile noprof">
+      <div class="pmeta">
+        <div class="pname">Žádný profil hráče</div>
+        <div class="prank"><b>Protipick</b> (kalkulačka) i <b>Svět</b> fungují i bez profilu. Statistiky hráče zobrazíš zadáním account ID nahoře a „Načíst".</div>
+      </div>
+    </div>`;
+  }
+
+  content.innerHTML = `
+    ${card}
+    <div class="tabs">
+      ${tabBtn("self","Jako hrdina","výhry/prohry s daným hrdinou")}
+      ${tabBtn("with","S hrdinou","ve tvém týmu (spojenec)")}
+      ${tabBtn("against","Proti hrdinovi","v nepřátelském týmu")}
+      ${tabBtn("matches","Zápasy","historie posledních her")}
+      ${tabBtn("farm","Farma","GPM · XPM · LH · KDA")}
+      ${tabBtn("draft","Protipick","koho pickovat + build")}
+      ${tabBtn("counter","Hardcounter","countery po pozicích")}
+      ${tabBtn("world","Svět","veřejné + pro zápasy")}
+      ${tabBtn("meta","Meta","nejlepší WR podle pozice")}
+      ${tabBtn("live","Živě","hráči online + rekord")}
+    </div>
+
+    <div class="panel" id="panel"></div>
+  `;
+
+  document.querySelectorAll(".tab").forEach(t=>{
+    t.onclick = ()=>{
+      if(state.tab===t.dataset.tab) return;
+      state.tab = t.dataset.tab;
+      state.sortKey = "g"; state.sortDir = -1;
+      setActiveTab(); renderPanel();
+    };
+  });
+
+  if(hasP){ renderQuickBar(); }
+
+  renderPanel();
+}
+
+const PLAYER_TABS = ["self","with","against","matches","farm"];
+async function init(){
+  if(!Object.keys(heroMap).length){
+    try{
+      const heroes = await getJSON("https://api.opendota.com/api/heroes");
+      heroes.forEach(h=>{ heroMap[h.id] = { name:h.localized_name, short:h.name.replace("npc_dota_hero_",""), roles:h.roles||[] }; });
+    }catch(e){}
+  }
+  if(!state.loaded){ state.tab = "draft"; render(null, null); }
+  renderQuickBar();
+}
+
+function renderPanel(){
+  if(state.matchDetailId){ renderMatchDetail(); return; }
+  if(state.tab==="draft"){ renderDraftPanel(); return; }
+  if(state.tab==="world"){ renderWorldPanel(); return; }
+  if(state.tab==="meta"){ renderMetaPanel(); return; }
+  if(state.tab==="counter"){ renderCounterPanel(); return; }
+  if(state.tab==="live"){ renderLivePanel(); return; }
+  if(!state.loaded && PLAYER_TABS.includes(state.tab)){
+    $("#panel").innerHTML = '<div class="empty" style="padding:34px 12px;text-align:center">Tahle záložka potřebuje <b>profil hráče</b>.<br>Zadej svoje account ID nahoře a dej „Načíst".<br><span style="color:var(--muted-dim)">Protipick a Svět fungují i bez profilu.</span></div>';
+    return;
+  }
+  if(state.tab==="matches"){ renderMatchesPanel(); return; }
+  $("#panel").innerHTML = `
+    <div class="controls">
+      <input type="text" id="search" placeholder="Hledat hrdinu…" value="${escapeHtml(state.search)}" autocomplete="off">
+      <label class="minsel">Min. zápasů:
+        <select id="minGames">
+          ${[1,3,5,10,20,50].map(v=>`<option value="${v}" ${state.minGames===v?"selected":""}>${v}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+    <div class="tablewrap"><div id="tbl"></div></div>
+  `;
+  $("#search").oninput = e=>{ state.search=e.target.value; renderTable(); };
+  $("#minGames").onchange = e=>{ state.minGames=+e.target.value; renderTable(); };
+  renderTable();
+}
+
+function tabBtn(key,label,desc){
+  return `<button class="tab ${state.tab===key?'active':''}" data-tab="${key}">${label}<small>${desc}</small></button>`;
+}
+function setActiveTab(){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===state.tab));
+}
+
+function renderTable(){
+  if(state.tab==="farm"){ renderFarm(); return; }
+  renderHeroTable();
+}
+
+function renderHeroTable(){
+  const k = state.tab;
+  let rows = state.heroes.map(h=>{
+    const d = h[k];
+    const g = d.g, w = d.w, l = g-w;
+    return { name:h.name, short:h.short, g, w, l, wr: g? w/g : 0 };
+  }).filter(r=> r.g >= state.minGames);
+
+  if(state.search.trim()){
+    const q = state.search.trim().toLowerCase();
+    rows = rows.filter(r=> r.name.toLowerCase().includes(q));
+  }
+
+  const dir = state.sortDir;
+  rows.sort((a,b)=>{
+    const av=a[state.sortKey], bv=b[state.sortKey];
+    if(av<bv) return -1*dir;
+    if(av>bv) return 1*dir;
+    return b.g-a.g; // tiebreak
+  });
+
+  const labelSelf = state.tab==="self";
+  const arr = key => state.sortKey===key ? `<span class="arr">${state.sortDir<0?"▼":"▲"}</span>` : "";
+
+  let html = `<table>
+    <thead><tr>
+      <th>Hrdina</th>
+      <th class="sortable" data-k="g">Zápasy${arr("g")}</th>
+      <th class="sortable" data-k="w">Výhry${arr("w")}</th>
+      <th class="sortable" data-k="l">Prohry${arr("l")}</th>
+      <th class="sortable wrcell" data-k="wr">Win rate${arr("wr")}</th>
+    </tr></thead><tbody>`;
+
+  if(!rows.length){
+    html += `</tbody></table><div class="empty">Žádní hrdinové neodpovídají filtru (zkus snížit „min. zápasů“).</div>`;
+  } else {
+    rows.forEach(r=>{
+      const pct = Math.round(r.wr*1000)/10;
+      const icon = r.short ? `<img src="${HERO_CDN}${r.short}.png" alt="" onerror="this.style.visibility='hidden'">` : `<img alt="" style="visibility:hidden">`;
+      html += `<tr>
+        <td class="hero">${icon}<span>${escapeHtml(r.name)}</span></td>
+        <td class="cg">${r.g}</td>
+        <td class="cw">${r.w}</td>
+        <td class="cl">${r.l}</td>
+        <td class="wrcell"><div class="barbox">
+          <span class="pct" style="color:${pct>=50?'var(--win-glow)':'var(--loss-glow)'}">${pct}%</span>
+          <div class="bar"><div class="fill" style="width:${pct}%"></div></div>
+        </div></td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  }
+
+  $("#tbl").innerHTML = html;
+
+  document.querySelectorAll("th.sortable").forEach(th=>{
+    th.onclick = ()=>{
+      const key = th.dataset.k;
+      if(state.sortKey===key){ state.sortDir*=-1; }
+      else { state.sortKey=key; state.sortDir=-1; }
+      renderTable();
+    };
+  });
+}
+
+/* ---------- Farm / benchmarks ---------- */
+function renderFarm(){
+  if(!state.farmLoaded){
+    $("#tbl").innerHTML = '<div class="status" style="padding:42px 10px">'
+      + '<div class="spinner"></div>Počítám benchmarky ze všech tvých zápasů…<br>'
+      + '<span style="font-size:.82rem;color:var(--muted-dim)">(u většího počtu zápasů to může chvíli trvat)</span></div>';
+    if(!state.farmLoading) loadFarm();
+    return;
+  }
+
+  let rows = state.farmHeroes.filter(r=> r.g >= state.minGames);
+  if(state.search.trim()){
+    const q = state.search.trim().toLowerCase();
+    rows = rows.filter(r=> r.name.toLowerCase().includes(q));
+  }
+  const dir = state.sortDir;
+  rows.sort((a,b)=>{
+    const av=a[state.sortKey], bv=b[state.sortKey];
+    if(av<bv) return -1*dir;
+    if(av>bv) return 1*dir;
+    return b.g-a.g;
+  });
+  const arr = key => state.sortKey===key ? `<span class="arr">${state.sortDir<0?"▼":"▲"}</span>` : "";
+
+  let html = `<div class="note">Průměry napříč všemi zápasy. <b>GPM</b>/<b>XPM</b> = zlato a zkušenosti za minutu, <b>LH</b> = last hity na zápas, <b>KDA</b> = (zabití+asistence)/úmrtí (malé číslo vpravo je průměr K/D/A).</div>
+  <table><thead><tr>
+    <th>Hrdina</th>
+    <th class="sortable" data-k="g">Zápasy${arr("g")}</th>
+    <th class="sortable" data-k="wr">Win rate${arr("wr")}</th>
+    <th class="sortable" data-k="gpm">GPM${arr("gpm")}</th>
+    <th class="sortable" data-k="xpm">XPM${arr("xpm")}</th>
+    <th class="sortable" data-k="lh">LH${arr("lh")}</th>
+    <th class="sortable" data-k="kda">KDA${arr("kda")}</th>
+  </tr></thead><tbody>`;
+
+  if(!rows.length){
+    const reason = state.farmHeroes.length
+      ? 'Žádní hrdinové neodpovídají filtru — zkus snížit „min. zápasů“ nebo vymazat text v hledání.'
+      : 'Nepodařilo se načíst žádné zápasy. Účet má možná neveřejnou historii zápasů.';
+    html += `</tbody></table><div class="empty">${reason}</div>`;
+  } else {
+    rows.forEach(r=>{
+      const pct = Math.round(r.wr*1000)/10;
+      const icon = r.short ? `<img src="${HERO_CDN}${r.short}.png" alt="" onerror="this.style.visibility='hidden'">` : `<img alt="" style="visibility:hidden">`;
+      html += `<tr>
+        <td class="hero">${icon}<span>${escapeHtml(r.name)}</span></td>
+        <td class="cg">${r.g}</td>
+        <td><span class="pct" style="color:${pct>=50?'var(--win-glow)':'var(--loss-glow)'}">${pct}%</span></td>
+        <td style="color:${gpmColor(r.gpm)};font-weight:700">${r.gpm}</td>
+        <td class="cg">${r.xpm}</td>
+        <td class="cg">${r.lh}</td>
+        <td style="color:${kdaColor(r.kda)};font-weight:700">${r.kda.toFixed(2)} <span class="kda-sub">${r.k.toFixed(1)}/${r.d.toFixed(1)}/${r.as.toFixed(1)}</span></td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+  }
+  $("#tbl").innerHTML = html;
+
+  document.querySelectorAll("th.sortable").forEach(th=>{
+    th.onclick = ()=>{
+      const key = th.dataset.k;
+      if(state.sortKey===key){ state.sortDir*=-1; }
+      else { state.sortKey=key; state.sortDir=-1; }
+      renderTable();
+    };
+  });
+}
+
+async function loadFarm(){
+  state.farmLoading = true;
+  try{
+    const fields = ["hero_id","player_slot","radiant_win","duration","kills","deaths","assists","gold_per_min","xp_per_min","last_hits"];
+    const url = `https://api.opendota.com/api/players/${state.accId}/matches?` + fields.map(f=>"project="+f).join("&");
+    const matches = await getJSON(url);
+    const agg = {};
+    (matches||[]).forEach(m=>{
+      const hid = m.hero_id; if(!hid) return;
+      const a = agg[hid] || (agg[hid]={g:0,w:0,gpm:0,gpmN:0,xpm:0,xpmN:0,lh:0,lhN:0,k:0,d:0,as:0});
+      a.g++;
+      if((m.player_slot<128)===m.radiant_win) a.w++;
+      if(m.gold_per_min!=null){ a.gpm+=m.gold_per_min; a.gpmN++; }
+      if(m.xp_per_min!=null){ a.xpm+=m.xp_per_min; a.xpmN++; }
+      if(m.last_hits!=null){ a.lh+=m.last_hits; a.lhN++; }
+      a.k+=m.kills||0; a.d+=m.deaths||0; a.as+=m.assists||0;
+    });
+    state.farmHeroes = Object.entries(agg).map(([hid,a])=>{
+      const meta = heroMap[hid] || {name:"Hrdina #"+hid, short:""};
+      return {
+        id:+hid, name:meta.name, short:meta.short,
+        g:a.g, wr:a.g?a.w/a.g:0,
+        gpm:a.gpmN?Math.round(a.gpm/a.gpmN):0,
+        xpm:a.xpmN?Math.round(a.xpm/a.xpmN):0,
+        lh:a.lhN?Math.round(a.lh/a.lhN):0,
+        k:a.k/a.g, d:a.d/a.g, as:a.as/a.g,
+        kda:(a.k+a.as)/Math.max(1,a.d),
+      };
+    });
+    state.farmLoaded = true; state.farmLoading = false;
+    if(state.tab==="farm") renderTable();
+  }catch(e){
+    state.farmLoading = false;
+    if(state.tab==="farm" && $("#tbl")){
+      $("#tbl").innerHTML = '<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst zápasy pro benchmarky ('+e.message+').</div>';
+    }
+  }
+}
+
+function gpmColor(v){ if(v>=600) return 'var(--win-glow)'; if(v>=480) return 'var(--gold)'; if(v>=380) return 'var(--text)'; return 'var(--muted)'; }
+function kdaColor(v){ if(v>=4) return 'var(--win-glow)'; if(v>=2.5) return 'var(--gold)'; if(v>=1.5) return 'var(--text)'; return 'var(--loss-glow)'; }
+
+/* ---------- Draft / counter-pick ---------- */
+function heroIcon(short,size){
+  if(!short) return `<i class="ic" style="display:inline-block;width:${size}px;height:${size}px"></i>`;
+  return `<img class="ic" src="${HERO_CDN}${short}.png" width="${size}" height="${size}" alt="" onerror="this.style.visibility='hidden'">`;
+}
+
+function heroPickerHTML(){
+  const q=(state.draftPickerSearch||"").trim().toLowerCase();
+  const taken=new Set([...state.draftEnemies, ...state.draftAllies]);
+  const list=Object.entries(heroMap)
+    .map(([id,m])=>({id:+id,name:m.name,short:m.short}))
+    .filter(h=> !taken.has(h.id))
+    .filter(h=> !q || h.name.toLowerCase().includes(q))
+    .sort((a,b)=> a.name.localeCompare(b.name,'cs'));
+  if(!list.length) return '<div class="picker-empty">Žádný hrdina nenalezen.</div>';
+  return list.map(h=>{
+    const pref=state.preferred.includes(h.id);
+    return `<button class="hg" data-id="${h.id}" title="${escapeHtml(h.name)}">${heroIcon(h.short,38)}<span>${escapeHtml(h.name)}</span><span class="fav-star${pref?' on':''}" data-fav="${h.id}" title="přidat/odebrat z oblíbených">★</span></button>`;
+  }).join("");
+}
+
+function wirePicker(){
+  document.querySelectorAll(".hero-grid .fav-star").forEach(s=>{
+    s.onclick=(ev)=>{ ev.stopPropagation(); ev.preventDefault(); togglePreferred(s.dataset.fav); };
+  });
+  document.querySelectorAll(".hero-grid .hg").forEach(el=>{
+    el.onclick=()=>{
+      const id=+el.dataset.id;
+      const list = state.pickMode==="ally" ? state.draftAllies : state.draftEnemies;
+      if(list.includes(id) || list.length>=5) return;
+      list.push(id);
+      state.laneOf[id] = heroPositions(id)[0] || 1;
+      renderDraftPanel();
+    };
+  });
+}
+
+function teamChips(list, team){
+  if(!list.length) return '<span class="chips-empty">zatím nikdo</span>';
+  return list.map(id=>{
+    const m=heroMap[id]||{name:"#"+id,short:""};
+    const lane=state.laneOf[id] || 1;
+    const badge = `<button class="lane-badge multi" data-id="${id}" title="klikni pro změnu lajny">${lane}</button>`;
+    return `<span class="chip ${team}" data-id="${id}">${heroIcon(m.short,22)}<span class="cn">${escapeHtml(m.name)}</span>${badge}<button class="cx" data-id="${id}" title="odebrat">×</button></span>`;
+  }).join("");
+}
+
+function favChips(){
+  if(!state.preferred.length) return '<span class="chips-empty">žádní — označ hrdinu hvězdičkou ★</span>';
+  return state.preferred.map(id=>{
+    const m=heroMap[id]||{name:"#"+id,short:""};
+    return `<span class="chip fav-chip" data-id="${id}">${heroIcon(m.short,22)}<span class="cn">${escapeHtml(m.name)}</span><button class="cx favx" data-fav="${id}" title="odebrat z oblíbených">×</button></span>`;
+  }).join("");
+}
+
+function renderDraftPanel(){
+  const totalH=Object.keys(heroMap).length;
+  const posChips=POSITIONS.map(p=>`<button class="pos ${state.draftPos===p.id?'active':''}" data-pos="${p.id}">${p.label}<small>${p.sub}</small></button>`).join("");
+
+  $("#panel").innerHTML=`
+    <div class="draft-intro">Naklikej hrdiny <b>nepřátelského týmu</b> (skóre se počítá proti nim) a volitelně <b>svůj tým</b> a <b>pozici</b>. Data ze všech veřejných her.</div>
+    <details class="help">
+      <summary>Co znamenají jednotlivé prvky?</summary>
+      <div class="help-body">
+        <div><b>Skóre 1–100 + známka</b> — jak dobrý je hrdina proti vybraným nepřátelům. 50 = vyrovnané, výš = lepší, <b>pod 0 = hard counter (nepickovat)</b>. Známky: <span class="g" style="color:#ff4d4d">F</span> záporné, <b>E</b> 1–29, <b>D</b> 30–44, <b>C</b> 45–59, <b>B</b> 60–71, <b>A</b> 72–81, <b>S</b> 82–91, <span class="g">S+</span> 92+.</div>
+        <div><b>★ Oblíbení hrdinové</b> — označ je hvězdičkou (v gridu nebo ve výsledcích). Uloží se v prohlížeči (zůstanou i jiné dny) a v hodnocení dostanou <b>+${PREF_BONUS} bodů</b>.</div>
+        <div><b>Proti jednotlivcům</b> — malé ikonky vpravo: výhoda proti každému nepříteli zvlášť.</div>
+        <div><b>Odznáček 1–5 u hrdiny</b> — jeho lajna/pozice. Klikáním ji měníš: 1 → 2 → 3 → 4 → 5 → <span class="g">4/5</span> (nejistý support).</div>
+        <div><b>Zlatý rámeček</b> — pravděpodobný <span class="g">lane oponent</span> podle tvé zvolené pozice (safelane 1+5 vs offlane 3+4, mid vs mid).</div>
+        <div><b>Moje pozice</b> — určuje lane oponenta. Se zapnutým „striktním filtrem“ navíc zúží návrhy jen na hrdiny pro tu pozici.</div>
+        <div><b>Striktní filtr pozice</b> — <b>zap:</b> ukáže jen hrdiny, kteří danou pozici běžně hrají (podle zabudované tabulky). <b>vyp:</b> každý hrdina může být na každé lajně.</div>
+        <div><b>Jen hrdinové, které hraju</b> — omezí návrhy na tvůj pool a přidá sloupec s tvým win rate.</div>
+        <div><b>⬇ Přednačíst všechny hrdiny</b> — stáhne countery do cache prohlížeče, aby byl pak draft okamžitý.</div>
+      </div>
+    </details>
+    <div class="prewarm">
+      <button class="pw-btn" id="prewarmBtn" ${state.prewarming?"disabled":""}>${state.prewarming?"Stahuji…":"⬇ Přednačíst všechny hrdiny"}</button>
+      <span class="pw-status" id="prewarmStatus">${cachedCount()} / ${totalH} hrdinů v cache</span>
+      <div class="pw-bar"><div class="pw-fill" id="prewarmFill" style="width:${totalH?Math.round(cachedCount()/totalH*100):0}%"></div></div>
+    </div>
+
+    <div class="enemy-row">
+      <span class="enemy-label red">Nepřátelé</span>
+      <div class="chips">${teamChips(state.draftEnemies,"enemy")}</div>
+      ${state.draftEnemies.length>=5?'<span class="maxnote">max 5</span>':''}
+    </div>
+    <div class="enemy-row">
+      <span class="enemy-label green">Můj tým</span>
+      <div class="chips">${teamChips(state.draftAllies,"ally")}</div>
+      ${state.draftAllies.length>=5?'<span class="maxnote">max 5</span>':''}
+    </div>
+    <div class="enemy-row">
+      <span class="enemy-label gold">★ Oblíbení</span>
+      <div class="chips">${favChips()}</div>
+    </div>
+
+    <div class="picker">
+      <div class="pick-mode">Přidávám do týmu:
+        <button class="pm ${state.pickMode==='enemy'?'active red':''}" data-mode="enemy">Nepřátelé</button>
+        <button class="pm ${state.pickMode==='ally'?'active green':''}" data-mode="ally">Můj tým</button>
+        ${(state.draftEnemies.length||state.draftAllies.length)?'<button class="clear-enemies" id="clearAll">Vymazat vše</button>':''}
+      </div>
+      <input type="text" id="pickerSearch" placeholder="Hledat hrdinu k přidání…" value="${escapeHtml(state.draftPickerSearch)}" autocomplete="off">
+      <div class="hero-grid">${heroPickerHTML()}</div>
+    </div>
+
+    <div class="pos-row">
+      <span class="enemy-label">Moje pozice</span>
+      <div class="pos-chips">${posChips}</div>
+      ${state.draftPos?'<button class="clear-pos" id="clearPos">×</button>':''}
+    </div>
+
+    <div class="draft-opts">
+      <label class="chk"><input type="checkbox" id="onlyMine" ${state.draftOnlyMine?"checked":""}> Jen hrdinové, které hraju</label>
+      <label class="chk"><input type="checkbox" id="strictPos" ${state.draftStrictPos?"checked":""}> Striktní filtr pozice</label>
+    </div>
+    <div class="tablewrap"><div id="draftResults"></div></div>
+    <div id="buildOut" class="build-inline"></div>
+  `;
+
+  $("#pickerSearch").oninput=e=>{
+    state.draftPickerSearch=e.target.value;
+    const grid=document.querySelector(".hero-grid");
+    if(grid){ grid.innerHTML=heroPickerHTML(); wirePicker(); }
+  };
+  wirePicker();
+
+  document.querySelectorAll(".chip .cx").forEach(x=>{
+    x.onclick=(ev)=>{
+      ev.stopPropagation();
+      const id=+x.dataset.id;
+      state.draftEnemies=state.draftEnemies.filter(v=>v!==id);
+      state.draftAllies=state.draftAllies.filter(v=>v!==id);
+      delete state.laneOf[id];
+      renderDraftPanel();
+    };
+  });
+  document.querySelectorAll(".favx").forEach(x=>{
+    x.onclick=(ev)=>{ ev.stopPropagation(); togglePreferred(x.dataset.fav); };
+  });
+  document.querySelectorAll(".lane-badge.multi").forEach(b=>{
+    b.onclick=(ev)=>{
+      ev.stopPropagation();
+      const id=+b.dataset.id;
+      let i=POS_CYCLE.findIndex(v=> v===(state.laneOf[id]||1)); i=(i+1)%POS_CYCLE.length;
+      state.laneOf[id]=POS_CYCLE[i];
+      renderDraftPanel();
+    };
+  });
+  document.querySelectorAll(".pm").forEach(b=>{
+    b.onclick=()=>{ state.pickMode=b.dataset.mode; renderDraftPanel(); };
+  });
+  document.querySelectorAll(".pos").forEach(b=>{
+    b.onclick=()=>{ const p=+b.dataset.pos; state.draftPos = (state.draftPos===p?null:p); renderDraftPanel(); };
+  });
+  const cp=$("#clearPos"); if(cp) cp.onclick=()=>{ state.draftPos=null; renderDraftPanel(); };
+  const ca=$("#clearAll"); if(ca) ca.onclick=()=>{ state.draftEnemies=[]; state.draftAllies=[]; state.laneOf={}; renderDraftPanel(); };
+  $("#onlyMine").onchange=e=>{ state.draftOnlyMine=e.target.checked; renderDraftResults(); };
+  $("#strictPos").onchange=e=>{ state.draftStrictPos=e.target.checked; renderDraftResults(); };
+  const pwb=$("#prewarmBtn"); if(pwb) pwb.onclick=prewarmAll;
+
+  computeDraft();
+  if(state.buildHero){
+    if(state.buildCache[state.buildHero]) renderBuildResult(state.buildHero);
+    else loadBuild(state.buildHero);
+  }
+}
+
+async function computeDraft(){
+  const out=$("#draftResults");
+  if(!out) return;
+  if(!state.draftEnemies.length){ out.innerHTML='<div class="empty">Vyber aspoň jednoho nepřítele a objeví se nejlepší protipicky.</div>'; return; }
+
+  const missing=state.draftEnemies.filter(id=> !state.matchupCache[id]);
+  if(missing.length){
+    out.innerHTML='<div class="status" style="padding:30px 10px"><div class="spinner"></div>Načítám countery…</div>';
+    try{
+      await Promise.all(missing.map(async id=>{
+        const data=await getJSON(`https://api.opendota.com/api/heroes/${id}/matchups`);
+        const map={};
+        (data||[]).forEach(r=>{ map[r.hero_id]={g:r.games_played||0,w:r.wins||0}; });
+        saveMatchup(id,map);
+      }));
+    }catch(e){
+      out.innerHTML='<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst matchup data ('+e.message+'). OpenDota má limit ~60 dotazů/min.</div>';
+      return;
+    }
+  }
+  renderDraftResults();
+}
+
+function ensureBaseWR(cb){
+  if(state.baseWR){ cb&&cb(); return; }
+  if(cb){ (state._bwrWaiters=state._bwrWaiters||[]).push(cb); }
+  if(state.baseWRLoading) return;
+  state.baseWRLoading=true;
+  (async()=>{
+    try{
+      const data = state.metaStats || await getJSON("https://api.opendota.com/api/heroStats");
+      if(!state.metaStats) state.metaStats=data;
+      const map={};
+      (data||[]).forEach(h=>{ let p=0,w=0; for(let i=1;i<=8;i++){ p+=h[i+"_pick"]||0; w+=h[i+"_win"]||0; } if(p>0) map[h.id]=w/p; });
+      state.baseWR=map;
+    }catch(e){}
+    state.baseWRLoading=false;
+    const ws=state._bwrWaiters||[]; state._bwrWaiters=[];
+    ws.forEach(f=>{ try{ f(); }catch(e){} });
+  })();
+}
+
+function renderDraftResults(){
+  const out=$("#draftResults");
+  if(!out || !state.draftEnemies.length) return;
+  const enemies=state.draftEnemies;
+
+  const my={};
+  state.heroes.forEach(h=>{ my[h.id]={g:h.self.g,w:h.self.w}; });
+
+  let cands=Object.entries(heroMap).map(([id,m])=>({id:+id,name:m.name,short:m.short}))
+    .filter(h=> !enemies.includes(h.id) && !state.draftAllies.includes(h.id));
+  if(state.draftStrictPos && state.draftPos){
+    cands=cands.filter(h=> heroMatchesPos(h.id, state.draftPos));
+  }
+  if(state.draftOnlyMine){
+    cands=cands.filter(h=>{ const mw=my[h.id]; return mw && mw.g>=Math.max(1,state.minGames); });
+  }
+
+  // celkové win raty (kvůli očištění o sílu hrdinů) – načti na pozadí
+  if(!state.baseWR) ensureBaseWR(()=>{ if(state.tab==="draft") renderDraftResults(); });
+  const bwr = state.baseWR || {};
+  const MIN_MU = 50; // minimální vzorek matchupu, ať +50 z pár her nezkresluje
+
+  const scored=cands.map(h=>{
+    let sum=0,n=0; const per=[];
+    enemies.forEach(eid=>{
+      const map=state.matchupCache[eid]; if(!map) return;
+      const m=map[h.id];
+      if(m && m.g>=MIN_MU){
+        const hVsE = 1-(m.w/m.g);               // win rate kandidáta proti nepříteli
+        let adv;
+        if(bwr[h.id]!=null && bwr[eid]!=null)   // očištěno o sílu obou hrdinů (Dotabuff styl)
+          adv = (hVsE - (0.5 + bwr[h.id] - bwr[eid]))*100;
+        else
+          adv = (hVsE - 0.5)*100;               // fallback, než se načtou baseline WR
+        sum+=adv; n++; per.push({eid,adv});
+      }
+    });
+    const adv = n? sum/n : null;
+    const pref = state.preferred.includes(h.id);
+    const score = adv==null ? null : Math.max(-50, Math.min(100, Math.round(50 + adv*5 + (pref?PREF_BONUS:0))));
+    return {...h, adv, n, per, my:my[h.id], pref, score};
+  }).filter(r=> r.adv!=null);
+
+  scored.sort((a,b)=> b.score-a.score);
+
+  if(!scored.length){
+    const hints=[];
+    if(state.draftStrictPos && state.draftPos) hints.push("vypnout striktní filtr pozice");
+    if(state.draftOnlyMine) hints.push("vypnout „jen hrdinové, které hraju“");
+    out.innerHTML='<div class="empty">Žádní hrdinové'+(hints.length?' — zkus '+hints.join(" nebo ")+'.':'.')+'</div>';
+    return;
+  }
+  const top=state.draftOnlyMine?scored:scored.slice(0,18);
+
+  const laneFoes = state.draftPos ? (LANE_OPP[state.draftPos]||[]) : [];
+  let html=`<div class="note"><b>Skóre 1–100</b> a známka (E → S+) podle toho, jak hrdina countruje vybrané nepřátele — očištěno o celkovou sílu hrdinů (styl „advantage" na Dotabuffu), ne syrový win rate. Silný pub hrdina (např. Broodmother) tak nedostane plusy proti svým counterům jen proto, že obecně vyhrává. <span style="color:var(--gold)">★ oblíbení</span> mají +${PREF_BONUS} bodů. Malé ikony vpravo = výhoda proti jednotlivcům (záporná = je to jeho counter).${laneFoes.length?' Zlatě orámovaný = pravděpodobný <b>lane oponent</b>.':''} <b>Klikni na jméno hrdiny</b> → jeho build, countery a timingy níže.</div>
+  <table><thead><tr>
+    <th style="text-align:center">#</th><th>Hrdina</th><th>Skóre</th>
+    <th>Proti jednotlivcům</th>${state.draftOnlyMine?'<th>Tvoje WR</th>':''}
+  </tr></thead><tbody>`;
+
+  top.forEach((r,i)=>{
+    const gi=gradeInfo(r.score);
+    const pe=r.per.map(p=>{
+      const mm=heroMap[p.eid]||{short:"",name:""};
+      const c=p.adv>=0?'var(--win-glow)':'var(--loss-glow)';
+      const lf = state.laneOf[p.eid];
+      const foe = laneFoes.length && (lf==="4/5" ? (laneFoes.includes(4)||laneFoes.includes(5)) : laneFoes.includes(lf));
+      return `<span class="pe${foe?' lane-foe':''}" title="${escapeHtml(mm.name)}${foe?' (lane oponent)':''}: ${p.adv>=0?'+':''}${p.adv.toFixed(1)} %">${heroIcon(mm.short,18)}<i style="color:${c}">${p.adv>=0?'+':''}${p.adv.toFixed(0)}</i></span>`;
+    }).join("");
+    let myCell="";
+    if(state.draftOnlyMine){
+      const mw=r.my; const w=(mw&&mw.g)?Math.round(mw.w/mw.g*100):0;
+      myCell=`<td class="cg">${(mw&&mw.g)?w+'% <span class="kda-sub">('+mw.g+')</span>':'—'}</td>`;
+    }
+    html+=`<tr${r.pref?' class="pref-row"':''}>
+      <td style="text-align:center;color:var(--muted-dim);font-weight:700">${i+1}</td>
+      <td class="hero"><button class="fav-row${r.pref?' on':''}" data-fav="${r.id}" title="oblíbený">★</button>${heroIcon(r.short,30)}<span class="go-build" data-id="${r.id}" title="zobrazit item build">${escapeHtml(r.name)}</span></td>
+      <td class="score-cell"><span class="grade" style="color:${gi.c};border-color:${gi.c}">${gi.g}</span><b class="score-num" style="color:${gi.c}">${r.score}</b>${r.pref?'<span class="pref-plus">+'+PREF_BONUS+'</span>':''}</td>
+      <td><div class="pe-row">${pe}</div></td>
+      ${myCell}
+    </tr>`;
+  });
+  html+=`</tbody></table>`;
+  out.innerHTML=html;
+
+  document.querySelectorAll("#draftResults .fav-row").forEach(b=>{
+    b.onclick=()=> togglePreferred(b.dataset.fav);
+  });
+  document.querySelectorAll("#draftResults .go-build").forEach(el=>{
+    el.onclick=()=>{ showBuildInline(+el.dataset.id); };
+  });
+}
+
+function showBuildInline(id){
+  state.buildHero=id;
+  if(state.buildCache[id]) renderBuildResult(id);
+  else loadBuild(id);
+  setTimeout(()=>{ const el=$("#buildOut"); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); }, 60);
+}
+
+/* ---------- Build / item timings ---------- */
+const ITEM_CDN = "https://cdn.cloudflare.steamstatic.com";
+const ITEMS_LS_KEY = "dota_items_v1";
+
+async function ensureItemConst(){
+  if(state.itemConst) return state.itemConst;
+  try{ const raw=localStorage.getItem(ITEMS_LS_KEY); if(raw){ const o=JSON.parse(raw); if(o&&o.byId){ state.itemConst=o; return o; } } }catch(e){}
+  const data=await getJSON("https://api.opendota.com/api/constants/items");
+  const byId={}, byName={};
+  Object.entries(data||{}).forEach(([name,v])=>{
+    if(!v || v.id==null) return;
+    const meta={id:v.id, name, dname:v.dname||name, img:v.img?(ITEM_CDN+v.img):"", cost:v.cost||0};
+    byId[v.id]=meta; byName[name]=meta;
+  });
+  const o={byId,byName};
+  state.itemConst=o;
+  try{ localStorage.setItem(ITEMS_LS_KEY, JSON.stringify(o)); }catch(e){}
+  return o;
+}
+
+function topItems(map, ic, n, minCost){
+  return Object.entries(map||{})
+    .map(([id,c])=>({c:+c, meta:ic.byId[+id]}))
+    .filter(x=> x.meta && !x.meta.name.startsWith("recipe") && (!minCost || x.meta.cost>=minCost))
+    .sort((a,b)=> b.c-a.c).slice(0,n);
+}
+function computeTimings(rows, ic){
+  const byItem={};
+  (rows||[]).forEach(r=>{
+    const g=+r.games||0, w=+r.wins||0, t=+r.time||0;
+    if(!g) return;
+    const o=byItem[r.item]||(byItem[r.item]={total:0,wins:0,bg:-1,bt:0});
+    o.total+=g; o.wins+=w;
+    if(g>o.bg){ o.bg=g; o.bt=t; }
+  });
+  let arr=Object.entries(byItem).map(([name,o])=>{
+    const meta=ic.byName[name]; if(!meta) return null;
+    return {dname:meta.dname, img:meta.img, minute:Math.round(o.bt/60), wr:o.total?o.wins/o.total:0, games:o.total};
+  }).filter(Boolean);
+  arr.sort((a,b)=> b.games-a.games);
+  arr=arr.slice(0,12);
+  arr.sort((a,b)=> a.minute-b.minute);
+  return arr;
+}
+
+async function loadBuild(id){
+  state.buildLoading=true;
+  const out=$("#buildOut");
+  if(out) out.innerHTML='<div class="status" style="padding:34px 10px"><div class="spinner"></div>Načítám build a timingy…</div>';
+  try{
+    const ic=await ensureItemConst();
+    if(!state.buildCache[id]){
+      const [pop, timings]=await Promise.all([
+        getJSON(`https://api.opendota.com/api/heroes/${id}/itemPopularity`),
+        getJSON(`https://api.opendota.com/api/scenarios/itemTimings?hero_id=${id}`),
+      ]);
+      state.buildCache[id]={
+        start: topItems(pop&&pop.start_game_items, ic, 8, 0),
+        early: topItems(pop&&pop.early_game_items, ic, 8, 0),
+        mid:   topItems(pop&&pop.mid_game_items, ic, 8, 1000),
+        late:  topItems(pop&&pop.late_game_items, ic, 8, 1500),
+        timeline: computeTimings(timings, ic),
+      };
+    }
+    if(!state.buildCache[id].hard){
+      if(!state.matchupCache[id]){
+        try{
+          const mu=await getJSON(`https://api.opendota.com/api/heroes/${id}/matchups`);
+          const map={}; (mu||[]).forEach(r=>{ map[r.hero_id]={g:r.games_played||0,w:r.wins||0}; });
+          saveMatchup(id,map);
+        }catch(e){}
+      }
+      const mm=state.matchupCache[id]||{};
+      const arr=Object.entries(mm).map(([oid,rec])=>({id:+oid,g:rec.g,wr:rec.g?rec.w/rec.g:null}))
+        .filter(x=> x.wr!=null && heroMap[x.id]);
+      const maxG=Math.max(1,...arr.map(x=>x.g));
+      const sig=arr.filter(x=> x.g>=Math.max(40,maxG*0.1)); // odfiltruj vzácné dvojice
+      const base=sig.length>=10?sig:arr;
+      const sorted=base.slice().sort((a,b)=> a.wr-b.wr);
+      const dec=x=>({id:x.id,g:x.g,wr:x.wr,name:(heroMap[x.id]||{}).name,short:(heroMap[x.id]||{}).short});
+      state.buildCache[id].hard=sorted.slice(0,8).map(dec);
+      state.buildCache[id].easy=sorted.slice(-8).reverse().map(dec);
+    }
+    state.buildLoading=false;
+    if(state.buildHero===id) renderBuildResult(id);
+  }catch(e){
+    state.buildLoading=false;
+    if($("#buildOut")) $("#buildOut").innerHTML='<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst build ('+e.message+'). OpenDota má limit ~60 dotazů/min.</div>';
+  }
+}
+
+function itemImg(meta){ return meta&&meta.img ? `<img class="iitem" src="${meta.img}" alt="" title="${escapeHtml(meta.dname)}">` : ''; }
+function counterRowsHTML(arr){
+  if(!arr || !arr.length) return '<div class="chips-empty">—</div>';
+  return arr.map(h=>`<div class="cnt-row">
+      <img class="cnt-ic" src="${HERO_CDN}${h.short}.png" alt="" onerror="this.style.visibility='hidden'">
+      <span class="cnt-name">${escapeHtml(h.name)}</span>
+      <span class="cnt-wr" style="color:${wrColor(h.wr)}">${Math.round(h.wr*100)} %</span>
+    </div>`).join("");
+}
+
+function renderBuildResult(id){
+  const out=$("#buildOut"); if(!out) return;
+  const b=state.buildCache[id]; if(!b) return;
+  const m=heroMap[id]||{name:"#"+id,short:""};
+  const mine=state.heroes.find(h=>h.id===id);
+  const mineTxt = (mine&&mine.self.g) ? `Hraješ ho: ${mine.self.g} zápasů · ${Math.round(mine.self.w/mine.self.g*100)} % WR` : "";
+
+  const sec=(title,arr)=> `<div class="bsec"><div class="bsec-t">${title}</div><div class="items">${arr.length?arr.map(it=>itemImg(it.meta)).join(""):'<span class="chips-empty">—</span>'}</div></div>`;
+  const tl = b.timeline.length
+    ? `<table class="tl"><thead><tr><th>Item</th><th>Typický čas</th><th>Win rate</th><th>Vzorek</th></tr></thead><tbody>${
+        b.timeline.map(t=>`<tr><td class="hero">${itemImg(t)}<span>${escapeHtml(t.dname)}</span></td><td class="cg">~${t.minute}. min</td><td style="color:${t.wr>=.5?'var(--win-glow)':'var(--loss-glow)'};font-weight:700">${Math.round(t.wr*100)} %</td><td class="kda-sub" style="text-align:right">${t.games.toLocaleString('cs')}</td></tr>`).join("")
+      }</tbody></table>`
+    : '<div class="empty">Pro tohoto hrdinu nejsou data o timinzích.</div>';
+
+  out.innerHTML=`
+    <div class="build-head">${heroIcon(m.short,46)}<div><div class="bh-name">${escapeHtml(m.name)}</div>${mineTxt?`<div class="bh-sub">${mineTxt}</div>`:''}</div><button class="build-close" title="zavřít build">×</button></div>
+    <div class="cnt-grid">
+      <div class="cnt-col"><div class="cnt-h bad">⚠ Hard countery — těžké proti němu</div>${counterRowsHTML(b.hard)}</div>
+      <div class="cnt-col"><div class="cnt-h good">✔ Dobré matchupy — drtí je</div>${counterRowsHTML(b.easy)}</div>
+    </div>
+    <div class="note">Win rate hrdiny proti danému soupeři ze všech veřejných her. Nízké % = soupeř ho countruje.</div>
+    ${sec("Startovní items", b.start)}
+    ${sec("Early game", b.early)}
+    ${sec("Core (mid game)", b.mid)}
+    ${sec("Late game", b.late)}
+    <div class="bsec-t" style="margin-top:18px">Timingy klíčových itemů</div>
+    <div class="note">Typický čas = nejčastější minuta nákupu napříč veřejnými hrami. Win rate = úspěšnost her, kde si hrdina daný item koupil.</div>
+    <div class="tablewrap">${tl}</div>
+  `;
+  const cb=document.querySelector("#buildOut .build-close");
+  if(cb) cb.onclick=()=>{ state.buildHero=null; const o=$("#buildOut"); if(o) o.innerHTML=""; };
+}
+
+function buildGridHTML(){
+  const q=(state.buildPickerSearch||"").trim().toLowerCase();
+  const list=Object.entries(heroMap).map(([id,m])=>({id:+id,name:m.name,short:m.short}))
+    .filter(h=> !q || h.name.toLowerCase().includes(q))
+    .sort((a,b)=> a.name.localeCompare(b.name,'cs'));
+  if(!list.length) return '<div class="picker-empty">Žádný hrdina nenalezen.</div>';
+  return list.map(h=>`<button class="hg${state.buildHero===h.id?' sel':''}" data-id="${h.id}" title="${escapeHtml(h.name)}">${heroIcon(h.short,38)}<span>${escapeHtml(h.name)}</span></button>`).join("");
+}
+function wireBuildGrid(){
+  document.querySelectorAll(".hero-grid .hg").forEach(el=>{
+    el.onclick=()=>{ state.buildHero=+el.dataset.id; renderBuildPanel(); };
+  });
+}
+function renderBuildPanel(){
+  $("#panel").innerHTML=`
+    <div class="draft-intro">Vyber hrdinu a uvidíš jeho <b>nejčastější item build</b> po fázích a <b>timingy</b> klíčových itemů (data ze všech veřejných her).</div>
+    <div class="picker">
+      <input type="text" id="buildSearch" placeholder="Hledat hrdinu…" value="${escapeHtml(state.buildPickerSearch)}" autocomplete="off">
+      <div class="hero-grid">${buildGridHTML()}</div>
+    </div>
+    <div class="tablewrap"><div id="buildOut">${state.buildHero?'':'<div class="empty">Vyber hrdinu nahoře a načte se jeho build.</div>'}</div></div>
+  `;
+  $("#buildSearch").oninput=e=>{
+    state.buildPickerSearch=e.target.value;
+    const g=document.querySelector(".hero-grid");
+    if(g){ g.innerHTML=buildGridHTML(); wireBuildGrid(); }
+  };
+  wireBuildGrid();
+  if(state.buildHero){
+    if(state.buildCache[state.buildHero]) renderBuildResult(state.buildHero);
+    else loadBuild(state.buildHero);
+  }
+}
+
+function counterGridHTML(){
+  const q=(state.counterSearch||"").trim().toLowerCase();
+  const list=Object.entries(heroMap).map(([id,m])=>({id:+id,name:m.name,short:m.short}))
+    .filter(h=> !q || h.name.toLowerCase().includes(q))
+    .sort((a,b)=> a.name.localeCompare(b.name,'cs'));
+  if(!list.length) return '<div class="picker-empty">Žádný hrdina nenalezen.</div>';
+  return list.map(h=>`<button class="hg${state.counterHero===h.id?' sel':''}" data-id="${h.id}" title="${escapeHtml(h.name)}">${heroIcon(h.short,38)}<span>${escapeHtml(h.name)}</span></button>`).join("");
+}
+function wireCounterGrid(){
+  document.querySelectorAll("#hcGrid .hg").forEach(el=>{
+    el.onclick=()=>{ state.counterHero=+el.dataset.id; renderCounterPanel(); };
+  });
+}
+const COUNTER_API = "/api/counters"; // serverless STRATZ proxy (rank-filtrované countery)
+function hcKey(id){ return id + "_" + state.counterBracket; }
+function counterUrl(id){
+  return state.counterBracket==="all"
+    ? `https://api.opendota.com/api/heroes/${id}/matchups`
+    : `${COUNTER_API}?hero=${id}&bracket=${encodeURIComponent(state.counterBracket)}`;
+}
+function parseMatchups(mu){
+  const list=[];
+  (mu||[]).forEach(r=>{
+    if(!r) return;
+    const oid = r.hero_id!=null ? +r.hero_id : null;
+    const g = +(r.games_played!=null ? r.games_played : (r.games!=null ? r.games : 0)) || 0;
+    const w = +(r.wins!=null ? r.wins : (r.win!=null ? r.win : 0)) || 0;
+    if(oid==null || !heroMap[oid] || g<=0) return;
+    list.push({ id:oid, g, w });   // w = výhry VYBRANÉHO hrdiny proti oid
+  });
+  return list;
+}
+async function loadCounter(id){
+  const key=hcKey(id);
+  if(state.hcLoadingId===key) return;
+  state.hcLoadingId=key; state.hcErr=null;
+  try{
+    const mu = await getJSON(counterUrl(id));
+    if(mu && mu.error) throw new Error(mu.error);
+    state.hcData[key]=parseMatchups(mu);
+  }catch(e){ state.hcErr=e.message||"chyba"; }
+  state.hcLoadingId=null;
+  if(state.tab==="counter" && state.counterHero===id) renderCounterResults();
+}
+function brLabel(b){
+  return b==="all" ? "Všechny ranky" : b==="legend_ancient" ? "Ancient+ (Legend–Immortal)" : b==="divine_immortal" ? "Divine+ (Divine–Immortal)" : b;
+}
+function renderCounterPanel(){
+  const panel=$("#panel");
+  const head=`
+    <div class="draft-intro">Vyber hrdinu, kterého chceš <b>counterovat</b>. Ukážu nejlepší countery <b>na každou pozici</b> (Pos 1–5), očištěné o sílu hrdinů.</div>
+    <div class="hc-prewarm">
+      <label class="hc-brk">Rank:
+        <select id="hcBracket">
+          <option value="all"${state.counterBracket==="all"?" selected":""}>Všechny ranky (OpenDota)</option>
+          <option value="legend_ancient"${state.counterBracket==="legend_ancient"?" selected":""}>Ancient+ (STRATZ)</option>
+          <option value="divine_immortal"${state.counterBracket==="divine_immortal"?" selected":""}>Divine+ (STRATZ)</option>
+        </select>
+      </label>
+      <button class="lane-btn alt" id="hcPrewarmBtn">Přednačíst všechny hrdiny</button>
+      <span id="hcPrewarmStatus" class="hc-pw-status"></span>
+    </div>
+    <div class="picker">
+      <input type="text" id="hcSearch" placeholder="Hledat hrdinu…" value="${escapeHtml(state.counterSearch||'')}" autocomplete="off">
+      <div class="hero-grid" id="hcGrid">${counterGridHTML()}</div>
+    </div>`;
+  panel.innerHTML = head + `<div id="hcOut">${state.counterHero?'<div class="status" style="padding:30px 10px"><div class="spinner"></div>Počítám countery…</div>':'<div class="empty">Vyber hrdinu nahoře a vypíšu jeho countery.</div>'}</div>`;
+  const s=$("#hcSearch");
+  if(s) s.oninput=e=>{ state.counterSearch=e.target.value; const g=$("#hcGrid"); if(g){ g.innerHTML=counterGridHTML(); wireCounterGrid(); } };
+  const br=$("#hcBracket"); if(br) br.onchange=e=>{ state.counterBracket=e.target.value; hcPrewarmRefresh(); if(state.counterHero) renderCounterResults(); };
+  const pb=$("#hcPrewarmBtn"); if(pb) pb.onclick=()=> prewarmCounters();
+  hcPrewarmRefresh();
+  wireCounterGrid();
+  if(state.counterHero) renderCounterResults();
+}
+function hcPrewarmRefresh(){
+  const el=$("#hcPrewarmStatus"); if(!el) return;
+  const p=state.hcPrewarm, total=Object.keys(heroMap).length;
+  const have=Object.keys(state.hcData).filter(k=> k.endsWith("_"+state.counterBracket) && state.hcData[k]).length;
+  const btn=$("#hcPrewarmBtn");
+  if(p.running){ el.textContent=`Načítám… ${p.done}/${p.total}`; if(btn) btn.disabled=true; }
+  else { if(btn) btn.disabled=false; el.textContent = have ? `Načteno ${have}/${total} ✓` : ""; }
+}
+async function prewarmCounters(){
+  if(state.hcPrewarm.running) return;
+  ensureBaseWR();
+  const ids=Object.keys(heroMap).map(Number).filter(id=> !state.hcData[hcKey(id)]);
+  if(!ids.length){ hcPrewarmRefresh(); return; }
+  state.hcPrewarm={running:true, done:0, total:ids.length};
+  hcPrewarmRefresh();
+  await Promise.all(ids.map(async id=>{
+    try{
+      const mu=await getJSON(counterUrl(id));
+      if(!(mu && mu.error)) state.hcData[hcKey(id)]=parseMatchups(mu);
+    }catch(e){}
+    state.hcPrewarm.done++; hcPrewarmRefresh();
+  }));
+  state.hcPrewarm.running=false;
+  hcPrewarmRefresh();
+  if(state.tab==="counter" && state.counterHero) renderCounterResults();
+}
+function renderCounterResults(){
+  const id=state.counterHero; if(!id) return;
+  const o=$("#hcOut"); if(!o) return;
+  if(!state.baseWR){
+    o.innerHTML='<div class="status" style="padding:30px 10px"><div class="spinner"></div>Stahuju celkové win raty…</div>';
+    ensureBaseWR(()=>{ if(state.tab==="counter" && state.counterHero===id) renderCounterResults(); });
+    return;
+  }
+  const data=state.hcData[hcKey(id)];
+  if(!data){
+    if(state.hcErr){ o.innerHTML='<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst data ('+escapeHtml(state.hcErr)+').<br>'+(state.counterBracket==="all"?'OpenDota má limit ~60 dotazů/min — zkus za chvíli.':'Rank-filtr jede přes tvůj STRATZ backend — funguje až po nasazení na server (na file:// ne).')+'</div>'; return; }
+    o.innerHTML='<div class="status" style="padding:30px 10px"><div class="spinner"></div>Načítám countery…</div>';
+    loadCounter(id); return;
+  }
+  const wrX = state.baseWR[id]!=null ? state.baseWR[id] : 0.5;
+  const MIN_G=20;
+  const arr=data.filter(d=> d.g>=MIN_G).map(d=>{
+    const oWinVsX = 1 - d.w/d.g;             // win rate countera proti hrdinovi
+    const adv = (oWinVsX - (1 - wrX))*100;   // kdo ho poráží, očištěno o jeho sílu
+    const m=heroMap[d.id]||{name:"#"+d.id,short:""};
+    return {id:d.id, wr:oWinVsX, adv, g:d.g, name:m.name, short:m.short};
+  });
+  if(!arr.length){
+    o.innerHTML='<div class="empty">Pro tohoto hrdinu se nenačetla data. Přepni tab a zkus znovu.</div>';
+    state.hcData[hcKey(id)]=undefined;
+    return;
+  }
+  const cols=POSITIONS.map(p=>{
+    const list=arr.filter(o=> heroMatchesPos(o.id,p.id)).sort((a,b)=> b.adv-a.adv).slice(0,6);
+    const rows = list.length ? list.map((o,i)=>`
+      <div class="hc-row">
+        <span class="hc-rank">${i+1}</span>
+        <img class="hc-ic" src="${HERO_CDN}${o.short}.png" alt="" onerror="this.style.visibility='hidden'">
+        <span class="hc-name">${escapeHtml(o.name)}</span>
+        <span class="hc-wr2" title="win rate proti tomuto hrdinovi">${Math.round(o.wr*100)}%</span>
+        <span class="hc-adv" style="color:${o.adv>=0?'var(--win-glow)':'var(--loss-glow)'}" title="výhoda po očištění o sílu hrdiny">${o.adv>=0?'+':''}${o.adv.toFixed(1)}</span>
+      </div>`).join("") : '<div class="chips-empty" style="padding:8px">—</div>';
+    return `<div class="hc-col"><div class="hc-h">${p.label}<span>${p.sub}</span></div>${rows}</div>`;
+  }).join("");
+  const m=heroMap[id]||{name:"#"+id,short:""};
+  o.innerHTML=`
+    <div class="hc-target">${heroIcon(m.short,42)}<div><div class="bh-name">Countery na ${escapeHtml(m.name)}</div><div class="bh-sub">${brLabel(state.counterBracket)} · % = win rate countera · číslo = výhoda po očištění · top 6 na pozici · zváženo ${arr.length} hrdinů</div></div></div>
+    <div class="hc-grid">${cols}</div>
+    <div class="note">Řadím podle toho, <b>kdo tohoto hrdinu poráží</b> — win rate proti němu očištěný o jeho <b>vlastní celkovou sílu</b> (aby vylezly i countery na silné pub hrdiny jako Brood/Huskar). Zelené = poráží ho víc, než by čekal; červené = spíš mu podléhá. Data ze <b>všech ranků</b>, matchupy s aspoň 20 hrami.</div>
+  `;
+}
+
+/* ---------- Historie zápasů ---------- */
+const GAME_MODES = {1:"All Pick",2:"Captains Mode",3:"Random Draft",4:"Single Draft",5:"All Random",16:"Captains Draft",18:"Ability Draft",22:"All Pick",23:"Turbo"};
+function matchMode(gm, lt){
+  if(gm===23) return "Turbo";
+  if(lt===7) return "Ranked";
+  if(lt===1) return "Bot/Practice";
+  return "Unranked";
+}
+function matchClass(m){
+  if(m.game_mode===23) return "turbo";
+  if(m.lobby_type===7) return "ranked";
+  if(m.lobby_type===1) return "bot";
+  return "unranked";
+}
+function isWin(m){ return (m.player_slot<128)===m.radiant_win; }
+function fmtDur(s){ s=+s||0; return Math.floor(s/60)+":"+String(s%60).padStart(2,"0"); }
+function fmtK(n){ n=+n||0; return n>=1000 ? (n/1000).toFixed(1).replace(/\.0$/,"")+"k" : ""+n; }
+function timeAgo(ts){
+  if(!ts) return "";
+  const d=Date.now()/1000 - ts;
+  if(d<3600) return "před "+Math.max(1,Math.round(d/60))+" min";
+  if(d<86400) return "před "+Math.round(d/3600)+" h";
+  const days=Math.round(d/86400);
+  if(days<30) return "před "+days+(days===1?" dnem":" dny");
+  return "před "+Math.round(days/30)+" měs";
+}
+// Zjednodušený impact 1–100 z dostupných statistik (není to oficiální Stratz IMP)
+function matchImpact(m){
+  const kda=(m.kills + m.assists)/Math.max(1,m.deaths);
+  const gpm=m.gold_per_min||0;
+  const v = 50 + (kda-2.8)*7 + (m.kills+m.assists)*0.9 - m.deaths*2.2 + (gpm-400)*0.015;
+  return Math.max(1, Math.min(100, Math.round(v)));
+}
+function impColor(v){ if(v>=72) return 'var(--win-glow)'; if(v>=56) return 'var(--gold)'; if(v>=42) return 'var(--text)'; return 'var(--loss-glow)'; }
+
+async function loadMatches(){
+  state.matchHistLoading=true;
+  try{
+    const ic=await ensureItemConst();
+    const fields=["match_id","hero_id","player_slot","radiant_win","duration","game_mode","lobby_type","start_time","kills","deaths","assists","gold_per_min","xp_per_min","last_hits","item_0","item_1","item_2","item_3","item_4","item_5"];
+    const url=`https://api.opendota.com/api/players/${state.accId}/matches?limit=100&`+fields.map(f=>"project="+f).join("&");
+    const data=await getJSON(url);
+    state.matchHist=data||[];
+    state.matchHistLoaded=true; state.matchHistLoading=false;
+    if(state.tab==="matches") renderMatchesPanel();
+  }catch(e){
+    state.matchHistLoading=false;
+    if(state.tab==="matches" && $("#panel")) $("#panel").innerHTML='<div class="status error">Nepodařilo se načíst historii zápasů ('+e.message+').</div>';
+  }
+}
+
+function matchRow(m, ic){
+  const meta=heroMap[m.hero_id]||{name:"#"+m.hero_id,short:""};
+  const win=isWin(m);
+  const imp=matchImpact(m);
+  const items=[m.item_0,m.item_1,m.item_2,m.item_3,m.item_4,m.item_5].filter(x=>x)
+    .map(id=> (ic&&ic.byId[id]&&ic.byId[id].img) ? `<img class="iitem" src="${ic.byId[id].img}" title="${escapeHtml(ic.byId[id].dname)}" alt="">` : '').join("");
+  return `<div class="match ${win?'w':'l'}" data-mid="${m.match_id}">
+    <div class="m-res">${win?'Výhra':'Prohra'}</div>
+    <div class="m-hero">${heroIcon(meta.short,38)}<div class="m-htxt"><div class="m-name">${escapeHtml(meta.name)}</div><div class="m-mode">${matchMode(m.game_mode,m.lobby_type)} · ${fmtDur(m.duration)}</div></div></div>
+    <div class="m-kda"><b>${m.kills}/${m.deaths}/${m.assists}</b><span>K / D / A</span></div>
+    <div class="m-stat"><b>${m.gold_per_min||0}</b><span>GPM</span></div>
+    <div class="m-stat"><b>${m.last_hits||0}</b><span>LH</span></div>
+    <div class="m-stat"><b style="color:${impColor(imp)}">${imp}</b><span>Impact</span></div>
+    <div class="m-items">${items}</div>
+    <div class="m-right"><div class="m-ago">${timeAgo(m.start_time)}</div><div class="m-id">#${m.match_id}<button class="copy-id" data-mid="${m.match_id}" title="kopírovat ID zápasu">⧉</button></div></div>
+  </div>`;
+}
+
+function matchHelpHTML(){
+  return `<details class="help">
+    <summary>Jak se počítá Impact a známka picku?</summary>
+    <div class="help-body">
+      <div><b>Impact (1–100)</b> — můj <b>zjednodušený</b> odhad výkonu z dostupných statistik (není to oficiální Stratz IMP). Zhruba: <span class="g">50 + (KDA−2,8)×7 + (zabití+asistence)×0,9 − úmrtí×2,2 + (GPM−400)×0,015</span>, ořezáno na 1–100. KDA = (zabití+asistence)/úmrtí. Pozn.: supporty kvůli nízkému GPM mírně podhodnocuje.</div>
+      <div><b>Pick (E → S+)</b> — jak dobrý byl hrdina <b>proti soupeřově pětici</b>. Pro každého nepřítele se vezme historická úspěšnost hrdiny proti němu (ze všech veřejných her), zprůměruje se výhoda a převede na skóre <span class="g">50 + výhoda×3</span>. Skóre → známka: <b>E</b> &lt;30, <b>D</b> 30–44, <b>C</b> 45–59, <b>B</b> 60–71, <b>A</b> 72–81, <b>S</b> 82–91, <span class="g">S+</span> 92+. Hodnotí jen matchupy hrdina-vs-hrdina, ne synergie a lajny.</div>
+    </div>
+  </details>`;
+}
+
+function winrateWindows(all){
+  const wins = all.map(isWin);
+  const wins10 = (n)=>{ const k=Math.min(n,wins.length); let w=0; for(let i=0;i<k;i++) if(wins[i]) w++; return {n:k,w,l:k-w,wr:k?Math.round(w/k*1000)/10:0}; };
+  const targets=[]; for(let n=5;n<=100;n+=5){ if(n<=wins.length) targets.push(n); }
+  if(!targets.length && wins.length) targets.push(wins.length);
+  if(targets.length && targets[targets.length-1]!==wins.length && wins.length<100) targets.push(wins.length);
+  return targets.map(wins10);
+}
+function matchSummaryHTML(all){
+  if(!all.length) return "";
+  const wins=winrateWindows(all);
+  const chips=wins.map(w=>`<div class="wrw" title="${w.w} výher / ${w.l} proher z posledních ${w.n}">
+      <div class="wrw-n">${w.n}</div>
+      <div class="wrw-wr" style="color:${wrColor(w.wr/100)}">${w.wr}%</div>
+      <div class="wrw-rec">${w.w}–${w.l}</div>
+    </div>`).join("");
+  return `<div class="msum">
+    <div class="msum-h">Winrate za posledních N zápasů</div>
+    <div class="wrw-row">${chips}</div>
+  </div>`;
+}
+function laneOutcome(md){
+  const ps=md && md.players; if(!ps) return null;
+  const me=ps.find(p=> String(p.account_id)===String(state.accId));
+  if(!me || me.lane==null || !Array.isArray(me.gold_t) || me.gold_t.length<8) return null;
+  const myTeamRad = me.player_slot<128;
+  const opps=ps.filter(p=> (p.player_slot<128)!==myTeamRad && p.lane===me.lane && Array.isArray(p.gold_t) && p.gold_t.length>=8);
+  if(!opps.length) return null;
+  const at=arr=> arr[Math.min(10, arr.length-1)];
+  const myG=at(me.gold_t);
+  const oppG=opps.reduce((s,p)=>s+at(p.gold_t),0)/opps.length;
+  if(myG > oppG*1.03) return "won";
+  if(myG < oppG*0.97) return "lost";
+  return "tie";
+}
+async function runLaneAnalysis(){
+  if(state.laneLoading) return;
+  state.laneLoading=true; state.laneProg=0; renderMatchesPanel();
+  const ids=(state.matchHist||[]).slice(0,25).map(m=>m.match_id);
+  let won=0,lost=0,tie=0,nodata=0;
+  for(const id of ids){
+    try{
+      let md=state.matchDetailCache[id];
+      if(!md){ md=await getJSON("https://api.opendota.com/api/matches/"+id); state.matchDetailCache[id]=md; }
+      const r=laneOutcome(md);
+      state.laneByMatch[id] = r || "nodata";
+      if(r==="won") won++; else if(r==="lost") lost++; else if(r==="tie") tie++; else nodata++;
+    }catch(e){ state.laneByMatch[id]="nodata"; nodata++; }
+    state.laneProg++; if(state.tab==="matches") renderMatchesPanel();
+  }
+  state.laneStats={won,lost,tie,nodata,checked:ids.length};
+  state.laneLoading=false;
+  if(state.tab==="matches") renderMatchesPanel();
+}
+
+async function runParseMissing(){
+  if(state.parseRunning) return;
+  const ids=(state.matchHist||[]).slice(0,25).map(m=>m.match_id).filter(id=> state.laneByMatch[id]==="nodata");
+  const todo=ids.slice(0,10);
+  if(!todo.length) return;
+  state.parseRunning=true; state.parseMsg="Žádám OpenDotu o parsování "+todo.length+" zápasů…";
+  if(state.tab==="matches") renderMatchesPanel();
+  await Promise.all(todo.map(async id=>{ try{ await fetch("https://api.opendota.com/api/request/"+id,{method:"POST"}); }catch(e){} }));
+  let pending=todo.slice();
+  for(let round=0; round<6 && pending.length; round++){
+    state.parseMsg="Parsuji… kolo "+(round+1)+"/6, zbývá "+pending.length+" (může to chvíli trvat).";
+    if(state.tab==="matches") renderMatchesPanel();
+    await _sleep(13000);
+    const still=[];
+    for(const id of pending){
+      try{
+        const md=await getJSON("https://api.opendota.com/api/matches/"+id);
+        state.matchDetailCache[id]=md;
+        const r=laneOutcome(md);
+        if(r){
+          if(state.laneStats){
+            state.laneStats.nodata=Math.max(0,state.laneStats.nodata-1);
+            if(r==="won") state.laneStats.won++; else if(r==="lost") state.laneStats.lost++; else state.laneStats.tie++;
+          }
+          state.laneByMatch[id]=r;
+        } else still.push(id);
+      }catch(e){ still.push(id); }
+    }
+    pending=still;
+    if(state.tab==="matches") renderMatchesPanel();
+  }
+  state.parseRunning=false;
+  state.parseMsg = pending.length
+    ? (pending.length+" zápasů se ještě parsuje, nebo už nemají dostupný replay (staré hry). Zkus Přepočítat za chvíli.")
+    : "Hotovo — chybějící lajny doparsovány.";
+  if(state.tab==="matches") renderMatchesPanel();
+}
+
+function renderMatchesPanel(){
+  if(!state.matchHistLoaded){
+    $("#panel").innerHTML='<div class="status" style="padding:42px 10px"><div class="spinner"></div>Načítám historii zápasů…</div>';
+    if(!state.matchHistLoading) loadMatches();
+    return;
+  }
+  const f=state.matchFilter;
+  const ic=state.itemConst;
+  const all=state.matchHist||[];
+  const heroIds=[...new Set(all.map(m=>m.hero_id))].filter(Boolean)
+    .map(id=>({id, name:(heroMap[id]&&heroMap[id].name)||("#"+id)}))
+    .sort((a,b)=>a.name.localeCompare(b.name,'cs'));
+
+  const list=all.filter(m=>{
+    if(f.result==="win" && !isWin(m)) return false;
+    if(f.result==="loss" && isWin(m)) return false;
+    if(f.mode!=="all" && matchClass(m)!==f.mode) return false;
+    if(f.hero && m.hero_id!==f.hero) return false;
+    return true;
+  });
+
+  const rows=list.map(m=>matchRow(m,ic)).join("");
+  $("#panel").innerHTML=`
+    ${matchHelpHTML()}
+    ${matchSummaryHTML(all)}
+    <div class="match-filters">
+      <div class="seg">
+        <button class="sgb ${f.result==='all'?'on':''}" data-fr="all">Vše</button>
+        <button class="sgb ${f.result==='win'?'on':''}" data-fr="win">Výhry</button>
+        <button class="sgb ${f.result==='loss'?'on':''}" data-fr="loss">Prohry</button>
+      </div>
+      <select id="fMode" class="mf-sel">
+        <option value="all" ${f.mode==='all'?'selected':''}>Všechny režimy</option>
+        <option value="ranked" ${f.mode==='ranked'?'selected':''}>Ranked</option>
+        <option value="unranked" ${f.mode==='unranked'?'selected':''}>Unranked</option>
+        <option value="turbo" ${f.mode==='turbo'?'selected':''}>Turbo</option>
+      </select>
+      <select id="fHero" class="mf-sel">
+        <option value="0">Všichni hrdinové</option>
+        ${heroIds.map(h=>`<option value="${h.id}" ${f.hero===h.id?'selected':''}>${escapeHtml(h.name)}</option>`).join("")}
+      </select>
+      <span class="mf-count">${list.length} z ${all.length}</span>
+    </div>
+    <div class="match-list">${rows||'<div class="empty">Žádné zápasy neodpovídají filtru.</div>'}</div>
+  `;
+
+  document.querySelectorAll(".match-filters .sgb").forEach(b=>{
+    b.onclick=()=>{ state.matchFilter.result=b.dataset.fr; renderMatchesPanel(); };
+  });
+  $("#fMode").onchange=e=>{ state.matchFilter.mode=e.target.value; renderMatchesPanel(); };
+  $("#fHero").onchange=e=>{ state.matchFilter.hero=+e.target.value; renderMatchesPanel(); };
+  document.querySelectorAll(".match-list .match").forEach(el=>{
+    el.onclick=()=> openMatchDetail(+el.dataset.mid);
+  });
+  wireCopyIds();
+}
+function openMatchDetail(id){ state.matchDetailReturn=state.tab; state.matchDetailId=id; renderPanel(); window.scrollTo({top:0,behavior:"smooth"}); }
+
+function wireCopyIds(){
+  document.querySelectorAll("#panel .copy-id").forEach(b=>{
+    b.onclick=(ev)=>{ ev.stopPropagation(); try{ navigator.clipboard.writeText(b.dataset.mid); }catch(e){}
+      const o=b.textContent; b.textContent="✓"; setTimeout(()=>{ b.textContent=o; },900); };
+  });
+}
+
+async function loadMatchDetail(id){
+  state.matchDetailLoading=true;
+  try{
+    await ensureItemConst();
+    const data=await getJSON(`https://api.opendota.com/api/matches/${id}`);
+    state.matchDetailCache[id]=data;
+    state.matchDetailLoading=false;
+    if(state.matchDetailId===id) renderMatchDetail();
+  }catch(e){
+    state.matchDetailLoading=false;
+    if($("#panel")) $("#panel").innerHTML='<div class="status error">Nepodařilo se načíst detail zápasu ('+e.message+').</div><div style="text-align:center;margin-top:12px"><button class="md-back" id="mdBack">← Zpět na zápasy</button></div>';
+    const bb=$("#mdBack"); if(bb) bb.onclick=()=>{ state.matchDetailId=null; renderMatchesPanel(); };
+  }
+}
+
+function pickGrade(heroId, oppIds){
+  let sum=0,n=0;
+  oppIds.forEach(e=>{
+    const map=state.matchupCache[e]; if(!map) return;
+    const m=map[heroId];
+    if(m && m.g>0){ sum+=(1-(m.w/m.g)-0.5)*100; n++; }
+  });
+  if(!n) return null;
+  const score=Math.max(1,Math.min(100,Math.round(50+(sum/n)*3)));
+  return {score, gi:gradeInfo(score)};
+}
+function pickCell(heroId, oppIds){
+  const ready = oppIds.every(e=> state.matchupCache[e]);
+  if(!ready) return '<span class="grade-mini">…</span>';
+  const pg=pickGrade(heroId, oppIds);
+  if(!pg) return '<span class="cg">—</span>';
+  return `<span class="grade" style="color:${pg.gi.c};border-color:${pg.gi.c}" title="skóre ${pg.score}">${pg.gi.g}</span>`;
+}
+
+async function ensureMatchDetailMatchups(id){
+  const md=state.matchDetailCache[id]; if(!md) return;
+  const ids=[...new Set((md.players||[]).map(p=>p.hero_id))].filter(Boolean);
+  const missing=ids.filter(h=> !state.matchupCache[h]);
+  if(!missing.length) return;
+  try{
+    await Promise.all(missing.map(async h=>{
+      const data=await getJSON(`https://api.opendota.com/api/heroes/${h}/matchups`);
+      const map={}; (data||[]).forEach(r=>{ map[r.hero_id]={g:r.games_played||0,w:r.wins||0}; });
+      saveMatchup(h,map);
+    }));
+  }catch(e){}
+  if(state.matchDetailId===id) renderMatchDetail();
+}
+
+function teamTable(players, side, md, oppIds){
+  const ic=state.itemConst;
+  const ext=state.matchDetailExtended;
+  const won = side==="radiant" ? md.radiant_win : !md.radiant_win;
+  const fmtN=n=> (n==null?'—':(+n).toLocaleString('cs-CZ'));
+  const head = ext
+    ? `<th>Hráč</th><th>Lvl</th><th>K/D/A</th><th>LH/DN</th><th>GPM</th><th>XPM</th><th>NW</th><th>Hrdinům</th><th>Budovy</th><th>Léčení</th><th>Stun</th><th>Impact</th><th>Pick</th><th>Items</th>`
+    : `<th>Hráč</th><th>Lvl</th><th>K/D/A</th><th>GPM</th><th>NW</th><th>LH</th><th>Impact</th><th>Pick</th><th>Items</th>`;
+  const rows=players.sort((a,b)=>a.player_slot-b.player_slot).map(p=>{
+    const meta=heroMap[p.hero_id]||{name:"#"+p.hero_id,short:""};
+    const me = String(p.account_id)===String(state.accId);
+    const acc=p.account_id, clk = acc && acc!==4294967295;
+    const nm = escapeHtml(p.personaname || (clk?"Hráč":"Anonym"));
+    const nameCell = clk ? `<span class="go-player" data-acc="${acc}" title="zobrazit statistiky hráče">${nm}</span>` : `<span class="anon">${nm}</span>`;
+    const imp=matchImpact(p);
+    const kda=`<b>${p.kills}</b><span class="cl"> / ${p.deaths}</span> / <span style="color:var(--gold)">${p.assists}</span>`;
+    const items=[p.item_0,p.item_1,p.item_2,p.item_3,p.item_4,p.item_5].filter(x=>x)
+      .map(id=> (ic&&ic.byId[id]&&ic.byId[id].img)?`<img class="iitem" src="${ic.byId[id].img}" title="${escapeHtml(ic.byId[id].dname)}" alt="">`:'').join("");
+    const heroTd=`<td class="hero">${heroIcon(meta.short,26)}${nameCell}</td>`;
+    const impTd=`<td style="color:${impColor(imp)};font-weight:700">${imp}</td>`;
+    const pickTd=`<td style="text-align:center">${pickCell(p.hero_id, oppIds)}</td>`;
+    const itemsTd=`<td><div class="m-items">${items}</div></td>`;
+    const cells = ext
+      ? `${heroTd}<td class="cg">${p.level||''}</td><td>${kda}</td><td class="cg">${p.last_hits||0} / ${p.denies||0}</td><td class="cg">${p.gold_per_min||0}</td><td class="cg">${p.xp_per_min||0}</td><td class="cg">${fmtK(p.net_worth)}</td><td class="cg">${fmtN(p.hero_damage)}</td><td class="cg">${fmtN(p.tower_damage)}</td><td class="cg">${fmtN(p.hero_healing)}</td><td class="cg">${p.stuns!=null?Math.round(p.stuns)+' s':'—'}</td>${impTd}${pickTd}${itemsTd}`
+      : `${heroTd}<td class="cg">${p.level||''}</td><td>${kda}</td><td class="cg">${p.gold_per_min||0}</td><td class="cg">${fmtK(p.net_worth)}</td><td class="cg">${p.last_hits||0}</td>${impTd}${pickTd}${itemsTd}`;
+    return `<tr class="${me?'me-row':''}">${cells}</tr>`;
+  }).join("");
+  return `<div class="team-h ${won?'won':'lost'}">${side==="radiant"?"Radiant":"Dire"} <span>${won?'výhra':'prohra'}</span></div>
+    <div class="tablewrap"><table class="sb ${ext?'sb-ext':''}"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function renderMatchDetail(){
+  const id=state.matchDetailId;
+  const md=state.matchDetailCache[id];
+  if(!md){
+    $("#panel").innerHTML='<div class="status" style="padding:42px 10px"><div class="spinner"></div>Načítám detail zápasu…</div>';
+    if(!state.matchDetailLoading) loadMatchDetail(id);
+    return;
+  }
+  const players=md.players||[];
+  const me=players.find(p=> String(p.account_id)===String(state.accId));
+  const userWin = me ? ((me.player_slot<128)===md.radiant_win) : null;
+  const radiant=players.filter(p=>p.player_slot<128);
+  const dire=players.filter(p=>p.player_slot>=128);
+  const radIds=radiant.map(p=>p.hero_id), direIds=dire.map(p=>p.hero_id);
+  const resTxt = userWin===null ? '' : (userWin?'<span class="md-win">VÝHRA</span>':'<span class="md-loss">PROHRA</span>');
+
+  $("#panel").innerHTML=`
+    <div class="md-top">
+      <button class="md-back" id="mdBack">← Zpět na zápasy</button>
+      <div class="seg md-vtoggle">
+        <button class="sgb ${!state.matchDetailExtended?'on':''}" data-ext="0">Základní</button>
+        <button class="sgb ${state.matchDetailExtended?'on':''}" data-ext="1">Detailní</button>
+      </div>
+    </div>
+    <div class="md-head">
+      ${resTxt}
+      <div class="md-score"><span class="cw">${md.radiant_score??''}</span> : <span class="cl">${md.dire_score??''}</span></div>
+      <div class="md-meta">${matchMode(md.game_mode,md.lobby_type)} · ${fmtDur(md.duration)} · ${timeAgo(md.start_time)}</div>
+      <div class="md-mid">Zápas <b>#${id}</b><button class="copy-id" data-mid="${id}" title="kopírovat ID (pro přehrání v Dotě)">⧉</button></div>
+      <div class="md-hint"><b>Impact</b> = výkon (1–100). <b>Pick</b> = jak dobrý byl hrdina proti soupeřově sestavě (E–S+). „Detailní" ukáže herní statistiky jako v Dotě. Klikni na jméno hráče s veřejným profilem pro jeho statistiky.</div>
+    </div>
+    ${matchHelpHTML()}
+    ${teamTable(radiant,"radiant",md,direIds)}
+    ${teamTable(dire,"dire",md,radIds)}
+    <div class="md-foot"><a href="https://www.opendota.com/matches/${id}" target="_blank" rel="noopener">Plný detail na OpenDotě ↗</a></div>
+  `;
+  const bb=$("#mdBack"); if(bb) bb.onclick=()=>{ state.matchDetailId=null; state.tab=state.matchDetailReturn||"matches"; setActiveTab(); renderPanel(); };
+  document.querySelectorAll(".md-vtoggle .sgb").forEach(b=>{
+    b.onclick=()=>{ state.matchDetailExtended = b.dataset.ext==="1"; renderMatchDetail(); };
+  });
+  document.querySelectorAll("#panel .go-player").forEach(el=>{
+    el.onclick=()=>{ const inp=$("#accId"); if(inp) inp.value=el.dataset.acc; window.scrollTo({top:0,behavior:"smooth"}); load(); };
+  });
+  wireCopyIds();
+  ensureMatchDetailMatchups(id);
+}
+
+/* ---------- Svět: veřejné + pro zápasy ---------- */
+function normalizePublic(m){
+  const toArr=s=> typeof s==="string" ? s.split(",").map(Number).filter(Boolean) : (Array.isArray(s)?s:[]);
+  return {...m, rad:toArr(m.radiant_team), dire:toArr(m.dire_team)};
+}
+async function loadWorldPublic(append){
+  state.worldPublicLoading=true; renderWorldPanel();
+  const toIds=v=> Array.isArray(v) ? v.filter(Boolean)
+    : (typeof v==="string" ? v.replace(/[{}]/g,"").split(",").map(Number).filter(Boolean) : []);
+  try{
+    let before = (append && state.worldPublic && state.worldPublic.length) ? Math.min(...state.worldPublic.map(x=>x.match_id)) : 0;
+    const pages = 1; // rychlé načtení; další zápasy přidá „Načíst další"
+    let collected=[];
+    for(let i=0;i<pages;i++){
+      const params=[];
+      if(state.worldRank) params.push("min_rank="+(state.worldRank===8 ? 75 : state.worldRank*10));
+      if(before) params.push("less_than_match_id="+before);
+      const url="https://api.opendota.com/api/publicMatches"+(params.length?"?"+params.join("&"):"");
+      const data=await getJSON(url);
+      if(!Array.isArray(data) || !data.length) break;
+      const batch=data.map(r=>({match_id:r.match_id, start_time:r.start_time, duration:r.duration,
+        avg_rank_tier:r.avg_rank_tier, lobby_type:r.lobby_type, radiant_win:r.radiant_win,
+        rad:toIds(r.radiant_team), dire:toIds(r.dire_team)}));
+      collected=collected.concat(batch);
+      before=Math.min(...batch.map(x=>x.match_id));
+    }
+    state.worldErr=null;
+    state.worldPublic = (append && state.worldPublic) ? state.worldPublic.concat(collected) : collected;
+  }catch(e){
+    state.worldErr=(e && e.message) ? e.message : "neznámá chyba";
+    if(!append) state.worldPublic=[];
+  }
+  state.worldPublicLoading=false;
+  if(state.tab==="world" && state.worldMode==="public") renderWorldPanel();
+}
+async function loadWorldPro(append){
+  state.worldProLoading=true; renderWorldPanel();
+  try{
+    let url="https://api.opendota.com/api/proMatches";
+    if(append && state.worldPro && state.worldPro.length) url+="?less_than_match_id="+Math.min(...state.worldPro.map(x=>x.match_id));
+    const data=await getJSON(url);
+    state.worldPro = (append && state.worldPro) ? state.worldPro.concat(data||[]) : (data||[]);
+    state.worldProLoading=false;
+    if(state.tab==="world" && state.worldMode==="pro") renderWorldPanel();
+  }catch(e){ state.worldProLoading=false; if(state.tab==="world") renderWorldPanel(); }
+}
+function filterWorldPublic(){
+  let list=state.worldPublic||[];
+  list=list.filter(m=> m.duration==null || m.duration>720);          // delší než 12 min
+  const ranked=list.filter(m=> m.lobby_type===7);                    // ranked
+  if(ranked.length) list=ranked;                                     // jen když nějaké ranked existují
+  if(state.worldRank){ const minT = state.worldRank===8 ? 75 : state.worldRank*10 - 4;
+    list=list.filter(m=> m.avg_rank_tier==null || m.avg_rank_tier >= minT); }
+  const a=state.worldHeroA, b=state.worldHeroB, rel=state.worldRel;
+  if(a){
+    list=list.filter(m=>{
+      const aRad=m.rad.includes(a), aDire=m.dire.includes(a);
+      if(!aRad && !aDire) return false;
+      if(b && rel!=="any"){
+        const bRad=m.rad.includes(b), bDire=m.dire.includes(b);
+        if(!bRad && !bDire) return false;
+        const same = (aRad&&bRad)||(aDire&&bDire);
+        return rel==="with" ? same : !same;
+      }
+      return true;
+    });
+  }
+  return list;
+}
+function heroIconsRow(ids){
+  return ids.map(id=>{ const m=heroMap[id]; return m? `<img class="wic" src="${HERO_CDN}${m.short}.png" title="${escapeHtml(m.name)}" alt="">` : ''; }).join("");
+}
+function midChip(id){ return `<div class="m-id">#${id}<button class="copy-id" data-mid="${id}" title="kopírovat ID (přehrání v Dotě)">⧉</button></div>`; }
+function heroSelectOptions(sel){
+  const list=Object.entries(heroMap).map(([id,m])=>({id:+id,name:m.name})).sort((a,b)=>a.name.localeCompare(b.name,'cs'));
+  return `<option value="0">— hrdina —</option>`+list.map(h=>`<option value="${h.id}" ${sel===h.id?'selected':''}>${escapeHtml(h.name)}</option>`).join("");
+}
+
+function renderWorldPanel(){
+  const m=state.worldMode;
+  const sub=`<div class="seg md-vtoggle">
+      <button class="sgb ${m==='public'?'on':''}" data-wm="public">Veřejné hry</button>
+      <button class="sgb ${m==='pro'?'on':''}" data-wm="pro">Profíci</button>
+    </div>`;
+
+  let body="";
+  if(m==="public"){
+    const ranks=[[0,"Všechny ranky"],[1,"Herald+"],[2,"Guardian+"],[3,"Crusader+"],[4,"Archon+"],[5,"Legend+"],[6,"Ancient+"],[7,"Divine+"],[8,"Immortal (= Divine 5+)"]];
+    const filters=`<div class="match-filters">
+        <select id="wRank" class="mf-sel">${ranks.map(r=>`<option value="${r[0]}" ${state.worldRank===r[0]?'selected':''}>${r[1]}</option>`).join("")}</select>
+        <select id="wHeroA" class="mf-sel">${heroSelectOptions(state.worldHeroA)}</select>
+        <div class="seg"><button class="sgb ${state.worldRel==='any'?'on':''}" data-rel="any">vč.</button><button class="sgb ${state.worldRel==='with'?'on':''}" data-rel="with">s</button><button class="sgb ${state.worldRel==='vs'?'on':''}" data-rel="vs">proti</button></div>
+        <select id="wHeroB" class="mf-sel" ${state.worldRel==='any'?'disabled':''}>${heroSelectOptions(state.worldHeroB)}</select>
+      </div>`;
+    if(state.worldPublic===null){
+      body=filters+'<div class="status" style="padding:40px 10px"><div class="spinner"></div>Načítám veřejné zápasy…</div>';
+    } else {
+      const raw=state.worldPublic||[];
+      const afterDur=raw.filter(m=> m.duration==null || m.duration>720);
+      const rankedCnt=afterDur.filter(m=> m.lobby_type===7).length;
+      const list=filterWorldPublic();
+      const diag=`<div class="w-diag">Staženo: <b>${raw.length}</b> · &gt;12 min: <b>${afterDur.length}</b> · ranked: <b>${rankedCnt}</b> · zobrazeno: <b>${list.length}</b>${state.worldErr?` · <span style="color:var(--dire)">chyba: ${escapeHtml(state.worldErr)}</span>`:''}</div>`;
+      const rows=list.map(mm=>`<div class="match wmatch" data-mid="${mm.match_id}">
+          <div class="w-teams"><div class="w-side ${mm.radiant_win?'won':''}">${heroIconsRow(mm.rad)}</div><span class="w-vs">vs</span><div class="w-side ${!mm.radiant_win?'won':''}">${heroIconsRow(mm.dire)}</div></div>
+          <div class="w-meta">${mm.avg_rank_tier?rankText(mm.avg_rank_tier):'—'} · ${fmtDur(mm.duration)} · ${timeAgo(mm.start_time)}</div>
+          ${midChip(mm.match_id)}
+        </div>`).join("");
+      body=filters+diag+`<div class="match-list">${rows|| (state.worldErr
+          ? '<div class="empty">Chyba načítání: <span style="color:var(--dire)">'+escapeHtml(state.worldErr)+'</span> — zkus „Načíst další".</div>'
+          : '<div class="empty">V téhle dávce nic neodpovídá filtru. Klikej „Načíst další" (přidá další stovky zápasů), zvol nižší rank nebo odeber hrdinu.</div>')}</div>
+        <div class="load-more-wrap"><button class="load-more" id="wMore" ${state.worldPublicLoading?'disabled':''}>${state.worldPublicLoading?'Načítám…':'Načíst další'}</button></div>`;
+    }
+  } else {
+    if(state.worldPro===null){
+      body='<div class="status" style="padding:40px 10px"><div class="spinner"></div>Načítám profi zápasy…</div>';
+    } else {
+      const rows=(state.worldPro||[]).map(mm=>`<div class="match wmatch pro" data-mid="${mm.match_id}">
+          <div class="w-pro"><b>${escapeHtml(mm.radiant_name||'Radiant')}</b> <span class="${mm.radiant_win?'cw':'cl'}">${mm.radiant_score??''}</span>:<span class="${!mm.radiant_win?'cw':'cl'}">${mm.dire_score??''}</span> <b>${escapeHtml(mm.dire_name||'Dire')}</b></div>
+          <div class="w-meta">${escapeHtml(mm.league_name||'')} · ${fmtDur(mm.duration)} · ${timeAgo(mm.start_time)}</div>
+          ${midChip(mm.match_id)}
+        </div>`).join("");
+      body=`<div class="match-list">${rows||'<div class="empty">Žádné profi zápasy.</div>'}</div>
+        <div class="load-more-wrap"><button class="load-more" id="wMore" ${state.worldProLoading?'disabled':''}>${state.worldProLoading?'Načítám…':'Načíst další'}</button></div>`;
+    }
+  }
+
+  $("#panel").innerHTML=`
+    <div class="md-top"><div class="draft-intro" style="margin:0">Ranked zápasy z celého světa (jen <b>ranked</b>, delší než <b>12 min</b>). U každého je <b>číslo zápasu</b> (⧉ zkopíruje) — v Dotě přehraješ přes „Sledovat → ID zápasu".</div>${sub}</div>
+    ${body}
+  `;
+
+  document.querySelectorAll(".md-vtoggle .sgb").forEach(b=>{
+    b.onclick=()=>{ state.worldMode=b.dataset.wm;
+      if(state.worldMode==="public" && state.worldPublic===null && !state.worldPublicLoading) loadWorldPublic(false);
+      else if(state.worldMode==="pro" && state.worldPro===null && !state.worldProLoading) loadWorldPro(false);
+      else renderWorldPanel();
+    };
+  });
+  const wr=$("#wRank"); if(wr) wr.onchange=e=>{ state.worldRank=+e.target.value; loadWorldPublic(false); };
+  const wa=$("#wHeroA"); if(wa) wa.onchange=e=>{ state.worldHeroA=+e.target.value; renderWorldPanel(); };
+  const wb=$("#wHeroB"); if(wb) wb.onchange=e=>{ state.worldHeroB=+e.target.value; renderWorldPanel(); };
+  document.querySelectorAll("[data-rel]").forEach(b=>{ b.onclick=()=>{ state.worldRel=b.dataset.rel; renderWorldPanel(); }; });
+  const more=$("#wMore"); if(more) more.onclick=()=>{ state.worldMode==="public"?loadWorldPublic(true):loadWorldPro(true); };
+  document.querySelectorAll(".match-list .wmatch").forEach(el=>{ el.onclick=()=> openMatchDetail(+el.dataset.mid); });
+  wireCopyIds();
+
+  if(state.worldMode==="public" && state.worldPublic===null && !state.worldPublicLoading) loadWorldPublic(false);
+  if(state.worldMode==="pro" && state.worldPro===null && !state.worldProLoading) loadWorldPro(false);
+}
+
+/* ---------- Meta: nejlepší WR podle pozice a ranku ---------- */
+function wrColor(wr){ const p=wr*100; if(p>=54) return 'var(--win-glow)'; if(p>=51) return 'var(--gold)'; if(p>=48) return 'var(--text)'; return 'var(--loss-glow)'; }
+async function loadMetaStats(){
+  state.metaLoading=true; renderMetaPanel();
+  try{
+    const data=await getJSON("https://api.opendota.com/api/heroStats");
+    state.metaStats = Array.isArray(data) ? data : [];
+  }catch(e){ state.metaStats=[]; state.metaErr=e.message; }
+  state.metaLoading=false;
+  if(state.tab==="meta") renderMetaPanel();
+}
+function renderMetaPanel(){
+  if(state.metaStats===null){
+    $("#panel").innerHTML='<div class="status" style="padding:40px 10px"><div class="spinner"></div>Načítám statistiky hrdinů…</div>';
+    if(!state.metaLoading) loadMetaStats();
+    return;
+  }
+  const rankOpts=[[0,"Všechny ranky"]].concat(Object.keys(RANKS).map(k=>[+k, (+k===8 ? "Immortal (= Divine+)" : RANKS[k])]));
+  const minOpts=[0,50,100,300,1000];
+  const filters=`<div class="match-filters">
+      <select id="metaRank" class="mf-sel">${rankOpts.map(o=>`<option value="${o[0]}" ${state.metaRank===o[0]?'selected':''}>${o[1]}</option>`).join("")}</select>
+      <select id="metaMin" class="mf-sel">${minOpts.map(v=>`<option value="${v}" ${state.metaMinPicks===v?'selected':''}>min. ${v} picků</option>`).join("")}</select>
+    </div>`;
+  const r=state.metaRank;
+  const stats=(state.metaStats||[]).map(h=>{
+    let picks=0,wins=0;
+    if(r===0){ for(let i=1;i<=8;i++){ picks+=h[i+"_pick"]||0; wins+=h[i+"_win"]||0; } }
+    else if(r===8){ picks=(h["7_pick"]||0)+(h["8_pick"]||0); wins=(h["7_win"]||0)+(h["8_win"]||0); } // Immortal data jsou v Divine bracketu
+    else { picks=h[r+"_pick"]||0; wins=h[r+"_win"]||0; }
+    return { id:h.id, name:h.localized_name||(heroMap[h.id]&&heroMap[h.id].name)||("#"+h.id),
+      short:(heroMap[h.id]&&heroMap[h.id].short)||"", picks, wr: picks? wins/picks : 0, pos:heroPositions(h.id) };
+  });
+  const cols=POSITIONS.map(P=>{
+    const list=stats.filter(s=> s.picks>=state.metaMinPicks && s.pos.includes(P.id)).sort((a,b)=> b.wr-a.wr).slice(0,10);
+    const rows=list.map((s,i)=>`<div class="meta-row" title="${s.picks.toLocaleString('cs-CZ')} picků">
+        <span class="mr-rank">${i+1}</span>
+        <img class="mr-ic" src="${HERO_CDN}${s.short}.png" alt="" onerror="this.style.visibility='hidden'">
+        <span class="mr-name">${escapeHtml(s.name)}</span>
+        <span class="mr-wr" style="color:${wrColor(s.wr)}">${(s.wr*100).toFixed(1)}%</span>
+      </div>`).join("") || '<div class="empty" style="padding:14px 6px">Málo dat — sniž min. picků.</div>';
+    return `<div class="meta-col"><div class="meta-h">${P.label} <span>${P.sub}</span></div>${rows}</div>`;
+  }).join("");
+  $("#panel").innerHTML=`
+    <div class="draft-intro">Nejlepší <b>win rate</b> hrdinů podle pozice. Přepni si <b>rank</b> a minimální počet picků (ať nevyskakují výkyvy z malého vzorku). Pozice jsou přibližné (běžné meta usage). Data z OpenDoty za poslední měsíc.</div>
+    ${filters}
+    <div class="meta-grid">${cols}</div>
+  `;
+  const mr=$("#metaRank"); if(mr) mr.onchange=e=>{ state.metaRank=+e.target.value; renderMetaPanel(); };
+  const mm=$("#metaMin"); if(mm) mm.onchange=e=>{ state.metaMinPicks=+e.target.value; renderMetaPanel(); };
+}
+
+/* ---------- Živě: hráči online + rekord ---------- */
+const LIVE_LS_KEY = "dota_live_v1";
+function loadLiveHistory(){
+  try{ const r=localStorage.getItem(LIVE_LS_KEY); state.liveHistory = r ? JSON.parse(r) : []; }
+  catch(e){ state.liveHistory = []; }
+  pruneLive();
+}
+function pruneLive(){ const cut=Date.now()-24*3600*1000; state.liveHistory=(state.liveHistory||[]).filter(p=>p && p.t>=cut); }
+function persistLive(){ try{ localStorage.setItem(LIVE_LS_KEY, JSON.stringify(state.liveHistory)); }catch(e){} }
+async function fetchCurrentPlayers(){
+  const steam="https://api.steampowered.com/ISteamUserStats/GetNumberOfCurrentPlayers/v1/?appid=570";
+  const proxies=[
+    u=>"https://corsproxy.io/?url="+encodeURIComponent(u),
+    u=>"https://api.allorigins.win/raw?url="+encodeURIComponent(u),
+  ];
+  for(const mk of proxies){
+    try{
+      const r=await fetch(mk(steam));
+      if(!r.ok) continue;
+      const d=await r.json();
+      const n = d && d.response && d.response.player_count;
+      if(typeof n==="number" && n>0) return n;
+    }catch(e){}
+  }
+  throw new Error("zdroj nedostupný (CORS proxy mimo provoz)");
+}
+async function pollLive(){
+  if(state.liveLoading) return;
+  state.liveLoading=true; if(state.tab==="live") renderLivePanel();
+  try{
+    const n=await fetchCurrentPlayers();
+    state.liveNow=n; state.liveErr=null;
+    state.liveHistory=state.liveHistory||[];
+    state.liveHistory.push({t:Date.now(), n});
+    pruneLive(); persistLive();
+  }catch(e){ state.liveErr=e.message; }
+  state.liveLoading=false;
+  if(state.tab==="live") renderLivePanel();
+}
+function live24max(){ let m=null; (state.liveHistory||[]).forEach(p=>{ if(!m||p.n>m.n) m=p; }); return m; }
+function liveChartSVG(){
+  const hist=(state.liveHistory||[]).slice();
+  if(hist.length<2) return '<div class="empty" style="padding:34px 10px">Sbírám data… graf se objeví po pár měřeních (jedno za minutu, nech appku otevřenou).</div>';
+  const W=680,H=190,padL=8,padR=10,padT=14,padB=22;
+  const xs=hist.map(p=>p.t), ys=hist.map(p=>p.n);
+  const minT=xs[0], maxT=xs[xs.length-1];
+  let minY=Math.min(...ys), maxY=Math.max(...ys);
+  if(minY===maxY){ minY-=Math.max(1,Math.round(minY*0.001)); maxY+=Math.max(1,Math.round(maxY*0.001)); }
+  const spanT=Math.max(1,maxT-minT), spanY=maxY-minY;
+  const X=t=> padL+(t-minT)/spanT*(W-padL-padR);
+  const Y=n=> H-padB-(n-minY)/spanY*(H-padT-padB);
+  const line=hist.map(p=>X(p.t).toFixed(1)+","+Y(p.n).toFixed(1)).join(" ");
+  const area=`${padL.toFixed(1)},${(H-padB).toFixed(1)} ${line} ${X(maxT).toFixed(1)},${(H-padB).toFixed(1)}`;
+  const fmt=n=> n>=1000?(n/1000).toFixed(0)+"k":(""+n);
+  const tf=t=> new Date(t).toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'});
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:200px;display:block">
+    <polyline points="${area}" fill="rgba(116,185,78,.12)" stroke="none"/>
+    <polyline points="${line}" fill="none" stroke="var(--win-glow)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+    <text x="${padL}" y="11" fill="var(--muted)" font-size="11" font-family="sans-serif">${fmt(maxY)}</text>
+    <text x="${padL}" y="${H-padB-2}" fill="var(--muted)" font-size="11" font-family="sans-serif">${fmt(minY)}</text>
+    <text x="${padL}" y="${H-6}" fill="var(--muted-dim)" font-size="11" font-family="sans-serif" text-anchor="start">${tf(minT)}</text>
+    <text x="${W-padR}" y="${H-6}" fill="var(--muted-dim)" font-size="11" font-family="sans-serif" text-anchor="end">${tf(maxT)}</text>
+  </svg>`;
+}
+function renderLivePanel(){
+  if(!state.liveTimerStarted){ state.liveTimerStarted=true; setInterval(()=>{ if(state.tab==="live") pollLive(); }, 60000); }
+  if(state.liveNow===null && !state.liveLoading && !state.liveErr){ pollLive(); }
+  const now=state.liveNow, mx=live24max();
+  $("#panel").innerHTML=`
+    <div class="draft-intro">Aktuální počet hráčů v klientu <b>Dota 2</b> (zdroj: Steam). Obnovuje se sám každou minutu, dokud máš appku otevřenou.</div>
+    <div class="live-cards">
+      <div class="live-card">
+        <div class="lc-lbl">Hráčů teď v Dotě ${state.liveLoading?'<span class="lc-load">• aktualizuji…</span>':''}</div>
+        <div class="lc-big">${now!=null ? now.toLocaleString('cs-CZ') : '—'}</div>
+      </div>
+      <div class="live-card">
+        <div class="lc-lbl">Rekord za 24 h</div>
+        <div class="lc-big gold">${mx ? mx.n.toLocaleString('cs-CZ') : '—'}</div>
+        <div class="lc-sub">${mx ? ('naměřeno v '+new Date(mx.t).toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'})) : 'sbírám…'}</div>
+      </div>
+    </div>
+    <div class="live-chart">${liveChartSVG()}</div>
+    ${state.liveErr ? `<div class="empty" style="color:var(--dire)">Nepodařilo se načíst živá data: ${escapeHtml(state.liveErr)}.<br>Veřejná CORS proxy může být dočasně mimo — zkus „Aktualizovat teď" za chvíli.</div>` : ''}
+    <div class="load-more-wrap"><button class="load-more" id="liveRef" ${state.liveLoading?'disabled':''}>${state.liveLoading?'Aktualizuji…':'Aktualizovat teď'}</button></div>
+    <details class="help" style="margin-top:16px"><summary>Proč tu není „čeká na zápas" podle ranku a regionu?</summary>
+      <div class="help-body"><div>Valve <b>nezveřejňuje</b> počty hráčů ve frontě ani rozpad podle ranku/regionu — žádné veřejné API to nedává, takže to z prohlížeče nejde získat. Dostupný je jen <b>celkový počet hráčů v klientu</b> (přes Steam), což zahrnuje i lidi v menu, ne jen ve frontě nebo v zápase. Proto ukazuju tohle číslo a jeho 24h rekord.</div></div>
+    </details>
+  `;
+  const rb=$("#liveRef"); if(rb) rb.onclick=()=>pollLive();
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+$("#loadBtn").onclick = load;
+$("#accId").addEventListener("keydown",e=>{ if(e.key==="Enter") load(); });
+let _searchT=null;
+$("#accId").addEventListener("input",()=>{
+  const v=($("#accId").value||"").trim();
+  clearTimeout(_searchT);
+  if(v.length<2 || parseId(v)) return;   // krátké / číslo / odkaz → čekej na Enter nebo Načíst
+  _searchT=setTimeout(()=> searchPlayers(v), 220);
+});
+init();
+</script>
+</body>
+</html>

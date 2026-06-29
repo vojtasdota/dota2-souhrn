@@ -1,0 +1,9 @@
+{
+  "name": "dota2-souhrn-web",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dota 2 statistiky (OpenDota) + rank-filtrované countery přes STRATZ backend.",
+  "engines": {
+    "node": ">=18"
+  }
+}
