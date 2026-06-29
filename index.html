@@ -486,7 +486,7 @@
 
   <div id="content"></div>
 
-  <footer>Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota API</a> &nbsp;·&nbsp; Není napojeno na Valve / Steam &nbsp;·&nbsp; <b style="color:var(--gold-dim)">build B45 · web</b></footer>
+  <footer>Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota API</a> &nbsp;·&nbsp; Není napojeno na Valve / Steam &nbsp;·&nbsp; <b style="color:var(--gold-dim)">build B47 · web</b></footer>
 </div>
 
 <script>
@@ -688,6 +688,8 @@ function renderQuickBar(){
 }
 loadSavedAccounts();
 loadLiveHistory();
+loadSearchCache();
+loadKnown();
 
 // Skóre 1–100 -> známka
 function gradeInfo(s){
@@ -778,6 +780,26 @@ async function load(){
   return searchPlayers(raw);
 }
 
+const SEARCH_LS_KEY="dota_search_v1";
+const SEARCH_TTL=7*24*3600*1000;
+function loadSearchCache(){
+  state.searchCache = state.searchCache || {};
+  try{
+    const raw=localStorage.getItem(SEARCH_LS_KEY); if(!raw) return;
+    const obj=JSON.parse(raw)||{}; const now=Date.now(); const keep={};
+    Object.keys(obj).forEach(k=>{ const e=obj[k]; if(e && e.t && (now-e.t)<SEARCH_TTL){ keep[k]=e; state.searchCache[k]=e.list; } });
+    localStorage.setItem(SEARCH_LS_KEY, JSON.stringify(keep));
+  }catch(e){}
+}
+function persistSearch(key,list){
+  try{
+    const raw=localStorage.getItem(SEARCH_LS_KEY); const obj=raw?JSON.parse(raw):{};
+    obj[key]={t:Date.now(), list};
+    const keys=Object.keys(obj);
+    if(keys.length>80){ keys.sort((a,b)=>(obj[a].t||0)-(obj[b].t||0)); for(let i=0;i<keys.length-80;i++) delete obj[keys[i]]; }
+    localStorage.setItem(SEARCH_LS_KEY, JSON.stringify(obj));
+  }catch(e){}
+}
 async function searchFetch(q){
   // mimo frontu getJSON, ať hledání nečeká na ostatní dotazy
   const r = await fetch("https://api.opendota.com/api/search?q="+encodeURIComponent(q));
@@ -811,22 +833,54 @@ function prepSearch(res){
   arr.sort((a,b)=> (new Date(b.last_match_time||0)) - (new Date(a.last_match_time||0)));
   return arr.slice(0,18);
 }
+const KNOWN_LS="dota_known_v1";
+function loadKnown(){ try{ const r=localStorage.getItem(KNOWN_LS); state.known=r?JSON.parse(r):{}; }catch(e){ state.known={}; } }
+function persistKnown(){ try{ localStorage.setItem(KNOWN_LS, JSON.stringify(state.known)); }catch(e){} }
+function recordKnown(id, name, avatar){
+  if(!id || !name) return;
+  state.known=state.known||{};
+  state.known[id]={ n:name, a:avatar||"", t:Date.now() };
+  const ks=Object.keys(state.known);
+  if(ks.length>600){ ks.sort((x,y)=>(state.known[x].t||0)-(state.known[y].t||0)); for(let i=0;i<ks.length-600;i++) delete state.known[ks[i]]; }
+  persistKnown();
+}
+function recordKnownMany(list){
+  state.known=state.known||{};
+  (list||[]).forEach(p=>{ if(p&&p.account_id&&p.personaname) state.known[p.account_id]={n:p.personaname,a:p.avatarfull||p.avatar||"",t:Date.now()}; });
+  persistKnown();
+}
+function knownMatches(qLower){
+  const k=state.known||{}, out=[];
+  Object.keys(k).forEach(id=>{ const e=k[id]; if(e&&e.n&&e.n.toLowerCase().includes(qLower)) out.push({account_id:+id, personaname:e.n, avatarfull:e.a, last_match_time:null, _t:e.t}); });
+  out.sort((a,b)=>(b._t||0)-(a._t||0));
+  return out.slice(0,18);
+}
+function mergeKnown(list, known){
+  const seen=new Set(list.map(p=>p.account_id));
+  return list.concat(known.filter(p=>!seen.has(p.account_id))).slice(0,18);
+}
 async function searchPlayers(q){
   const seq = (state.searchSeq = (state.searchSeq||0)+1);
   const key = q.toLowerCase();
   state.searchCache = state.searchCache || {};
   if(state.searchCache[key]){ renderSearchResults(state.searchCache[key]); return; } // hned z paměti
+  const known = knownMatches(key);                 // instantní z adresáře známých
+  if(known.length) renderSearchResults(known);     // ukaž hned, OpenDota dorazí na pozadí
+  else content.innerHTML = '<div class="status"><div class="spinner"></div>Hledám hráče „'+escapeHtml(q)+'"…</div>';
   $("#loadBtn").disabled = true;
-  content.innerHTML = '<div class="status"><div class="spinner"></div>Hledám hráče „'+escapeHtml(q)+'"…</div>';
   try{
     const res = await searchFetch(q);
     if(seq!==state.searchSeq) return;
-    const list = prepSearch(res);
+    let list = prepSearch(res);
+    recordKnownMany(list);
+    list = mergeKnown(list, known);
     state.searchCache[key] = list;
+    persistSearch(key, list);
     renderSearchResults(list);
   }catch(e){
     if(seq!==state.searchSeq) return;
-    content.innerHTML = '<div class="status error">Hledání selhalo ('+escapeHtml(e.message)+'). OpenDota má limit ~60 dotazů/min — zkus to za chvíli.</div>';
+    if(known.length) renderSearchResults(known); // aspoň z paměti, když OpenDota selže
+    else content.innerHTML = '<div class="status error">Hledání selhalo ('+escapeHtml(e.message)+'). OpenDota má limit ~60 dotazů/min — zkus to za chvíli.</div>';
   }finally{
     $("#loadBtn").disabled = false;
   }
@@ -860,6 +914,7 @@ async function loadProfile(id){
     state.accId = id;
     state.loaded = true;
     state.curAccount = { id:+id, name:profile.profile.personaname||"", avatar:profile.profile.avatarfull||profile.profile.avatar||"" };
+    recordKnown(+id, profile.profile.personaname||"", profile.profile.avatarfull||profile.profile.avatar||"");
     state.farmLoaded = false; state.farmLoading = false; state.farmHeroes = [];
     state.matchHist = null; state.matchHistLoaded = false; state.matchHistLoading = false;
     state.laneStats = null; state.laneLoading = false; state.laneProg = 0; state.laneByMatch = {};
