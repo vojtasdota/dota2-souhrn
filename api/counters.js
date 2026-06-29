@@ -21,7 +21,7 @@ const BRACKETS = {
 };
 
 const QUERY = `
-query Matchups($heroId: [Short], $brackets: [RankBracketBasicEnum]) {
+query Matchups($heroId: Short!, $brackets: [RankBracketBasicEnum]) {
   heroStats {
     matchUp(heroId: $heroId, bracketBasicIds: $brackets) {
       heroId
@@ -58,7 +58,7 @@ module.exports = async (req, res) => {
         "Authorization": "Bearer " + token,
         "User-Agent": "STRATZ_API",
       },
-      body: JSON.stringify({ query: QUERY, variables: { heroId: [hero], brackets } }),
+      body: JSON.stringify({ query: QUERY, variables: { heroId: hero, brackets } }),
     });
 
     if (!r.ok) {
