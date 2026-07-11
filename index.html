@@ -261,6 +261,11 @@
   .rec-d{color:var(--muted-dim);font-size:.74rem}
   .pro-badge{display:inline-block;margin-left:6px;font-size:.62rem;font-weight:800;letter-spacing:.04em;color:#10131a;background:var(--gold);padding:1px 5px;border-radius:4px;vertical-align:middle}
   .pro-banner{background:rgba(212,175,90,.1);border:1px solid var(--gold-dim);border-radius:10px;padding:10px 14px;margin:0 0 14px;font-size:.86rem;line-height:1.6}
+  .smurf-badge{display:inline-block;margin-left:6px;font-size:.62rem;font-weight:800;letter-spacing:.03em;color:#1a1206;background:#e0a93b;padding:1px 5px;border-radius:4px;vertical-align:middle;cursor:help}
+  .seen-badge{display:inline-block;margin-left:6px;font-size:.64rem;color:var(--muted-dim);vertical-align:middle;cursor:help}
+  .smurf-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}
+  .smurf-note{font-size:.78rem;color:var(--muted);line-height:1.5;max-width:640px}
+  .smurf-note b{color:var(--text-dim)}
   @media(max-width:640px){ .hc-grid{grid-template-columns:repeat(5,minmax(150px,1fr))} }
   @media(max-width:560px){ .cnt-grid{grid-template-columns:1fr} }
   .go-build:hover{color:var(--gold);border-bottom-color:var(--gold-dim)}
@@ -350,6 +355,14 @@
   .wrw-n{font-size:.68rem;color:var(--muted-dim);font-weight:700}
   .wrw-wr{font-size:1.02rem;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
   .wrw-rec{font-size:.66rem;color:var(--muted)}
+  .kda-box{margin-top:14px;padding-top:13px;border-top:1px solid var(--border-soft)}
+  .kda-row{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+  .kda-big{font-size:2.3rem;font-weight:800;font-family:'Rajdhani',sans-serif;font-variant-numeric:tabular-nums;line-height:1;display:flex;align-items:baseline;gap:7px}
+  .kda-big span{font-size:.72rem;color:var(--muted);font-weight:700;letter-spacing:.05em;font-family:inherit}
+  .kda-parts{display:flex;gap:18px;flex-wrap:wrap}
+  .kp{display:flex;flex-direction:column}
+  .kp b{font-size:1.05rem;font-variant-numeric:tabular-nums;line-height:1.3}
+  .kp span{font-size:.7rem;color:var(--muted-dim);text-transform:uppercase;letter-spacing:.03em}
   .lane-box{margin-top:13px;padding-top:12px;border-top:1px solid var(--border-soft)}
   .lane-head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
   .lane-head b{color:var(--text)}
@@ -501,7 +514,7 @@
 
   <div id="content"></div>
 
-  <footer>Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota API</a> &nbsp;·&nbsp; Není napojeno na Valve / Steam &nbsp;·&nbsp; <b style="color:var(--gold-dim)">build B48 · web</b></footer>
+  <footer>Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota API</a> &nbsp;·&nbsp; Není napojeno na Valve / Steam &nbsp;·&nbsp; <b style="color:var(--gold-dim)">build B50 · web</b></footer>
 </div>
 
 <script>
@@ -604,6 +617,7 @@ let state = {
   metaStats: null, metaLoading: false, metaRank: 0, metaMinPicks: 100,
   baseWR: null, baseWRLoading: false,
   proMap: null, proLoading: false,
+  smurfByAcc: {}, smurfChecking: false, smurfChecked: {},
   counterHero: null, counterSearch: "",
   hcData: {}, hcLoadingId: null, hcErr: null, hcPrewarm: {running:false, done:0, total:0},
   counterBracket: "all",
@@ -2039,6 +2053,16 @@ function winrateWindows(all){
   if(targets.length && targets[targets.length-1]!==wins.length && wins.length<100) targets.push(wins.length);
   return targets.map(wins10);
 }
+function kdaWindow(all, n){
+  const ms=all.slice(0,n);
+  if(!ms.length) return null;
+  let k=0,d=0,a=0;
+  ms.forEach(m=>{ k+=m.kills||0; d+=m.deaths||0; a+=m.assists||0; });
+  return { n:ms.length, k, d, a,
+    avgK:k/ms.length, avgD:d/ms.length, avgA:a/ms.length,
+    kda:(k+a)/Math.max(1,d) };
+}
+function kdaColor(v){ return v>=5?"var(--gold)": v>=3.5?"var(--win-glow)": v>=2.5?"#9bcf6a": v>=1.8?"var(--text)":"var(--loss-glow)"; }
 function matchSummaryHTML(all){
   if(!all.length) return "";
   const wins=winrateWindows(all);
@@ -2047,9 +2071,24 @@ function matchSummaryHTML(all){
       <div class="wrw-wr" style="color:${wrColor(w.wr/100)}">${w.wr}%</div>
       <div class="wrw-rec">${w.w}–${w.l}</div>
     </div>`).join("");
+  const kd=kdaWindow(all,15);
+  const kdaBox = kd ? `
+    <div class="kda-box">
+      <div class="msum-h" style="margin-bottom:8px">Celkové KDA za posledních ${kd.n} zápasů</div>
+      <div class="kda-row">
+        <div class="kda-big" style="color:${kdaColor(kd.kda)}">${kd.kda.toFixed(2)}<span>KDA</span></div>
+        <div class="kda-parts">
+          <div class="kp"><b class="cw">${kd.k}</b><span>killů</span></div>
+          <div class="kp"><b class="cl">${kd.d}</b><span>smrtí</span></div>
+          <div class="kp"><b style="color:var(--gold)">${kd.a}</b><span>assistů</span></div>
+          <div class="kp"><b>${kd.avgK.toFixed(1)} / ${kd.avgD.toFixed(1)} / ${kd.avgA.toFixed(1)}</b><span>průměr na zápas</span></div>
+        </div>
+      </div>
+    </div>` : "";
   return `<div class="msum">
     <div class="msum-h">Winrate za posledních N zápasů</div>
     <div class="wrw-row">${chips}</div>
+    ${kdaBox}
   </div>`;
 }
 function laneOutcome(md){
@@ -2253,7 +2292,13 @@ function teamTable(players, side, md, oppIds){
     const nm = escapeHtml(p.personaname || (clk?"Hráč":"Anonym"));
     const pro = proOf(acc);
     const proBadge = pro ? `<span class="pro-badge" title="${escapeHtml(pro.name+(pro.team?' · '+pro.team:''))}">PRO</span>` : '';
-    const nameCell = (clk ? `<span class="go-player" data-acc="${acc}" title="zobrazit statistiky hráče">${nm}</span>` : `<span class="anon">${nm}</span>`) + proBadge;
+    const sd = state.smurfByAcc && state.smurfByAcc[acc];
+    let smurfBadge='';
+    if(sd){
+      if(sd.verdict==="high") smurfBadge=`<span class="smurf-badge" title="možný smurf — ${rankShort(sd.rank)}, ${sd.games} her, ${Math.round(sd.wr*100)}% WR">? smurf</span>`;
+      else if(sd.rank!=null) smurfBadge=`<span class="seen-badge" title="${rankShort(sd.rank)} · ${sd.games} her · ${Math.round(sd.wr*100)}% WR">${sd.games} her</span>`;
+    }
+    const nameCell = (clk ? `<span class="go-player" data-acc="${acc}" title="zobrazit statistiky hráče">${nm}</span>` : `<span class="anon">${nm}</span>`) + proBadge + smurfBadge;
     const imp=matchImpact(p);
     const kda=`<b>${p.kills}</b><span class="cl"> / ${p.deaths}</span> / <span style="color:var(--gold)">${p.assists}</span>`;
     const items=[p.item_0,p.item_1,p.item_2,p.item_3,p.item_4,p.item_5].filter(x=>x)
@@ -2288,6 +2333,39 @@ function ensureProPlayers(cb){
   })();
 }
 function proOf(acc){ return state.proMap ? state.proMap[acc] : null; }
+
+function rankShort(rt){ if(rt==null) return "skrytý rank"; const m=Math.floor(rt/10), s=rt%10; return (RANKS[m]||"?")+(s?(" "+s):""); }
+function smurfVerdict(d){
+  if(d.rank==null) return null;               // skrytý rank → nelze posoudit
+  if(d.games<=0) return null;
+  if(d.rank>=70 && d.games<250 && d.wr>=0.55) return "high"; // Divine+/Immortal, málo her, vysoké WR
+  if(d.rank>=60 && d.games<150 && d.wr>=0.58) return "high"; // Ancient+, hodně málo her, hodně vysoké WR
+  return "no";
+}
+async function checkSmurfs(id){
+  if(state.smurfChecking) return;
+  const md=state.matchDetailCache[id]; if(!md) return;
+  state.smurfChecking=true; renderMatchDetail();
+  state.smurfByAcc=state.smurfByAcc||{};
+  const accs=(md.players||[]).map(p=>p.account_id)
+    .filter(a=> a && a!==4294967295 && !state.smurfByAcc[a]);
+  await Promise.all(accs.map(async a=>{
+    try{
+      const [prof, wl] = await Promise.all([
+        getJSON("https://api.opendota.com/api/players/"+a),
+        getJSON("https://api.opendota.com/api/players/"+a+"/wl"),
+      ]);
+      const rank = (prof && prof.rank_tier!=null) ? prof.rank_tier : null;
+      const win=(wl&&wl.win)||0, lose=(wl&&wl.lose)||0, games=win+lose;
+      const d={ rank, games, wr: games?win/games:0 };
+      d.verdict=smurfVerdict(d);
+      state.smurfByAcc[a]=d;
+    }catch(e){ state.smurfByAcc[a]={rank:null,games:0,wr:0,verdict:null}; }
+  }));
+  state.smurfChecked[id]=true;
+  state.smurfChecking=false;
+  if(state.matchDetailId===id) renderMatchDetail();
+}
 
 function renderMatchDetail(){
   const id=state.matchDetailId;
@@ -2324,6 +2402,10 @@ function renderMatchDetail(){
     </div>
     ${proBanner}
     ${matchHelpHTML()}
+    <div class="smurf-bar">
+      <button class="lane-btn alt" id="smurfBtn" ${state.smurfChecking?'disabled':''}>${state.smurfChecking?'Prověřuji hráče…':(state.smurfChecked[id]?'Prověřit znovu':'Prověřit hráče (možní smurfové)')}</button>
+      ${state.smurfChecked[id]?`<span class="smurf-note">Odhad z ranku + počtu her + WR. <b>„? smurf"</b> = nový-vypadající účet s vysokým rankem a vysokou WR — <b>není to důkaz</b>, jen statistický tip. Skrytý rank posoudit nelze.</span>`:''}
+    </div>
     ${teamTable(radiant,"radiant",md,direIds)}
     ${teamTable(dire,"dire",md,radIds)}
     <div class="md-foot"><a href="https://www.opendota.com/matches/${id}" target="_blank" rel="noopener">Plný detail na OpenDotě ↗</a></div>
@@ -2335,6 +2417,7 @@ function renderMatchDetail(){
   document.querySelectorAll("#panel .go-player").forEach(el=>{
     el.onclick=()=>{ const inp=$("#accId"); if(inp) inp.value=el.dataset.acc; window.scrollTo({top:0,behavior:"smooth"}); load(); };
   });
+  const sbtn=$("#smurfBtn"); if(sbtn) sbtn.onclick=()=>checkSmurfs(id);
   wireCopyIds();
   ensureMatchDetailMatchups(id);
   if(!state.proMap) ensureProPlayers(()=>{ if(state.matchDetailId===id) renderMatchDetail(); });
