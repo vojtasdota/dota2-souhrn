@@ -363,6 +363,51 @@
   .kp{display:flex;flex-direction:column}
   .kp b{font-size:1.05rem;font-variant-numeric:tabular-nums;line-height:1.3}
   .kp span{font-size:.7rem;color:var(--muted-dim);text-transform:uppercase;letter-spacing:.03em}
+  .ana-verdict{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+  .av-box{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:13px 15px}
+  .av-box.good{border-color:rgba(116,185,78,.4)} .av-box.bad{border-color:rgba(214,90,90,.4)}
+  .av-h{font-size:.8rem;font-weight:800;text-transform:uppercase;letter-spacing:.03em;margin-bottom:8px}
+  .av-box.good .av-h{color:var(--win-glow)} .av-box.bad .av-h{color:var(--loss-glow)}
+  .av-i{font-size:.88rem;padding:3px 0;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .av-i span{font-weight:700;font-variant-numeric:tabular-nums}
+  .ana-sec-h{font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:700;margin:18px 0 9px}
+  .ana-list{display:flex;flex-direction:column;gap:7px}
+  .ana-row{display:grid;grid-template-columns:180px 1fr 150px 70px;gap:12px;align-items:center;background:var(--bg2);border:1px solid var(--border-soft);border-radius:10px;padding:9px 13px}
+  .ana-lbl b{display:block;font-size:.86rem}
+  .ana-lbl span{font-size:.7rem;color:var(--muted-dim)}
+  .ana-bar{height:9px;background:var(--bg);border-radius:5px;overflow:hidden}
+  .ana-fill{height:100%;border-radius:5px}
+  .ana-pct{font-size:1rem;font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+  .ana-pct span{display:block;font-size:.66rem;color:var(--muted-dim);font-weight:600;text-transform:uppercase}
+  .ana-avg{font-size:.82rem;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+  .tot-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+  .tot-item{background:var(--bg2);border:1px solid var(--border-soft);border-radius:10px;padding:11px 13px}
+  .tot-item b{display:block;font-size:1.5rem;font-weight:800;font-family:'Rajdhani',sans-serif;color:var(--gold);line-height:1.15;font-variant-numeric:tabular-nums}
+  .tot-item span{display:block;font-size:.78rem;color:var(--text-dim)}
+  .tot-item small{display:block;font-size:.66rem;color:var(--muted-dim);margin-top:2px}
+  .cnt2-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+  .cnt2-box{background:var(--bg2);border:1px solid var(--border-soft);border-radius:12px;padding:12px 14px}
+  .cnt2-h{font-size:.78rem;font-weight:800;color:var(--gold);text-transform:uppercase;letter-spacing:.03em;margin-bottom:9px}
+  .cnt2-row{display:grid;grid-template-columns:110px 1fr 46px 54px;gap:8px;align-items:center;padding:4px 0}
+  .cnt2-l b{font-size:.82rem;display:block}
+  .cnt2-l span{font-size:.66rem;color:var(--muted-dim)}
+  .cnt2-bar{height:7px;background:var(--bg);border-radius:4px;overflow:hidden}
+  .cnt2-fill{height:100%;border-radius:4px}
+  .cnt2-wr{font-size:.84rem;font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
+  .cnt2-g{font-size:.7rem;color:var(--muted-dim);text-align:right}
+  .peer-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .peer-col{background:var(--bg2);border:1px solid var(--border-soft);border-radius:12px;padding:10px 12px}
+  .peer-h{font-size:.78rem;font-weight:800;text-transform:uppercase;letter-spacing:.03em;padding-bottom:8px;margin-bottom:5px;border-bottom:1px solid var(--border-soft)}
+  .peer-h.good{color:var(--win-glow)} .peer-h.bad{color:var(--loss-glow)}
+  .peer-row,.rk-row{display:flex;align-items:center;gap:8px;padding:4px 5px;border-radius:6px;cursor:pointer}
+  .peer-row:hover,.rk-row:hover{background:var(--bg3)}
+  .peer-av,.rk-ic{width:26px;height:26px;border-radius:50%;background:var(--bg);flex-shrink:0}
+  .rk-ic{border-radius:4px}
+  .peer-n,.rk-n{flex:1;font-size:.83rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .peer-wr,.rk-p{font-weight:800;font-size:.83rem;font-variant-numeric:tabular-nums}
+  .peer-g{font-size:.7rem;color:var(--muted-dim);min-width:48px;text-align:right}
+  @media(max-width:640px){ .peer-grid{grid-template-columns:1fr} }
+  @media(max-width:700px){ .ana-row{grid-template-columns:1fr;gap:6px} .ana-pct,.ana-avg{text-align:left} .ana-verdict{grid-template-columns:1fr} }
   .lane-box{margin-top:13px;padding-top:12px;border-top:1px solid var(--border-soft)}
   .lane-head{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:8px}
   .lane-head b{color:var(--text)}
@@ -514,7 +559,7 @@
 
   <div id="content"></div>
 
-  <footer>Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota API</a> &nbsp;·&nbsp; Není napojeno na Valve / Steam &nbsp;·&nbsp; <b style="color:var(--gold-dim)">build B50 · web</b></footer>
+  <footer>Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota API</a> &nbsp;·&nbsp; Není napojeno na Valve / Steam &nbsp;·&nbsp; <b style="color:var(--gold-dim)">build B52 · web</b></footer>
 </div>
 
 <script>
@@ -948,6 +993,7 @@ async function loadProfile(id){
     state.farmLoaded = false; state.farmLoading = false; state.farmHeroes = [];
     state.matchHist = null; state.matchHistLoaded = false; state.matchHistLoading = false;
     state.recMatches = null; state.recLoaded = false; state.recLoading = false;
+    state.anaLoaded = false; state.anaLoading = false; state.anaData = null; state.anaProg = "";
     state.laneStats = null; state.laneLoading = false; state.laneProg = 0; state.laneByMatch = {};
     state.parseRunning = false; state.parseMsg = "";
     state.matchFilter = {result:"all", mode:"all", hero:0}; state.matchDetailId = null;
@@ -1012,6 +1058,7 @@ function render(profile, wl){
       ${tabBtn("matches","Zápasy","historie posledních her")}
       ${tabBtn("farm","Farma","GPM · XPM · LH · KDA")}
       ${tabBtn("records","Rekordy","tvoje osobní maxima")}
+      ${tabBtn("analysis","Analýza","co ti jde a co ne")}
       ${tabBtn("draft","Protipick","koho pickovat + build")}
       ${tabBtn("counter","Hardcounter","countery po pozicích")}
       ${tabBtn("world","Svět","veřejné + pro zápasy")}
@@ -1036,7 +1083,7 @@ function render(profile, wl){
   renderPanel();
 }
 
-const PLAYER_TABS = ["self","with","against","matches","farm","records"];
+const PLAYER_TABS = ["self","with","against","matches","farm","records","analysis"];
 async function init(){
   if(!Object.keys(heroMap).length){
     try{
@@ -1061,6 +1108,7 @@ function renderPanel(){
   }
   if(state.tab==="matches"){ renderMatchesPanel(); return; }
   if(state.tab==="records"){ renderRecords(); return; }
+  if(state.tab==="analysis"){ renderAnalysis(); return; }
   $("#panel").innerHTML = `
     <div class="controls">
       <input type="text" id="search" placeholder="Hledat hrdinu…" value="${escapeHtml(state.search)}" autocomplete="off">
@@ -1228,6 +1276,212 @@ function renderRecords(){
     <div class="note">Počítá se z dat, která OpenDota u zápasů má (kills, GPM, LH, …). „Nejvíc smrtí" je tam pro pobavení. Šňůry se počítají z časové posloupnosti zápasů.</div>
   `;
   document.querySelectorAll(".rec-card").forEach(el=>{ el.onclick=()=> openMatchDetail(+el.dataset.mid); });
+}
+
+/* ---------- Analýza: co ti jde a co ne ---------- */
+const ANA_METRICS = [
+  {k:"gold_per_min",       label:"Farmení (GPM)",        tip:"zlato za minutu",             fromMatch:m=> m.gold_per_min},
+  {k:"xp_per_min",         label:"Zkušenosti (XPM)",     tip:"XP za minutu",                fromMatch:m=> m.xp_per_min},
+  {k:"last_hits_per_min",  label:"Last hity / min",      tip:"dobíjení creepů",             fromMatch:m=> perMin(m.last_hits,m.duration)},
+  {k:"kills_per_min",      label:"Killy / min",          tip:"agresivita",                  fromMatch:m=> perMin(m.kills,m.duration)},
+  {k:"hero_damage_per_min",label:"Damage na hrdiny/min", tip:"jak moc ubližuješ",           fromMatch:m=> perMin(m.hero_damage,m.duration)},
+  {k:"hero_healing_per_min",label:"Léčení / min",        tip:"support léčení",              fromMatch:m=> perMin(m.hero_healing,m.duration)},
+  {k:"tower_damage",       label:"Damage na věže",       tip:"tlak na budovy",              fromMatch:m=> m.tower_damage},
+];
+function perMin(v,dur){ if(v==null||!dur) return null; const mins=dur/60; return mins>0 ? v/mins : null; }
+function pctOf(curve, val){
+  if(!curve || !curve.length || val==null) return null;
+  const arr=curve.slice().sort((a,b)=>a.percentile-b.percentile);
+  if(val<=arr[0].value) return arr[0].percentile*100;
+  for(let i=1;i<arr.length;i++){
+    if(val<=arr[i].value){
+      const a=arr[i-1], b=arr[i];
+      const t=(b.value-a.value)?(val-a.value)/(b.value-a.value):0;
+      return (a.percentile + t*(b.percentile-a.percentile))*100;
+    }
+  }
+  return arr[arr.length-1].percentile*100;
+}
+async function loadAnalysis(){
+  state.anaLoading=true; state.anaProg="Stahuju tvoje zápasy…"; renderAnalysis();
+  try{
+    const fields=["hero_id","duration","kills","deaths","assists","gold_per_min","xp_per_min","last_hits","hero_damage","tower_damage","hero_healing"];
+    const url=`https://api.opendota.com/api/players/${state.accId}/matches?`+fields.map(f=>"project="+f).join("&");
+    const [ms, totals, counts, peers, rankings] = await Promise.all([
+      getJSON(url),
+      getJSON(`https://api.opendota.com/api/players/${state.accId}/totals`).catch(()=>null),
+      getJSON(`https://api.opendota.com/api/players/${state.accId}/counts`).catch(()=>null),
+      getJSON(`https://api.opendota.com/api/players/${state.accId}/peers`).catch(()=>null),
+      getJSON(`https://api.opendota.com/api/players/${state.accId}/rankings`).catch(()=>null),
+    ]);
+    const matches=(ms||[]).filter(m=>m && m.duration>0);
+    // top hrdinové podle počtu her (kvůli limitu dotazů)
+    const byHero={};
+    matches.forEach(m=>{ (byHero[m.hero_id]=byHero[m.hero_id]||[]).push(m); });
+    const topHeroes=Object.keys(byHero).map(Number)
+      .sort((a,b)=> byHero[b].length-byHero[a].length).slice(0,8);
+    state.anaProg=`Stahuju benchmarky pro ${topHeroes.length} nejhranějších hrdinů…`; renderAnalysis();
+    const benches={};
+    await Promise.all(topHeroes.map(async hid=>{
+      try{ const b=await getJSON(`https://api.opendota.com/api/benchmarks?hero_id=${hid}`); benches[hid]=b&&b.result?b.result:null; }catch(e){}
+    }));
+    // percentily vážené počtem her
+    const rows=ANA_METRICS.map(met=>{
+      let wSum=0, pSum=0, games=0, valSum=0, valN=0;
+      topHeroes.forEach(hid=>{
+        const curve = benches[hid] && benches[hid][met.k];
+        if(!curve) return;
+        const hm=byHero[hid];
+        hm.forEach(m=>{
+          const v=met.fromMatch(m);
+          if(v==null) return;
+          const p=pctOf(curve, v);
+          if(p==null) return;
+          pSum+=p; wSum++; valSum+=v; valN++;
+        });
+        games+=hm.length;
+      });
+      return { ...met, pct: wSum? pSum/wSum : null, avg: valN? valSum/valN : null, n: wSum };
+    }).filter(r=> r.pct!=null && r.n>=3);
+    rows.sort((a,b)=> b.pct-a.pct);
+    state.anaData={ rows, totals, counts, peers, rankings, matchCount:matches.length, heroes:topHeroes.length };
+    state.anaLoaded=true; state.anaLoading=false;
+    if(state.tab==="analysis") renderAnalysis();
+  }catch(e){
+    state.anaLoading=false;
+    if(state.tab==="analysis" && $("#panel")) $("#panel").innerHTML='<div class="empty" style="color:var(--loss-glow)">Analýzu se nepodařilo načíst ('+escapeHtml(e.message)+'). OpenDota má limit ~60 dotazů/min — zkus za chvíli.</div>';
+  }
+}
+function pctColor(p){ return p>=80?"var(--gold)": p>=65?"var(--win-glow)": p>=50?"#9bcf6a": p>=35?"var(--text)": p>=20?"#d99a5b":"var(--loss-glow)"; }
+function pctWord(p){ return p>=80?"výborné": p>=65?"nadprůměr": p>=50?"průměr+": p>=35?"průměr−": p>=20?"slabé":"nejslabší"; }
+function anaRow(r){
+  const p=Math.round(r.pct);
+  const avg = r.k==="tower_damage" ? Math.round(r.avg) : (r.avg>=100?Math.round(r.avg):r.avg.toFixed(1));
+  return `<div class="ana-row">
+    <div class="ana-lbl"><b>${r.label}</b><span>${r.tip}</span></div>
+    <div class="ana-bar"><div class="ana-fill" style="width:${Math.max(2,Math.min(100,p))}%;background:${pctColor(p)}"></div></div>
+    <div class="ana-pct" style="color:${pctColor(p)}">${p}. <span>percentil · ${pctWord(p)}</span></div>
+    <div class="ana-avg">⌀ ${avg}</div>
+  </div>`;
+}
+function totalsHTML(totals){
+  if(!totals || !totals.length) return "";
+  const want={ obs_placed:"Observer wardy", sen_placed:"Sentry wardy", camps_stacked:"Stacknuté campy",
+    rune_pickups:"Sebrané runy", stuns:"Stuny (s)", purchase_tpscroll:"Koupené TP", actions_per_min:"APM",
+    teamfight_participation:"Účast v teamfightech", creeps_stacked:"Stacknutí creepi", denies:"Denies",
+    tower_damage:"Damage na věže", hero_damage:"Damage na hrdiny", hero_healing:"Léčení",
+    last_hits:"Last hity", kills:"Killy", deaths:"Smrti", assists:"Asisty",
+    gold_per_min:"GPM", xp_per_min:"XPM", courier_kills:"Zabití kurýři", observer_kills:"Zničené wardy",
+    roshan_kills:"Zabití Roshani", tower_kills:"Zničené věže", neutral_kills:"Zabití neutrálové",
+    purchase_ward_observer:"Koupené observery", purchase_ward_sentry:"Koupené sentry",
+    purchase_gem:"Koupené gemy", purchase_rapier:"Koupené rapiery", pings:"Pingy" };
+  const rows=totals.filter(t=> t && want[t.field] && t.n>0).map(t=>{
+    const avg=t.sum/t.n;
+    const val = t.field==="teamfight_participation" ? Math.round(avg*100)+" %"
+      : t.field==="stuns" ? avg.toFixed(1)
+      : avg>=10 ? Math.round(avg) : avg.toFixed(1);
+    return `<div class="tot-item"><b>${val}</b><span>${want[t.field]}</span><small>⌀ na zápas · z ${t.n} her</small></div>`;
+  });
+  if(!rows.length) return "";
+  return `<div class="ana-sec-h">Detailní statistiky (wardy, stacky, stuny…)</div>
+    <div class="tot-grid">${rows.join("")}</div>
+    <div class="note">Tyhle údaje existují <b>jen u parsovaných zápasů</b>, takže je počítám jen z těch (u každého vidíš, z kolika her). Percentil k nim OpenDota nedává, takže je beru jako informaci, ne známku.</div>`;
+}
+const LANE_ROLES={1:"Safe lane",2:"Mid lane",3:"Off lane",4:"Jungle"};
+function wrBar(label, w, g, sub){
+  if(!g) return "";
+  const wr=w/g;
+  return `<div class="cnt2-row">
+    <div class="cnt2-l"><b>${escapeHtml(label)}</b>${sub?`<span>${escapeHtml(sub)}</span>`:""}</div>
+    <div class="cnt2-bar"><div class="cnt2-fill" style="width:${Math.round(wr*100)}%;background:${wrColor(wr)}"></div></div>
+    <div class="cnt2-wr" style="color:${wrColor(wr)}">${Math.round(wr*100)} %</div>
+    <div class="cnt2-g">${g} her</div>
+  </div>`;
+}
+function countsHTML(counts){
+  if(!counts) return "";
+  const secs=[];
+  const grp=(obj, nameFn, title, order)=>{
+    if(!obj) return;
+    let keys=Object.keys(obj).filter(k=> obj[k] && obj[k].games>0);
+    if(order) keys.sort((a,b)=> (order.indexOf(+a)) - (order.indexOf(+b)));
+    else keys.sort((a,b)=> obj[b].games-obj[a].games);
+    keys=keys.slice(0,6);
+    const rows=keys.map(k=> wrBar(nameFn(k), obj[k].win, obj[k].games)).join("");
+    if(rows) secs.push(`<div class="cnt2-box"><div class="cnt2-h">${title}</div>${rows}</div>`);
+  };
+  grp(counts.lane_role, k=> LANE_ROLES[k]||("Lajna "+k), "Podle lajny", [1,2,3,4]);
+  grp(counts.is_radiant, k=> (k==="1"||+k===1)?"Radiant":"Dire", "Podle strany");
+  grp(counts.game_mode, k=> GAME_MODES[+k]||("Mód "+k), "Podle herního módu");
+  if(!secs.length) return "";
+  return `<div class="ana-sec-h">Kde vyhráváš nejvíc</div><div class="cnt2-grid">${secs.join("")}</div>
+    <div class="note">Lajna je z parsovaných zápasů, takže počty her tam mohou být nižší než celkem.</div>`;
+}
+function peersHTML(peers){
+  if(!peers || !peers.length) return "";
+  const list=peers.filter(p=> p && p.with_games>=5)
+    .map(p=>({ name:p.personaname||("Hráč #"+p.account_id), id:p.account_id, av:p.avatar||"",
+               g:p.with_games, w:p.with_win, wr:p.with_win/p.with_games }))
+    .sort((a,b)=> b.g-a.g).slice(0,20);
+  if(!list.length) return "";
+  const best=list.slice().sort((a,b)=> b.wr-a.wr).slice(0,5);
+  const worst=list.slice().sort((a,b)=> a.wr-b.wr).slice(0,5);
+  const rowHTML=p=>`<div class="peer-row" data-acc="${p.id}">
+      ${p.av?`<img class="peer-av" src="${escapeHtml(p.av)}" alt="" onerror="this.style.visibility='hidden'">`:'<div class="peer-av"></div>'}
+      <span class="peer-n">${escapeHtml(p.name)}</span>
+      <span class="peer-wr" style="color:${wrColor(p.wr)}">${Math.round(p.wr*100)} %</span>
+      <span class="peer-g">${p.g} her</span>
+    </div>`;
+  return `<div class="ana-sec-h">S kým ti to jde (a s kým ne)</div>
+    <div class="peer-grid">
+      <div class="peer-col"><div class="peer-h good">✔ Nejlepší parťáci</div>${best.map(rowHTML).join("")}</div>
+      <div class="peer-col"><div class="peer-h bad">⚠ Nejhorší bilance</div>${worst.map(rowHTML).join("")}</div>
+    </div>
+    <div class="note">Jen lidé, se kterými jsi hrál <b>aspoň 5 her</b> ve stejném týmu. Klikni na jméno → jeho profil. Malý vzorek = velká náhoda, ber to s rezervou.</div>`;
+}
+function rankingsHTML(rankings){
+  if(!rankings || !rankings.length) return "";
+  const list=rankings.filter(r=> r && r.hero_id && r.percent_rank!=null && heroMap[r.hero_id])
+    .map(r=>({ id:r.hero_id, name:heroMap[r.hero_id].name, short:heroMap[r.hero_id].short, p:r.percent_rank*100 }))
+    .sort((a,b)=> b.p-a.p);
+  if(!list.length) return "";
+  const top=list.slice(0,6), bot=list.slice(-6).reverse();
+  const rowHTML=h=>`<div class="rk-row">
+      <img class="rk-ic" src="${HERO_CDN}${h.short}.png" alt="" onerror="this.style.visibility='hidden'">
+      <span class="rk-n">${escapeHtml(h.name)}</span>
+      <span class="rk-p" style="color:${pctColor(h.p)}">${Math.round(h.p)}.</span>
+    </div>`;
+  return `<div class="ana-sec-h">Na kterých hrdinech jsi nejlepší (percentil mezi všemi hráči)</div>
+    <div class="peer-grid">
+      <div class="peer-col"><div class="peer-h good">✔ Tvoji nejsilnější hrdinové</div>${top.map(rowHTML).join("")}</div>
+      <div class="peer-col"><div class="peer-h bad">⚠ Nejslabší</div>${bot.map(rowHTML).join("")}</div>
+    </div>`;
+}
+function renderAnalysis(){
+  if(!state.anaLoaded){
+    $("#panel").innerHTML = `<div class="status"><div class="spinner"></div>${escapeHtml(state.anaProg||"Analyzuji tvoje zápasy…")}</div>`;
+    if(!state.anaLoading) loadAnalysis();
+    return;
+  }
+  const d=state.anaData;
+  if(!d || !d.rows.length){ $("#panel").innerHTML='<div class="empty">Nedostatek dat pro analýzu.</div>'; return; }
+  const best=d.rows.slice(0,2), worst=d.rows.slice(-2).reverse();
+  $("#panel").innerHTML=`
+    <div class="draft-intro">Srovnání tvých čísel s <b>ostatními hráči na stejných hrdinech</b> (OpenDota benchmarky). <b>Percentil</b> = kolik % hráčů překonáváš: 50 = průměr, 90 = lepší než 90 % lidí. Z <b>${d.matchCount}</b> zápasů, ${d.heroes} nejhranějších hrdinů.</div>
+    <div class="ana-verdict">
+      <div class="av-box good"><div class="av-h">✔ Nejvíc ti jde</div>${best.map(r=>`<div class="av-i"><b>${r.label}</b> <span style="color:${pctColor(r.pct)}">${Math.round(r.pct)}. percentil</span></div>`).join("")}</div>
+      <div class="av-box bad"><div class="av-h">⚠ Zaměř se na tohle</div>${worst.map(r=>`<div class="av-i"><b>${r.label}</b> <span style="color:${pctColor(r.pct)}">${Math.round(r.pct)}. percentil</span></div>`).join("")}</div>
+    </div>
+    <div class="ana-sec-h">Všechny dovednosti (od nejlepší po nejslabší)</div>
+    <div class="ana-list">${d.rows.map(anaRow).join("")}</div>
+    ${rankingsHTML(d.rankings)}
+    ${countsHTML(d.counts)}
+    ${peersHTML(d.peers)}
+    ${totalsHTML(d.totals)}
+  `;
+  document.querySelectorAll("#panel .peer-row").forEach(el=>{
+    el.onclick=()=>{ const inp=$("#accId"); if(inp) inp.value=el.dataset.acc; window.scrollTo({top:0,behavior:"smooth"}); load(); };
+  });
 }
 
 function renderFarm(){
