@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI trenér · Dota 2 souhrn</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f12; --panel: #15181d; --panel2: #1c2027; --line: #2a2f38;
+    --text: #e6e2d8; --muted: #8d8f94; --accent: #c8402f; --accent2: #e8a33d;
+    --good: #5fb36a; --bad: #d4553f;
+    --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--body); }
+  body { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); min-height: 100vh;
+         background: radial-gradient(1200px 500px at 85% -10%, rgba(200,64,47,.13), transparent 60%), var(--bg); }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 18px 80px; }
+  a { color: var(--accent2); }
+  .zpet { font-size: 14px; text-decoration: none; color: var(--muted); }
+  .zpet:hover { color: var(--text); }
+  h1 { font: 800 clamp(40px, 8vw, 68px)/.95 var(--display); letter-spacing: .5px; text-transform: uppercase; margin: 18px 0 6px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); margin: 0 0 26px; max-width: 60ch; }
+
+  form { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+         padding: 18px; display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+  label { display: grid; gap: 5px; font: 600 13px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  label.cele { grid-column: 1 / -1; }
+  input { font: 500 16px var(--body); color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+          padding: 10px 12px; border-radius: 3px; width: 100%; }
+  input:focus { outline: 2px solid var(--accent2); outline-offset: -1px; }
+  small { font: 400 12px var(--body); text-transform: none; letter-spacing: 0; color: var(--muted); }
+  .tlacitka { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button { font: 700 18px var(--display); text-transform: uppercase; letter-spacing: 1px; cursor: pointer;
+           background: var(--accent); color: #fff; border: 0; padding: 11px 22px; border-radius: 3px; }
+  button:hover:not(:disabled) { filter: brightness(1.12); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.vedl { background: transparent; color: var(--text); border: 1px solid var(--line); font-size: 15px; padding: 9px 14px; }
+
+  #stav { margin: 22px 0 0; color: var(--muted); min-height: 1.6em; display: flex; gap: 10px; align-items: center; }
+  .spin { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent2); border-radius: 50%;
+          animation: t .8s linear infinite; flex: none; }
+  @keyframes t { to { transform: rotate(360deg); } }
+  .chyba { color: var(--bad) !important; }
+
+  #hlava { display: none; margin: 26px 0 0; padding: 14px 18px; background: var(--panel2); border: 1px solid var(--line);
+           font: 700 24px var(--display); text-transform: uppercase; letter-spacing: .5px; }
+  #hlava .vys { float: right; font-size: 18px; }
+  #hlava .vys.win { color: var(--good); } #hlava .vys.loss { color: var(--bad); }
+  #vystup { background: var(--panel); border: 1px solid var(--line); border-top: 0; padding: 4px 22px 18px; display: none; }
+  #vystup h1, #vystup h2, #vystup h3 { font-family: var(--display); text-transform: uppercase; letter-spacing: .5px; line-height: 1.15; }
+  #vystup h1 { font-size: 30px; } #vystup h2 { font-size: 24px; color: var(--accent2); margin: 26px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  #vystup h3 { font-size: 19px; margin: 18px 0 6px; }
+  #vystup li { margin: 4px 0; } #vystup strong { color: #fff; }
+  #vystup p, #vystup ul, #vystup ol { margin: 8px 0; }
+  .kurzor::after { content: "▌"; color: var(--accent2); animation: b 1s steps(1) infinite; }
+  @keyframes b { 50% { opacity: 0; } }
+  #akce { display: none; margin-top: 12px; gap: 10px; }
+
+  #hist { margin-top: 40px; }
+  #hist h2 { font: 700 22px var(--display); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px; color: var(--muted); }
+  #hist .prazdno { color: var(--muted); font-size: 14px; }
+  #autoinfo { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; }
+  .polozka { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line);
+             border-left: 4px solid var(--line); margin-bottom: 6px; cursor: pointer; }
+  .polozka:hover { background: var(--panel2); }
+  .polozka.win { border-left-color: var(--good); } .polozka.loss { border-left-color: var(--bad); }
+  .polozka .hr { font: 700 18px var(--display); text-transform: uppercase; min-width: 130px; }
+  .polozka .info { color: var(--muted); font-size: 14px; flex: 1; }
+  .polozka .x { background: none; border: 0; color: var(--muted); font-size: 20px; padding: 0 6px; cursor: pointer; }
+  .polozka .x:hover { color: var(--bad); filter: none; }
+  #starsi { margin-top: 40px; }
+  #starsi h2 { font: 700 22px var(--display); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 6px; color: var(--muted); }
+  .radek { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+  select { font: 500 15px var(--body); color: var(--text); background: var(--panel2); border: 1px solid var(--line); padding: 9px 10px; border-radius: 3px; }
+  .zapas { display: grid; grid-template-columns: 22px 130px 1fr auto; gap: 10px; align-items: center; padding: 8px 12px;
+           background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); margin-bottom: 4px; font-size: 14px; }
+  .zapas.win { border-left-color: var(--good); } .zapas.loss { border-left-color: var(--bad); }
+  .zapas input { width: 18px; height: 18px; accent-color: var(--accent); }
+  .zapas .hr { font: 700 17px var(--display); text-transform: uppercase; }
+  .zapas .info { color: var(--muted); }
+  .stitek { font: 600 12px var(--display); text-transform: uppercase; letter-spacing: .5px; padding: 3px 8px; border-radius: 3px;
+            border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .stitek.ok { color: var(--good); border-color: var(--good); }
+  .stitek.parse { color: var(--accent2); border-color: var(--accent2); }
+  .stitek.prace { color: #fff; background: var(--accent); border-color: var(--accent); }
+  @media (max-width: 600px) { .zapas { grid-template-columns: 22px 1fr auto; } .zapas .info { grid-column: 2 / -1; grid-row: 2; } }
+  @media (max-width: 600px) { form { grid-template-columns: 1fr; } #hlava .vys { float: none; display: block; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="zpet" href="/">← Dota 2 souhrn</a>
+  <h1>AI <span>trenér</span></h1>
+  <p class="sub">Zadej zápas a AI ti z rozparsovaného replaye napíše rozbor: co šlo dobře, největší chyby s časy, build a na co se příště zaměřit.</p>
+
+  <form id="f">
+    <label class="cele">Číslo zápasu
+      <input id="match" inputmode="numeric" placeholder="např. 8958223510 nebo odkaz z OpenDoty/Dotabuffu" required>
+    </label>
+    <label>Tvoje ID hráče
+      <input id="hrac" inputmode="numeric" placeholder="Friend ID z OpenDoty">
+      <small>Pamatuje se v tomhle prohlížeči.</small>
+    </label>
+    <label>…nebo hrdina
+      <input id="hrdina" placeholder="např. Clinkz">
+      <small>Když máš skrytý profil.</small>
+    </label>
+    <label class="cele">Heslo
+      <input id="heslo" type="password" autocomplete="current-password" placeholder="heslo k AI trenérovi">
+    </label>
+    <div class="tlacitka">
+      <button id="go" type="submit">Rozebrat zápas</button>
+      <button id="bez" class="vedl" type="button" hidden>Rozebrat i bez replaye</button>
+    </div>
+  </form>
+
+  <div id="stav"></div>
+  <div id="hlava"></div>
+  <div id="vystup"></div>
+  <div id="akce"><button class="vedl" id="kopir" type="button">Kopírovat rozbor</button>
+    <button class="vedl" id="znovu" type="button" hidden>Rozebrat znovu</button></div>
+
+  <section id="hist">
+    <h2>Moje rozbory</h2>
+    <p id="autoinfo" class="prazdno"></p>
+    <div id="seznam"></div>
+  </section>
+
+  <section id="starsi">
+    <h2>Starší zápasy</h2>
+    <p class="prazdno">Načti své zápasy až 2 měsíce zpátky a vyber, které chceš rozebrat. Valve replaye po zhruba 2 týdnech maže,
+      takže u starších zápasů jde plný rozbor jen tehdy, když je OpenDota zpracovala dřív. Ostatní se rozeberou ze základních statistik.</p>
+    <div class="radek">
+      <select id="obdobi">
+        <option value="7">Posledních 7 dní</option><option value="14">Posledních 14 dní</option>
+        <option value="30">Posledních 30 dní</option><option value="60" selected>Poslední 2 měsíce</option>
+      </select>
+      <button class="vedl" id="nacist" type="button">Načíst zápasy</button>
+    </div>
+    <div class="radek" id="starsiOvl" hidden>
+      <button class="vedl" id="vybratNe" type="button">Vybrat nerozebrané</button>
+      <button class="vedl" id="zrusitVyber" type="button">Zrušit výběr</button>
+      <button id="rozebratVybrane" type="button">Rozebrat vybrané (0)</button>
+      <button class="vedl" id="stop" type="button" hidden>Zastavit</button>
+    </div>
+    <p id="starsiInfo" class="prazdno"></p>
+    <div id="starsiSeznam"></div>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get: (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+
+// předvyplnění z adresy (?match=…&hrac=…) a z paměti
+const q = new URLSearchParams(location.search);
+$("match").value = q.get("match") || "";
+$("hrac").value = q.get("hrac") || store.get("trener_hrac");
+$("hrdina").value = q.get("hrdina") || "";
+$("heslo").value = store.get("trener_heslo");
+
+let text = "";
+let bezi = false;
+
+// --- historie rozborů: na serveru (když je nastavené úložiště), jinak v tomhle prohlížeči
+const HIST = "trener_historie";
+let serverovy = false;      // true = rozbory se berou ze serveru
+let historie = [];          // aktuálně zobrazený seznam
+function nactiLokal() { try { return JSON.parse(localStorage.getItem(HIST) || "[]"); } catch { return []; } }
+function ulozLokal(h) { try { localStorage.setItem(HIST, JSON.stringify(h.slice(0, 150))); } catch {} }
+function klic(match, hrac, hrdina) {
+  return serverovy
+    ? `rozbor:${match}:${(hrac || "").trim() || "h-" + (hrdina || "").trim().toLowerCase()}`
+    : match + "|" + (hrac || "").trim() + "|" + (hrdina || "").trim().toLowerCase();
+}
+function najdiVHist(match, hrac, hrdina) { return historie.find((z) => z.klic === klic(match, hrac, hrdina)); }
+
+async function api(akce, extra = {}) {
+  const r = await fetch("/api/auto", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ akce, heslo: $("heslo").value, hrac: $("hrac").value.trim(), ...extra }),
+  });
+  const j = await r.json().catch(() => ({}));
+  return { status: r.status, ...j };
+}
+
+async function nactiHistorii() {
+  if (!$("heslo").value) { serverovy = false; historie = nactiLokal(); return vykresliSeznam(); }
+  try {
+    const j = await api("seznam");
+    if (j.status === 200 && Array.isArray(j.rozbory)) {
+      serverovy = true;
+      historie = j.rozbory;
+      // jednorázově přesunout rozbory uložené dřív jen v prohlížeči (zobrazí se dál i bez serveru)
+      const lok = nactiLokal().filter((z) => !historie.some((y) => y.match === z.match && y.hrac === z.hrac));
+      historie = historie.concat(lok.map((z) => ({ ...z, lokalni: true })));
+    } else { serverovy = false; historie = nactiLokal(); }
+  } catch { serverovy = false; historie = nactiLokal(); }
+  vykresliSeznam();
+}
+
+function infoAuto(msg, spin) {
+  $("autoinfo").innerHTML = (spin ? '<span class="spin"></span>' : "") + "<span></span>";
+  $("autoinfo").lastChild.textContent = msg;
+}
+
+async function automatika() {
+  if (!serverovy) {
+    infoAuto("Automatické rozbory nejsou zapnuté (na Vercelu chybí úložiště).", false);
+    return;
+  }
+  infoAuto("Kontroluji nové zápasy na OpenDotě…", true);
+  try {
+    const j = await api("sync");
+    if (j.status !== 200) return infoAuto("Automatika: " + (j.error || "chyba " + j.status), false);
+    if (j.bezi) return infoAuto("Automatika už právě běží, zkus obnovit stránku za pár minut.", false);
+    const casti = [];
+    if (j.rozebrano.length) casti.push(`Nově rozebráno: ${j.rozebrano.map((x) => x.hrdina).join(", ")}.`);
+    if (j.ceka.length) casti.push(`${j.ceka.length} ${j.ceka.length === 1 ? "zápas čeká" : "zápasy čekají"} na zpracování, rozebere se při příští kontrole.`);
+    if (j.limit) casti.push("Dosažen denní limit automatických rozborů.");
+    if (j.chyby.length) casti.push("Chyby: " + j.chyby.join("; "));
+    if (!casti.length) casti.push("Žádné nové zápasy k rozebrání.");
+    infoAuto(casti.join(" "), false);
+    if (j.rozebrano.length) await nactiHistorii();
+  } catch (e) {
+    infoAuto("Automatika selhala: " + (e.message || e), false);
+  }
+}
+
+function datum(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("cs-CZ") + " " + d.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
+}
+
+function vykresliSeznam() {
+  const el = $("seznam");
+  el.innerHTML = "";
+  if (!historie.length) { el.innerHTML = '<p class="prazdno">Zatím žádné. Každý hotový rozbor se sem uloží.</p>'; return; }
+  for (const z of historie) {
+    const row = document.createElement("div");
+    row.className = "polozka " + (String(z.vysledek).startsWith("VÝHRA") ? "win" : "loss");
+    row.innerHTML = '<span class="hr"></span><span class="info"></span><button class="x" type="button" title="Smazat">×</button>';
+    row.querySelector(".hr").textContent = z.hrdina;
+    const hrano = z.hrano ? ` · hráno ${datum(z.hrano * 1000)}` : "";
+    row.querySelector(".info").textContent = `${z.auto ? "🤖 " : ""}${z.vysledek} · zápas ${z.match}${hrano || " · rozebráno " + datum(z.datum)}`;
+    row.addEventListener("click", () => ukazUlozeny(z));
+    row.querySelector(".x").addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!confirm(`Smazat rozbor zápasu ${z.match} (${z.hrdina})?`)) return;
+      if (serverovy && !z.lokalni) await api("smazat", { klic: z.klic });
+      ulozLokal(nactiLokal().filter((y) => !(y.match === z.match && y.hrac === z.hrac)));
+      historie = historie.filter((y) => y !== z);
+      vykresliSeznam();
+    });
+    el.appendChild(row);
+  }
+}
+
+function hlavicka(hrdina, vys) {
+  $("hlava").innerHTML = `<span></span><span class="vys ${vys.startsWith("VÝHRA") ? "win" : "loss"}"></span>`;
+  $("hlava").firstChild.textContent = hrdina;
+  $("hlava").lastChild.textContent = vys;
+  $("hlava").style.display = "block";
+  $("vystup").style.display = "block";
+}
+
+function ukazUlozeny(z, zprava) {
+  $("match").value = z.match;
+  $("hrac").value = z.hrac || "";
+  $("hrdina").value = z.hrdinaZadany || "";
+  text = z.text;
+  hlavicka(z.hrdina, z.vysledek);
+  vykresli(true);
+  $("akce").style.display = "flex";
+  $("znovu").hidden = false;
+  stav(zprava || `Uložený rozbor z ${datum(z.datum)}.`);
+  $("hlava").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function stav(msg, { spin = false, chyba = false } = {}) {
+  $("stav").className = chyba ? "chyba" : "";
+  $("stav").innerHTML = (spin ? '<span class="spin"></span>' : "") + "<span></span>";
+  $("stav").lastChild.textContent = msg;
+}
+
+function matchId(v) {
+  const m = String(v).match(/matches\/(\d+)/);
+  return m ? m[1] : String(v).replace(/\D/g, "");
+}
+
+// --- jednoduchý Markdown → HTML (nadpisy, tučné, kurzíva, seznamy, odstavce)
+function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function inline(s) {
+  return esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])_(.+?)_(?=[\s.,;:!?)]|$)/g, "$1<em>$2</em>")
+    .replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s.,;:!?)]|$)/g, "$1<em>$2</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+function md(src) {
+  const out = []; let list = null;
+  const zavri = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of src.split("\n")) {
+    const l = raw.trimEnd();
+    let m;
+    if ((m = l.match(/^(#{1,4})\s+(.*)/))) { zavri(); const n = Math.min(m[1].length, 3); out.push(`<h${n}>${inline(m[2])}</h${n}>`); }
+    else if ((m = l.match(/^\s*[-*•]\s+(.*)/))) { if (list !== "ul") { zavri(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))) { if (list !== "ol") { zavri(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if (/^\s*(---|\*\*\*)\s*$/.test(l)) { zavri(); out.push("<hr>"); }
+    else if (!l.trim()) { zavri(); }
+    else { zavri(); out.push(`<p>${inline(l)}</p>`); }
+  }
+  zavri();
+  return out.join("");
+}
+function vykresli(konec) {
+  $("vystup").innerHTML = md(text);
+  $("vystup").classList.toggle("kurzor", !konec);
+}
+
+const pockej = (ms) => new Promise((r) => setTimeout(r, ms));
+
+let zastavit = false;
+async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
+  if (bezi) return "bezi";
+  const match = matchId($("match").value);
+  const hrac = $("hrac").value.trim();
+  const hrdina = $("hrdina").value.trim();
+  const heslo = $("heslo").value;
+  if (!match) { stav("Zadej číslo zápasu.", { chyba: true }); return "chyba"; }
+  if (!hrac && !hrdina) { stav("Zadej svoje ID hráče, nebo hrdinu.", { chyba: true }); return "chyba"; }
+  store.set("trener_hrac", hrac);
+  store.set("trener_heslo", heslo);
+
+  const ulozeny = !znovu && najdiVHist(match, hrac, hrdina);
+  if (ulozeny) { ukazUlozeny(ulozeny, `Tenhle zápas už máš rozebraný (${datum(ulozeny.datum)}), zobrazuji uložený rozbor. Nový stojí kredit, proto jen přes „Rozebrat znovu“.`); return "ulozeny"; }
+
+  bezi = true;
+  $("go").disabled = true; $("bez").hidden = true; $("znovu").hidden = true;
+  $("hlava").style.display = "none"; $("vystup").style.display = "none"; $("akce").style.display = "none";
+  text = "";
+
+  try {
+    for (let pokus = 0; ; pokus++) {
+      stav(pokus === 0 ? "Stahuji zápas z OpenDoty…" : `OpenDota zpracovává replay… (${pokus * 15} s, obvykle 1–5 min)`, { spin: true });
+      const r = await fetch("/api/rozbor", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ match, hrac, hrdina, heslo, bezReplaye }),
+      });
+      const typ = r.headers.get("content-type") || "";
+
+      if (r.status === 202) {
+        if (zastavit) { stav("Zastaveno."); return "zastaveno"; }
+        if (pokus >= maxPokusu) {
+          stav("Replay se nepodařilo zpracovat (možná už vypršel). Můžeš to zkusit znovu později, nebo rozebrat jen ze základních statistik.", { chyba: true });
+          $("bez").hidden = false;
+          return "neparsovano";
+        }
+        await pockej(15000);
+        continue;
+      }
+      if (typ.includes("application/json")) {
+        const j = await r.json().catch(() => ({}));
+        stav(j.error || `Chyba serveru (${r.status}).`, { chyba: true });
+        return "chyba";
+      }
+      if (!r.ok || !r.body) { stav(`Chyba serveru (${r.status}).`, { chyba: true }); return "chyba"; }
+
+      // streamovaný rozbor
+      const hrdinaJm = decodeURIComponent(r.headers.get("X-Hrdina") || "");
+      const vys = decodeURIComponent(r.headers.get("X-Vysledek") || "");
+      hlavicka(hrdinaJm, vys);
+      stav("Trenér studuje zápas a ověřuje aktuální buildy a rady pro hráčů… (může trvat i minutu)", { spin: true });
+
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let cekaVykres = false;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        text += dec.decode(value, { stream: true });
+        if (!cekaVykres) { cekaVykres = true; requestAnimationFrame(() => { cekaVykres = false; vykresli(false); }); }
+      }
+      vykresli(true);
+      $("akce").style.display = "flex";
+      $("znovu").hidden = false;
+      const chyba = text.trim().length < 300 || /^\s*⚠️/.test(text.trim());
+      if (!chyba) {
+        if (serverovy) await nactiHistorii();   // server už rozbor uložil
+        else {
+          const h = nactiLokal().filter((z) => z.klic !== klic(match, hrac, hrdina));
+          h.unshift({ klic: klic(match, hrac, hrdina), match, hrac, hrdinaZadany: hrdina, hrdina: hrdinaJm,
+                      vysledek: vys, datum: new Date().toISOString(), text });
+          ulozLokal(h);
+          historie = h;
+          vykresliSeznam();
+        }
+        stav("Rozbor uložen do „Moje rozbory“.");
+        return "hotovo";
+      }
+      stav("");
+      return "chyba";
+    }
+  } catch (e) {
+    stav("Spojení selhalo: " + (e.message || e), { chyba: true });
+    return "chyba";
+  } finally {
+    bezi = false;
+    $("go").disabled = false;
+  }
+}
+
+$("f").addEventListener("submit", (e) => { e.preventDefault(); zastavit = false; rozbor(false); });
+$("bez").addEventListener("click", () => rozbor(true, true));
+$("znovu").addEventListener("click", () => {
+  if (confirm("Udělat nový rozbor? Stojí to kredit a přepíše uložený.")) rozbor(false, true);
+});
+$("kopir").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(text); $("kopir").textContent = "Zkopírováno ✓"; }
+  catch { $("kopir").textContent = "Kopírování nejde"; }
+  setTimeout(() => ($("kopir").textContent = "Kopírovat rozbor"), 2000);
+});
+// --- starší zápasy (až 2 měsíce zpátky)
+const OD = "https://api.opendota.com/api";
+let heroJm = null, starsi = [], frontaBezi = false;
+const vybrane = new Set();
+
+async function jmenaHrdinu() {
+  if (!heroJm) {
+    const j = await (await fetch(OD + "/constants/heroes")).json();
+    heroJm = {};
+    for (const h of Object.values(j)) heroJm[h.id] = h.localized_name;
+  }
+  return heroJm;
+}
+function starsiInfo(msg, spin) {
+  $("starsiInfo").innerHTML = (spin ? '<span class="spin"></span> ' : "") + "<span></span>";
+  $("starsiInfo").lastChild.textContent = msg;
+}
+const hracId = () => $("hrac").value.trim().replace(/\D/g, "");
+const jeRozebrany = (z) => historie.some((h) => String(h.match) === String(z.match_id) && (h.hrac || "") === hracId());
+const staryNeparsovany = (z) => z.version == null && Date.now() / 1000 - z.start_time > 14 * 86400;
+
+async function nactiStarsi() {
+  const hrac = hracId();
+  if (!hrac) return starsiInfo("Nahoře vyplň své ID hráče.");
+  starsiInfo("Načítám zápasy z OpenDoty…", true);
+  try {
+    const [hj, r] = await Promise.all([jmenaHrdinu(), fetch(`${OD}/players/${hrac}/matches?date=${$("obdobi").value}`)]);
+    const list = await r.json();
+    if (!Array.isArray(list)) throw new Error(list.error || "OpenDota nevrátila seznam");
+    starsi = list.filter((z) => (z.duration || 0) >= 600).map((z) => ({
+      ...z, hrdina: hj[z.hero_id] || "?", vyhra: (z.player_slot < 128) === z.radiant_win, stav: null,
+    }));
+    vybrane.clear();
+    $("starsiOvl").hidden = !starsi.length;
+    const hotove = starsi.filter(jeRozebrany).length;
+    starsiInfo(starsi.length ? `${starsi.length} zápasů, z toho ${hotove} už rozebraných.` : "V tomhle období žádné zápasy (nebo máš skrytou historii).");
+    vykresliStarsi();
+  } catch (e) {
+    starsiInfo("Nepodařilo se načíst: " + (e.message || e));
+  }
+}
+
+function stitek(z) {
+  if (z.stav) return [z.stav, z.stav.startsWith("Rozebírám") ? "prace" : "parse"];
+  if (jeRozebrany(z)) return ["✓ rozebráno", "ok"];
+  if (z.version != null) return ["replay zpracovaný", "parse"];
+  if (staryNeparsovany(z)) return ["jen základní statistiky", ""];
+  return ["replay se zpracuje", ""];
+}
+
+function vykresliStarsi() {
+  const el = $("starsiSeznam");
+  el.innerHTML = "";
+  for (const z of starsi) {
+    const row = document.createElement("div");
+    row.className = "zapas " + (z.vyhra ? "win" : "loss");
+    row.innerHTML = '<input type="checkbox"><span class="hr"></span><span class="info"></span><span class="stitek"></span>';
+    const cb = row.querySelector("input");
+    cb.checked = vybrane.has(z.match_id);
+    cb.disabled = frontaBezi;
+    cb.addEventListener("change", () => { cb.checked ? vybrane.add(z.match_id) : vybrane.delete(z.match_id); pocetVybranych(); });
+    row.querySelector(".hr").textContent = z.hrdina;
+    row.querySelector(".info").textContent =
+      `${z.vyhra ? "Výhra" : "Prohra"} · ${z.kills}/${z.deaths}/${z.assists} · ${datum(z.start_time * 1000)} · ${z.match_id}`;
+    const [t, c] = stitek(z);
+    const st = row.querySelector(".stitek");
+    st.textContent = t; if (c) st.classList.add(c);
+    if (jeRozebrany(z)) {
+      row.style.cursor = "pointer";
+      row.addEventListener("click", (e) => {
+        if (e.target === cb) return;
+        const h = historie.find((h) => String(h.match) === String(z.match_id));
+        if (h) ukazUlozeny(h);
+      });
+    }
+    el.appendChild(row);
+  }
+  pocetVybranych();
+}
+
+function pocetVybranych() {
+  $("rozebratVybrane").textContent = `Rozebrat vybrané (${vybrane.size})`;
+  $("rozebratVybrane").disabled = !vybrane.size || frontaBezi;
+}
+
+async function rozebratVybrane() {
+  const fronta = starsi.filter((z) => vybrane.has(z.match_id) && !jeRozebrany(z));
+  if (!fronta.length) return starsiInfo("Vybrané zápasy už jsou rozebrané.");
+  if (!$("heslo").value) return starsiInfo("Nahoře vyplň heslo.");
+  if (!confirm(`Rozebrat ${fronta.length} ${fronta.length === 1 ? "zápas" : fronta.length < 5 ? "zápasy" : "zápasů"}? Každý rozbor stojí kredit.`)) return;
+
+  frontaBezi = true; zastavit = false;
+  $("stop").hidden = false; $("nacist").disabled = true;
+  let hotovo = 0;
+  for (let i = 0; i < fronta.length && !zastavit; i++) {
+    const z = fronta[i];
+    z.stav = `Rozebírám ${i + 1}/${fronta.length}`; vykresliStarsi();
+    starsiInfo(`Rozebírám ${i + 1}/${fronta.length}: ${z.hrdina} (${z.match_id})…`, true);
+    $("match").value = z.match_id;
+    $("hrdina").value = "";
+    let st;
+    if (staryNeparsovany(z)) st = await rozbor(true, false);
+    else {
+      st = await rozbor(false, false, 16);                // ~4 min čekání na zpracování replaye
+      if (st === "neparsovano" && !zastavit) st = await rozbor(true, false);
+    }
+    z.stav = st === "hotovo" || st === "ulozeny" ? null : st === "zastaveno" ? "zastaveno" : "chyba";
+    if (st === "hotovo") hotovo++;
+    vybrane.delete(z.match_id);
+    vykresliStarsi();
+  }
+  frontaBezi = false;
+  $("stop").hidden = true; $("nacist").disabled = false;
+  vykresliStarsi();
+  starsiInfo(zastavit ? `Zastaveno. Rozebráno ${hotovo}.` : `Hotovo, rozebráno ${hotovo} z ${fronta.length}.`);
+}
+
+$("nacist").addEventListener("click", nactiStarsi);
+$("vybratNe").addEventListener("click", () => { for (const z of starsi) if (!jeRozebrany(z)) vybrane.add(z.match_id); vykresliStarsi(); });
+$("zrusitVyber").addEventListener("click", () => { vybrane.clear(); vykresliStarsi(); });
+$("rozebratVybrane").addEventListener("click", rozebratVybrane);
+$("stop").addEventListener("click", () => { zastavit = true; starsiInfo("Zastavuji po dokončení aktuálního rozboru…", true); });
+nactiHistorii().then(automatika);
+$("heslo").addEventListener("change", () => nactiHistorii().then(automatika));
+</script>
+</body>
+</html>
