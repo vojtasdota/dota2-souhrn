@@ -435,6 +435,9 @@
   .sr-id{font-size:.74rem;color:var(--muted-dim);font-variant-numeric:tabular-nums;flex-shrink:0}
   @media(max-width:560px){ .sr-meta{display:none} }
   #quick{margin-top:0}
+  .nav-links{margin-top:12px}
+  .trener-link{display:inline-block;background:var(--bg2);border:1px solid var(--gold-dim);color:var(--gold);font-weight:700;font-size:.9rem;padding:9px 18px;border-radius:10px;text-decoration:none;transition:filter .15s,border-color .15s}
+  .trener-link:hover{filter:brightness(1.12);border-color:var(--gold)}
   .account-area{position:absolute;top:18px;right:20px;z-index:5}
   .account-area .quick-wrap{justify-content:flex-end;align-items:center}
   .quick-hint{background:var(--bg2);border:1px dashed var(--border);color:var(--muted);font-family:inherit;font-weight:600;font-size:.78rem;padding:5px 11px;border-radius:20px;cursor:pointer}
@@ -546,6 +549,7 @@
     <div class="kicker">Statistiky zápasů</div>
     <h1>Dota&nbsp;2 Souhrn</h1>
     <p class="sub">Výhry, prohry a poměry s každým hrdinou — i proti němu</p>
+    <div class="nav-links"><a class="trener-link" href="https://dota2-souhrn.vercel.app/trener.html">🧠 AI trenér — rozbor tvých her</a></div>
     <div id="quick" class="account-area"></div>
   </header>
 
@@ -559,7 +563,7 @@
 
   <div id="content"></div>
 
-  <footer>Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota API</a> &nbsp;·&nbsp; Není napojeno na Valve / Steam &nbsp;·&nbsp; <b style="color:var(--gold-dim)">build B52 · web</b></footer>
+  <footer>Data: <a href="https://www.opendota.com" target="_blank" rel="noopener">OpenDota API</a> &nbsp;·&nbsp; Není napojeno na Valve / Steam &nbsp;·&nbsp; <b style="color:var(--gold-dim)">build B54 · web</b></footer>
 </div>
 
 <script>
@@ -876,10 +880,15 @@ function persistSearch(key,list){
   }catch(e){}
 }
 async function searchFetch(q){
-  // mimo frontu getJSON, ať hledání nečeká na ostatní dotazy
-  const r = await fetch("https://api.opendota.com/api/search?q="+encodeURIComponent(q));
-  if(!r.ok) throw new Error("HTTP "+r.status);
-  return r.json();
+  // 1) přes vlastní backend s edge cache → opakovaná/populární jména jsou okamžitá pro všechny
+  try{
+    const r = await fetch("/api/search?q="+encodeURIComponent(q));
+    if(r.ok){ const d = await r.json(); if(Array.isArray(d)) return d; }
+  }catch(e){ /* backend nedostupný (např. file://) → fallback */ }
+  // 2) fallback: přímo OpenDota (mimo frontu getJSON, ať hledání nečeká)
+  const r2 = await fetch("https://api.opendota.com/api/search?q="+encodeURIComponent(q));
+  if(!r2.ok) throw new Error("HTTP "+r2.status);
+  return r2.json();
 }
 function renderSearchResults(list){
   if(!list.length){
