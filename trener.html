@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AI trenér · Dota 2 souhrn</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎯</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0d0f12; --panel: #15181d; --panel2: #1c2027; --line: #2a2f38;
+    --text: #e6e2d8; --muted: #8d8f94; --accent: #c8402f; --accent2: #e8a33d;
+    --good: #5fb36a; --bad: #d4553f;
+    --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+    --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--body); }
+  body { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); min-height: 100vh;
+         background: radial-gradient(1200px 500px at 85% -10%, rgba(200,64,47,.13), transparent 60%), var(--bg); }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 18px 80px; }
+  a { color: var(--accent2); }
+  .zpet { font-size: 14px; text-decoration: none; color: var(--muted); }
+  .zpet:hover { color: var(--text); }
+  h1 { font: 800 clamp(40px, 8vw, 68px)/.95 var(--display); letter-spacing: .5px; text-transform: uppercase; margin: 18px 0 6px; }
+  h1 span { color: var(--accent); }
+  .sub { color: var(--muted); margin: 0 0 26px; max-width: 60ch; }
+
+  form { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent);
+         padding: 18px; display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+  label { display: grid; gap: 5px; font: 600 13px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  label.cele { grid-column: 1 / -1; }
+  input { font: 500 16px var(--body); color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+          padding: 10px 12px; border-radius: 3px; width: 100%; }
+  input:focus { outline: 2px solid var(--accent2); outline-offset: -1px; }
+  small { font: 400 12px var(--body); text-transform: none; letter-spacing: 0; color: var(--muted); }
+  .tlacitka { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  button { font: 700 18px var(--display); text-transform: uppercase; letter-spacing: 1px; cursor: pointer;
+           background: var(--accent); color: #fff; border: 0; padding: 11px 22px; border-radius: 3px; }
+  button:hover:not(:disabled) { filter: brightness(1.12); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.vedl { background: transparent; color: var(--text); border: 1px solid var(--line); font-size: 15px; padding: 9px 14px; }
+
+  #stav { margin: 22px 0 0; color: var(--muted); min-height: 1.6em; display: flex; gap: 10px; align-items: center; }
+  .spin { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent2); border-radius: 50%;
+          animation: t .8s linear infinite; flex: none; }
+  @keyframes t { to { transform: rotate(360deg); } }
+  .chyba { color: var(--bad) !important; }
+
+  #hlava { display: none; margin: 26px 0 0; padding: 14px 18px; background: var(--panel2); border: 1px solid var(--line);
+           font: 700 24px var(--display); text-transform: uppercase; letter-spacing: .5px; }
+  #hlava .vys { float: right; font-size: 18px; }
+  #hlava .vys.win { color: var(--good); } #hlava .vys.loss { color: var(--bad); }
+  #vystup { background: var(--panel); border: 1px solid var(--line); border-top: 0; padding: 4px 22px 18px; display: none; }
+  #vystup h1, #vystup h2, #vystup h3 { font-family: var(--display); text-transform: uppercase; letter-spacing: .5px; line-height: 1.15; }
+  #vystup h1 { font-size: 30px; } #vystup h2 { font-size: 24px; color: var(--accent2); margin: 26px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  #vystup h3 { font-size: 19px; margin: 18px 0 6px; }
+  #vystup li { margin: 4px 0; } #vystup strong { color: #fff; }
+  #vystup p, #vystup ul, #vystup ol { margin: 8px 0; }
+  .kurzor::after { content: "▌"; color: var(--accent2); animation: b 1s steps(1) infinite; }
+  @keyframes b { 50% { opacity: 0; } }
+  #akce { display: none; margin-top: 12px; gap: 10px; }
+
+  @media (max-width: 600px) { form { grid-template-columns: 1fr; } #hlava .vys { float: none; display: block; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="zpet" href="/">← Dota 2 souhrn</a>
+  <h1>AI <span>trenér</span></h1>
+  <p class="sub">Zadej zápas a AI ti z rozparsovaného replaye napíše rozbor: co šlo dobře, největší chyby s časy, build a na co se příště zaměřit.</p>
+
+  <form id="f">
+    <label class="cele">Číslo zápasu
+      <input id="match" inputmode="numeric" placeholder="např. 8958223510 nebo odkaz z OpenDoty/Dotabuffu" required>
+    </label>
+    <label>Tvoje ID hráče
+      <input id="hrac" inputmode="numeric" placeholder="Friend ID z OpenDoty">
+      <small>Pamatuje se v tomhle prohlížeči.</small>
+    </label>
+    <label>…nebo hrdina
+      <input id="hrdina" placeholder="např. Clinkz">
+      <small>Když máš skrytý profil.</small>
+    </label>
+    <label class="cele">Heslo
+      <input id="heslo" type="password" autocomplete="current-password" placeholder="heslo k AI trenérovi">
+    </label>
+    <div class="tlacitka">
+      <button id="go" type="submit">Rozebrat zápas</button>
+      <button id="bez" class="vedl" type="button" hidden>Rozebrat i bez replaye</button>
+    </div>
+  </form>
+
+  <div id="stav"></div>
+  <div id="hlava"></div>
+  <div id="vystup"></div>
+  <div id="akce"><button class="vedl" id="kopir" type="button">Kopírovat rozbor</button></div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get: (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
+  set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
+};
+
+// předvyplnění z adresy (?match=…&hrac=…) a z paměti
+const q = new URLSearchParams(location.search);
+$("match").value = q.get("match") || "";
+$("hrac").value = q.get("hrac") || store.get("trener_hrac");
+$("hrdina").value = q.get("hrdina") || "";
+$("heslo").value = store.get("trener_heslo");
+
+let text = "";
+let bezi = false;
+
+function stav(msg, { spin = false, chyba = false } = {}) {
+  $("stav").className = chyba ? "chyba" : "";
+  $("stav").innerHTML = (spin ? '<span class="spin"></span>' : "") + "<span></span>";
+  $("stav").lastChild.textContent = msg;
+}
+
+function matchId(v) {
+  const m = String(v).match(/matches\/(\d+)/);
+  return m ? m[1] : String(v).replace(/\D/g, "");
+}
+
+// --- jednoduchý Markdown → HTML (nadpisy, tučné, kurzíva, seznamy, odstavce)
+function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function inline(s) {
+  return esc(s)
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[\s(])_(.+?)_(?=[\s.,;:!?)]|$)/g, "$1<em>$2</em>")
+    .replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s.,;:!?)]|$)/g, "$1<em>$2</em>")
+    .replace(/`([^`]+)`/g, "<code>$1</code>");
+}
+function md(src) {
+  const out = []; let list = null;
+  const zavri = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  for (const raw of src.split("\n")) {
+    const l = raw.trimEnd();
+    let m;
+    if ((m = l.match(/^(#{1,4})\s+(.*)/))) { zavri(); const n = Math.min(m[1].length, 3); out.push(`<h${n}>${inline(m[2])}</h${n}>`); }
+    else if ((m = l.match(/^\s*[-*•]\s+(.*)/))) { if (list !== "ul") { zavri(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))) { if (list !== "ol") { zavri(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(m[1])}</li>`); }
+    else if (/^\s*(---|\*\*\*)\s*$/.test(l)) { zavri(); out.push("<hr>"); }
+    else if (!l.trim()) { zavri(); }
+    else { zavri(); out.push(`<p>${inline(l)}</p>`); }
+  }
+  zavri();
+  return out.join("");
+}
+function vykresli(konec) {
+  $("vystup").innerHTML = md(text);
+  $("vystup").classList.toggle("kurzor", !konec);
+}
+
+const pockej = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function rozbor(bezReplaye = false) {
+  if (bezi) return;
+  const match = matchId($("match").value);
+  const hrac = $("hrac").value.trim();
+  const hrdina = $("hrdina").value.trim();
+  const heslo = $("heslo").value;
+  if (!match) return stav("Zadej číslo zápasu.", { chyba: true });
+  if (!hrac && !hrdina) return stav("Zadej svoje ID hráče, nebo hrdinu.", { chyba: true });
+  store.set("trener_hrac", hrac);
+  store.set("trener_heslo", heslo);
+
+  bezi = true;
+  $("go").disabled = true; $("bez").hidden = true;
+  $("hlava").style.display = "none"; $("vystup").style.display = "none"; $("akce").style.display = "none";
+  text = "";
+
+  try {
+    for (let pokus = 0; ; pokus++) {
+      stav(pokus === 0 ? "Stahuji zápas z OpenDoty…" : `OpenDota zpracovává replay… (${pokus * 15} s, obvykle 1–5 min)`, { spin: true });
+      const r = await fetch("/api/rozbor", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ match, hrac, hrdina, heslo, bezReplaye }),
+      });
+      const typ = r.headers.get("content-type") || "";
+
+      if (r.status === 202) {
+        if (pokus >= 24) {
+          stav("Replay se nepodařilo zpracovat (možná už vypršel). Můžeš to zkusit znovu později, nebo rozebrat jen ze základních statistik.", { chyba: true });
+          $("bez").hidden = false;
+          return;
+        }
+        await pockej(15000);
+        continue;
+      }
+      if (typ.includes("application/json")) {
+        const j = await r.json().catch(() => ({}));
+        return stav(j.error || `Chyba serveru (${r.status}).`, { chyba: true });
+      }
+      if (!r.ok || !r.body) return stav(`Chyba serveru (${r.status}).`, { chyba: true });
+
+      // streamovaný rozbor
+      const hrdinaJm = decodeURIComponent(r.headers.get("X-Hrdina") || "");
+      const vys = decodeURIComponent(r.headers.get("X-Vysledek") || "");
+      $("hlava").innerHTML = `<span></span><span class="vys ${vys.startsWith("VÝHRA") ? "win" : "loss"}"></span>`;
+      $("hlava").firstChild.textContent = hrdinaJm;
+      $("hlava").lastChild.textContent = vys;
+      $("hlava").style.display = "block";
+      $("vystup").style.display = "block";
+      stav(`Trenér píše rozbor…`, { spin: true });
+
+      const reader = r.body.getReader();
+      const dec = new TextDecoder();
+      let cekaVykres = false;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        text += dec.decode(value, { stream: true });
+        if (!cekaVykres) { cekaVykres = true; requestAnimationFrame(() => { cekaVykres = false; vykresli(false); }); }
+      }
+      vykresli(true);
+      stav("");
+      $("akce").style.display = "flex";
+      return;
+    }
+  } catch (e) {
+    stav("Spojení selhalo: " + (e.message || e), { chyba: true });
+  } finally {
+    bezi = false;
+    $("go").disabled = false;
+  }
+}
+
+$("f").addEventListener("submit", (e) => { e.preventDefault(); rozbor(false); });
+$("bez").addEventListener("click", () => rozbor(true));
+$("kopir").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(text); $("kopir").textContent = "Zkopírováno ✓"; }
+  catch { $("kopir").textContent = "Kopírování nejde"; }
+  setTimeout(() => ($("kopir").textContent = "Kopírovat rozbor"), 2000);
+});
+</script>
+</body>
+</html>
