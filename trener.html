@@ -85,6 +85,10 @@
   .zapas input { width: 18px; height: 18px; accent-color: var(--accent); }
   .zapas .hr { font: 700 17px var(--display); text-transform: uppercase; }
   .zapas .info { color: var(--muted); }
+  .prava { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+  button.mini { font-size: 13px; padding: 5px 10px; }
+  .legenda { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .legenda b { color: var(--text); font-weight: 600; }
   .stitek { font: 600 12px var(--display); text-transform: uppercase; letter-spacing: .5px; padding: 3px 8px; border-radius: 3px;
             border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
   .stitek.ok { color: var(--good); border-color: var(--good); }
@@ -151,6 +155,10 @@
       <button class="vedl" id="stop" type="button" hidden>Zastavit</button>
     </div>
     <p id="starsiInfo" class="prazdno"></p>
+    <p class="legenda"><b>Plný rozbor</b> = OpenDota už replay zpracovala, rozbor bude včetně časů smrtí, teamfightů a lajny.
+      <b>Plný rozbor (po zpracování)</b> = novější zápas, o zpracování se požádá automaticky.
+      <b>Jen statistiky</b> = replay už Valve smazal a OpenDota ho nestihla zpracovat.
+      Kliknutím na zápas se vyplní formulář, tlačítkem <b>Rozebrat</b> se rovnou rozebere.</p>
     <div id="starsiSeznam"></div>
   </section>
 </div>
@@ -175,6 +183,7 @@ let bezi = false;
 // --- historie rozborů: na serveru (když je nastavené úložiště), jinak v tomhle prohlížeči
 const HIST = "trener_historie";
 let serverovy = false;      // true = rozbory se berou ze serveru
+let chybaServeru = "";
 let historie = [];          // aktuálně zobrazený seznam
 function nactiLokal() { try { return JSON.parse(localStorage.getItem(HIST) || "[]"); } catch { return []; } }
 function ulozLokal(h) { try { localStorage.setItem(HIST, JSON.stringify(h.slice(0, 150))); } catch {} }
@@ -196,18 +205,24 @@ async function api(akce, extra = {}) {
 }
 
 async function nactiHistorii() {
-  if (!$("heslo").value) { serverovy = false; historie = nactiLokal(); return vykresliSeznam(); }
+  chybaServeru = "";
+  if (!$("heslo").value) { serverovy = false; historie = nactiLokal(); chybaServeru = "nejdřív vyplň heslo"; return vykresliSeznam(); }
   try {
     const j = await api("seznam");
     if (j.status === 200 && Array.isArray(j.rozbory)) {
       serverovy = true;
+      if (j.hrac && !$("hrac").value.trim()) { $("hrac").value = j.hrac; store.set("trener_hrac", j.hrac); }
       historie = j.rozbory;
       // jednorázově přesunout rozbory uložené dřív jen v prohlížeči (zobrazí se dál i bez serveru)
-      const lok = nactiLokal().filter((z) => !historie.some((y) => y.match === z.match && y.hrac === z.hrac));
+      const lok = nactiLokal().filter((z) => !historie.some((y) => String(y.match) === String(z.match) && (y.hrac || "") === (z.hrac || "")));
       historie = historie.concat(lok.map((z) => ({ ...z, lokalni: true })));
-    } else { serverovy = false; historie = nactiLokal(); }
-  } catch { serverovy = false; historie = nactiLokal(); }
+    } else {
+      serverovy = false; historie = nactiLokal();
+      chybaServeru = j.error || `chyba ${j.status}`;
+    }
+  } catch (e) { serverovy = false; historie = nactiLokal(); chybaServeru = e.message || String(e); }
   vykresliSeznam();
+  if (starsi.length) vykresliStarsi();
 }
 
 function infoAuto(msg, spin) {
@@ -217,7 +232,7 @@ function infoAuto(msg, spin) {
 
 async function automatika() {
   if (!serverovy) {
-    infoAuto("Automatické rozbory nejsou zapnuté (na Vercelu chybí úložiště).", false);
+    infoAuto("Rozbory se ukládají jen v tomhle prohlížeči. Server: " + (chybaServeru || "úložiště není nastavené") + ".", false);
     return;
   }
   infoAuto("Kontroluji nové zápasy na OpenDotě…", true);
@@ -398,15 +413,13 @@ async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
       $("znovu").hidden = false;
       const chyba = text.trim().length < 300 || /^\s*⚠️/.test(text.trim());
       if (!chyba) {
-        if (serverovy) await nactiHistorii();   // server už rozbor uložil
-        else {
-          const h = nactiLokal().filter((z) => z.klic !== klic(match, hrac, hrdina));
-          h.unshift({ klic: klic(match, hrac, hrdina), match, hrac, hrdinaZadany: hrdina, hrdina: hrdinaJm,
-                      vysledek: vys, datum: new Date().toISOString(), text });
-          ulozLokal(h);
-          historie = h;
-          vykresliSeznam();
-        }
+        // záloha v prohlížeči vždycky; server si rozbor ukládá sám
+        const lk = match + "|" + hrac + "|" + hrdina.toLowerCase();
+        const h = nactiLokal().filter((z) => z.klic !== lk);
+        h.unshift({ klic: lk, match, hrac, hrdinaZadany: hrdina, hrdina: hrdinaJm,
+                    vysledek: vys, datum: new Date().toISOString(), text });
+        ulozLokal(h);
+        await nactiHistorii();
         stav("Rozbor uložen do „Moje rozbory“.");
         return "hotovo";
       }
@@ -477,9 +490,9 @@ async function nactiStarsi() {
 function stitek(z) {
   if (z.stav) return [z.stav, z.stav.startsWith("Rozebírám") ? "prace" : "parse"];
   if (jeRozebrany(z)) return ["✓ rozebráno", "ok"];
-  if (z.version != null) return ["replay zpracovaný", "parse"];
-  if (staryNeparsovany(z)) return ["jen základní statistiky", ""];
-  return ["replay se zpracuje", ""];
+  if (z.version != null) return ["plný rozbor", "parse"];
+  if (staryNeparsovany(z)) return ["jen statistiky", ""];
+  return ["plný rozbor (po zpracování)", ""];
 }
 
 function vykresliStarsi() {
@@ -488,7 +501,7 @@ function vykresliStarsi() {
   for (const z of starsi) {
     const row = document.createElement("div");
     row.className = "zapas " + (z.vyhra ? "win" : "loss");
-    row.innerHTML = '<input type="checkbox"><span class="hr"></span><span class="info"></span><span class="stitek"></span>';
+    row.innerHTML = '<input type="checkbox"><span class="hr"></span><span class="info"></span><span class="prava"><span class="stitek"></span></span>';
     const cb = row.querySelector("input");
     cb.checked = vybrane.has(z.match_id);
     cb.disabled = frontaBezi;
@@ -499,12 +512,26 @@ function vykresliStarsi() {
     const [t, c] = stitek(z);
     const st = row.querySelector(".stitek");
     st.textContent = t; if (c) st.classList.add(c);
+    row.style.cursor = "pointer";
     if (jeRozebrany(z)) {
-      row.style.cursor = "pointer";
+      row.title = "Otevřít rozbor";
       row.addEventListener("click", (e) => {
         if (e.target === cb) return;
         const h = historie.find((h) => String(h.match) === String(z.match_id));
         if (h) ukazUlozeny(h);
+      });
+    } else {
+      row.title = "Vyplnit do formuláře";
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "mini"; btn.textContent = "Rozebrat";
+      btn.disabled = frontaBezi || bezi;
+      btn.addEventListener("click", (e) => { e.stopPropagation(); rozebratJeden(z); });
+      row.querySelector(".prava").appendChild(btn);
+      row.addEventListener("click", (e) => {
+        if (e.target === cb) return;
+        vyplnit(z);
+        $("f").scrollIntoView({ behavior: "smooth", block: "start" });
+        stav(`Vyplněno: ${z.hrdina}, zápas ${z.match_id}. Klikni na „Rozebrat zápas“.`);
       });
     }
     el.appendChild(row);
@@ -515,6 +542,22 @@ function vykresliStarsi() {
 function pocetVybranych() {
   $("rozebratVybrane").textContent = `Rozebrat vybrané (${vybrane.size})`;
   $("rozebratVybrane").disabled = !vybrane.size || frontaBezi;
+}
+
+function vyplnit(z) {
+  $("match").value = z.match_id;
+  $("hrdina").value = "";
+  if (!$("hrac").value.trim()) $("hrac").value = hracId();
+}
+
+async function rozebratJeden(z) {
+  if (!$("heslo").value) return starsiInfo("Nahoře vyplň heslo.");
+  zastavit = false;
+  vyplnit(z);
+  $("f").scrollIntoView({ behavior: "smooth", block: "start" });
+  let st = await rozbor(staryNeparsovany(z), false);
+  if (st === "neparsovano") st = await rozbor(true, false);
+  vykresliStarsi();
 }
 
 async function rozebratVybrane() {
@@ -554,7 +597,7 @@ $("vybratNe").addEventListener("click", () => { for (const z of starsi) if (!jeR
 $("zrusitVyber").addEventListener("click", () => { vybrane.clear(); vykresliStarsi(); });
 $("rozebratVybrane").addEventListener("click", rozebratVybrane);
 $("stop").addEventListener("click", () => { zastavit = true; starsiInfo("Zastavuji po dokončení aktuálního rozboru…", true); });
-nactiHistorii().then(automatika);
+nactiHistorii().then(() => { if (hracId()) nactiStarsi(); automatika(); });
 $("heslo").addEventListener("change", () => nactiHistorii().then(automatika));
 </script>
 </body>
