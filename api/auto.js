@@ -66,7 +66,7 @@ async function sync(hrac) {
     await Promise.all(ted.map(async (m) => {
       try {
         const ja = T.najdiHrace(m, k.heroes, hrac);
-        const data = T.shrnuti(m, ja, k);
+        const data = await T.pripravData(m, ja, k);
         const { text } = await T.claudeText(data);
         if (T.jeChybnyText(text)) throw new Error("AI vrátila prázdný rozbor");
         await T.ulozRozbor({

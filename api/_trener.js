@@ -169,6 +169,122 @@ function shrnuti(zapas, ja, { heroes, items, itemById }) {
   return d;
 }
 
+// ------------------------------------------------------------ draft: hodnocení picku a alternativy
+
+// jednoduchá cache v Redisu (když je k dispozici), ať se OpenDota nevolá pořád dokola
+async function cached(key, ttlSec, fn) {
+  if (maUloziste()) {
+    try { const v = await redis("GET", key); if (v) return JSON.parse(v); } catch {}
+  }
+  const val = await fn();
+  if (maUloziste()) { try { await redis("SET", key, JSON.stringify(val), "EX", String(ttlSec)); } catch {} }
+  return val;
+}
+
+// matchupy hrdiny: { enemyId: {g, w} } + základní winrate napříč všemi matchupy
+async function matchupy(heroId) {
+  return cached(`cache:matchup:${heroId}`, 86400, async () => {
+    const list = await odGet(`/heroes/${heroId}/matchups`);
+    const m = {}; let G = 0, W = 0;
+    for (const x of Array.isArray(list) ? list : []) {
+      m[x.hero_id] = { g: x.games_played, w: x.wins }; G += x.games_played; W += x.wins;
+    }
+    return { m, base: G ? W / G : 0.5, games: G };
+  });
+}
+
+// výhoda hrdiny proti soupeřům v procentních bodech (malé vzorky se tlumí)
+function vyhoda(mu, enemyIds, jm) {
+  const det = {}; let soucet = 0;
+  for (const e of enemyIds) {
+    const x = mu.m[e];
+    if (!x || !x.g) { det[jm(e)] = "bez dat"; continue; }
+    const raw = (x.w / x.g - mu.base) * 100;
+    const v = raw * (x.g / (x.g + 30));
+    soucet += v;
+    det[jm(e)] = `${v >= 0 ? "+" : ""}${v.toFixed(1)} b. (${x.g} her)`;
+  }
+  return { det, soucet: Math.round(soucet * 10) / 10 };
+}
+
+async function draft(zapas, ja, { heroes }) {
+  const jm = (id) => heroes[id]?.localized_name || "?";
+  const radiant = ja.player_slot < 128;
+  const enemyAll = zapas.players.filter((p) => (p.player_slot < 128) !== radiant).map((p) => p.hero_id);
+  const d = { muj_pick: jm(ja.hero_id) };
+
+  // pořadí picků (když ho OpenDota má): kteří soupeři byli vidět v době mého picku
+  let enemyVidet = enemyAll;
+  const pb = (zapas.picks_bans || []).filter((x) => x.is_pick).sort((a, b) => a.order - b.order);
+  const muj = pb.find((x) => x.hero_id === ja.hero_id);
+  if (muj) {
+    const mujTym = muj.team;
+    const predem = pb.filter((x) => x.order < muj.order);
+    enemyVidet = predem.filter((x) => x.team !== mujTym).map((x) => x.hero_id);
+    const poradiVTymu = predem.filter((x) => x.team === mujTym).length + 1;
+    d.poradi_picku = `${poradiVTymu}. pick v týmu; soupeři vidět v době picku: ${enemyVidet.map(jm).join(", ") || "žádní"}; soupeři pickovaní až po mně: ${
+      enemyAll.filter((h) => !enemyVidet.includes(h)).map(jm).join(", ") || "žádní"}`;
+  } else {
+    d.poradi_picku = "pořadí picků není k dispozici – hodnoceno proti všem 5 soupeřům";
+  }
+
+  // můj pick proti soupeřům
+  const muMuj = await matchupy(ja.hero_id);
+  const vsVse = vyhoda(muMuj, enemyAll, jm);
+  const vsVidet = vyhoda(muMuj, enemyVidet, jm);
+  d.muj_pick_matchupy = { proti_vsem_soupericum: vsVse.det, soucet_vyhody_vse: vsVse.soucet,
+                          soucet_vyhody_proti_videnym: vsVidet.soucet };
+
+  // můj hero pool (posledních 365 dní, stejná lajna)
+  if (!ja.account_id) { d.alternativy = "hráč má skrytý profil – hero pool není k dispozici"; return d; }
+  const lane = ja.lane_role ? `&lane_role=${ja.lane_role}` : "";
+  const pool = await cached(`cache:pool:${ja.account_id}:${ja.lane_role || 0}`, 43200, () =>
+    odGet(`/players/${ja.account_id}/heroes?date=365${lane}`));
+  const muj_zaznam = (pool || []).find((h) => Number(h.hero_id) === ja.hero_id);
+  d.moje_hry_na_picku = muj_zaznam && muj_zaznam.games
+    ? `${muj_zaznam.games} her, ${Math.round((100 * muj_zaznam.win) / muj_zaznam.games)} % WR (posl. rok, tahle lajna)` : "na téhle lajně skoro nehraný";
+
+  // core vs. support podle pořadí net worthu v týmu
+  const tym = zapas.players.filter((p) => (p.player_slot < 128) === radiant)
+    .sort((a, b) => (b.net_worth || 0) - (a.net_worth || 0));
+  const jeSupport = tym.indexOf(ja) >= 3;
+  const sedi = (id) => {
+    const r = heroes[id]?.roles || [];
+    return jeSupport ? r.includes("Support") : r[0] !== "Support";
+  };
+  const obsazeno = new Set(zapas.players.map((p) => p.hero_id));
+  const kandidati = (pool || [])
+    .filter((h) => h.games >= 8 && Number(h.hero_id) !== ja.hero_id && !obsazeno.has(Number(h.hero_id)) && sedi(Number(h.hero_id)))
+    .sort((a, b) => b.games - a.games).slice(0, 14);
+
+  const hodnoceni = await Promise.all(kandidati.map(async (h) => {
+    const id = Number(h.hero_id);
+    const v = vyhoda(await matchupy(id), enemyVidet, jm);
+    const wr = h.win / h.games;
+    const osobni = (wr - 0.5) * 100 * (h.games / (h.games + 20));
+    return {
+      hrdina: jm(id), role: (heroes[id]?.roles || []).slice(0, 3).join("/"),
+      moje_hry: h.games, moje_wr: `${Math.round(wr * 100)} %`,
+      vyhoda_proti_soupericum: v.soucet, detail: v.det,
+      skore: Math.round((v.soucet + 0.5 * osobni) * 10) / 10,
+    };
+  }));
+  hodnoceni.sort((a, b) => b.skore - a.skore);
+  const mojeWr = muj_zaznam && muj_zaznam.games ? muj_zaznam.win / muj_zaznam.games : 0.5;
+  const mojeOsobni = (mojeWr - 0.5) * 100 * ((muj_zaznam?.games || 0) / ((muj_zaznam?.games || 0) + 20));
+  d.skore_meho_picku = Math.round((vsVidet.soucet + 0.5 * mojeOsobni) * 10) / 10;
+  d.alternativy_z_meho_poolu = hodnoceni.slice(0, 6);
+  d.vysvetlivky = "výhoda = o kolik procentních bodů má hrdina proti danému soupeři vyšší winrate než je jeho průměr (matchupy z OpenDoty, malé vzorky tlumené – ber orientačně); skóre = výhoda proti soupeřům viditelným při picku + polovina mé osobní výhody na hrdinovi";
+  return d;
+}
+
+async function pripravData(zapas, ja, k) {
+  const data = shrnuti(zapas, ja, k);
+  try { data.draft = await draft(zapas, ja, k); }
+  catch (e) { data.draft = { chyba: "draft data se nepodařilo získat: " + e.message }; }
+  return data;
+}
+
 // ------------------------------------------------------------ Claude
 
 const SYSTEM = `Jsi špičkový trenér Doty 2 (úroveň profesionálního analytika a coache).
@@ -181,11 +297,16 @@ Zjištění zapracuj do rozboru, ale nevypisuj postup hledání.
 
 Struktura:
 ## 1. Celkové hodnocení (2–3 věty, známka 1–10 za výkon v dané roli)
-## 2. Co šlo dobře – konkrétně, s čísly a časy
-## 3. Největší chyby – 3 až 5 nejdůležitějších podle dopadu; u každé: co se stalo (s časem), proč je to problém, co dělat příště
-## 4. Build – byl rozumný vůči soupeřům a aktuálnímu patchi? Co by na jeho místě stavěli dobří hráči?
-## 5. Na co se zaměřit – 1 až 3 konkrétní návyky do dalších her
-## 6. Momenty k shlédnutí v replayi
+## 2. Pick – hodnocení 1–10 a co jiného picknout
+Ohodnoť pick vůči soupeřům (data v "draft"). Zohledni, kteří soupeři byli vidět v době picku –
+za counter-pick, který přišel až po tobě, hráč nemůže. Pak doporuč 2–3 alternativy POUZE z jeho
+hero poolu ("alternativy_z_meho_poolu") a u každé jednou větou proč (proti komu je dobrá).
+Pokud byl jeho pick mezi nejlepšími možnostmi, řekni to. Čísla matchupů ber jako orientační.
+## 3. Co šlo dobře – konkrétně, s čísly a časy
+## 4. Největší chyby – 3 až 5 nejdůležitějších podle dopadu; u každé: co se stalo (s časem), proč je to problém, co dělat příště
+## 5. Build – byl rozumný vůči soupeřům a aktuálnímu patchi? Co by na jeho místě stavěli dobří hráči?
+## 6. Na co se zaměřit – 1 až 3 konkrétní návyky do dalších her
+## 7. Momenty k shlédnutí v replayi
 Seznam 5–8 konkrétních časových úseků, seřazený podle času, ve formátu:
 - **MM:SS–MM:SS** – co se tam stalo a na co se při sledování dívat (minimapa, pozice, kde byla vize, co měl soupeř)
 Zahrň hlavně smrti mimo teamfight, teamfighty, kde hráč nebyl, prohrané/vyhrané klíčové fighty,
@@ -195,7 +316,7 @@ Pravidla: Čísla a časy ber jen z dat, nevymýšlej si situace, které z nich 
 Nemáš pozice na mapě, takže u smrtí mluv o pravděpodobných příčinách, ne o jistotách.
 Percentily jsou srovnání s ostatními hráči stejného hrdiny. Pokud replay není
 rozparsovaný, některá data chybí – řekni to a hodnoť jen to, co máš.
-Buď přímý jako dobrý trenér, ne zbytečně pochvalný, ale ani zlý. Max. ~1100 slov.`;
+Buď přímý jako dobrý trenér, ne zbytečně pochvalný, ale ani zlý. Max. ~1300 slov.`;
 
 function claudeBody(data, stream) {
   return JSON.stringify({
@@ -324,7 +445,7 @@ async function smazane() {
 const jeChybnyText = (t) => !t || t.trim().length < 300 || /^\s*⚠️/.test(t.trim());
 
 module.exports = {
-  OD, odGet, nactiKonstanty, najdiHrace, shrnuti, cas,
+  OD, odGet, nactiKonstanty, najdiHrace, shrnuti, pripravData, cas,
   streamClaude, claudeText,
   maUloziste, redis, klicRozboru, ulozRozbor, seznamRozboru, smazRozbor, smazane, jeChybnyText,
 };

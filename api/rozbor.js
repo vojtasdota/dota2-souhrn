@@ -32,7 +32,7 @@ module.exports = async (req, res) => {
     res.status(e.code === 404 ? 404 : 400).json({ error: e.message }); return;
   }
 
-  const data = T.shrnuti(zapas, ja, k);
+  const data = await T.pripravData(zapas, ja, k);
   res.statusCode = 200;
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("X-Hrdina", encodeURIComponent(data.hrac.hrdina));
