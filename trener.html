@@ -57,7 +57,11 @@
   #vystup h1, #vystup h2, #vystup h3 { font-family: var(--display); text-transform: uppercase; letter-spacing: .5px; line-height: 1.15; }
   #vystup h1 { font-size: 30px; } #vystup h2 { font-size: 24px; color: var(--accent2); margin: 26px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
   #vystup h3 { font-size: 19px; margin: 18px 0 6px; }
-  #vystup li { margin: 4px 0; } #vystup strong { color: #fff; }
+  #vystup li { margin: 4px 0; }
+  .tabulka { overflow-x: auto; margin: 10px 0; }
+  #vystup table { border-collapse: collapse; font-size: 14px; min-width: 60%; }
+  #vystup th, #vystup td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+  #vystup th { background: var(--panel2); font-family: var(--display); text-transform: uppercase; letter-spacing: .5px; } #vystup strong { color: #fff; }
   #vystup p, #vystup ul, #vystup ol { margin: 8px 0; }
   .kurzor::after { content: "▌"; color: var(--accent2); animation: b 1s steps(1) infinite; }
   @keyframes b { 50% { opacity: 0; } }
@@ -324,11 +328,22 @@ function inline(s) {
     .replace(/`([^`]+)`/g, "<code>$1</code>");
 }
 function md(src) {
-  const out = []; let list = null;
+  const out = []; let list = null; let tab = null;
   const zavri = () => { if (list) { out.push(`</${list}>`); list = null; } };
+  const bunky = (l) => l.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim());
+  const zavriTab = () => {
+    if (!tab) return;
+    const [hlava, ...radky] = tab.filter((r) => !r.every((c) => /^:?-{2,}:?$/.test(c) || c === ""));
+    let h = '<div class="tabulka"><table><thead><tr>' + (hlava || []).map((c) => `<th>${inline(c)}</th>`).join("") + "</tr></thead><tbody>";
+    for (const r of radky) h += "<tr>" + r.map((c) => `<td>${inline(c)}</td>`).join("") + "</tr>";
+    out.push(h + "</tbody></table></div>");
+    tab = null;
+  };
   for (const raw of src.split("\n")) {
     const l = raw.trimEnd();
     let m;
+    if (/^\s*\|.*\|\s*$/.test(l)) { zavri(); (tab = tab || []).push(bunky(l)); continue; }
+    zavriTab();
     if ((m = l.match(/^(#{1,4})\s+(.*)/))) { zavri(); const n = Math.min(m[1].length, 3); out.push(`<h${n}>${inline(m[2])}</h${n}>`); }
     else if ((m = l.match(/^\s*[-*•]\s+(.*)/))) { if (list !== "ul") { zavri(); out.push("<ul>"); list = "ul"; } out.push(`<li>${inline(m[1])}</li>`); }
     else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))) { if (list !== "ol") { zavri(); out.push("<ol>"); list = "ol"; } out.push(`<li>${inline(m[1])}</li>`); }
@@ -336,7 +351,7 @@ function md(src) {
     else if (!l.trim()) { zavri(); }
     else { zavri(); out.push(`<p>${inline(l)}</p>`); }
   }
-  zavri();
+  zavri(); zavriTab();
   return out.join("");
 }
 function vykresli(konec) {
