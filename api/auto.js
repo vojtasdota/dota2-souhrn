@@ -118,7 +118,7 @@ module.exports = async (req, res) => {
 
   try {
     if (body.akce === "seznam") {
-      res.status(200).json({ rozbory: await T.seznamRozboru() });
+      res.status(200).json({ rozbory: await T.seznamRozboru(), hrac: process.env.TRENER_HRAC || null });
     } else if (body.akce === "smazat") {
       if (!/^rozbor:/.test(body.klic || "")) { res.status(400).json({ error: "Špatný klíč." }); return; }
       await T.smazRozbor(body.klic);

@@ -303,7 +303,7 @@ async function ulozRozbor(z) {
 
 async function seznamRozboru(limit = 200) {
   if (!maUloziste()) return null;
-  const klice = await redis("ZRANGE", "rozbory", "0", String(limit - 1), "REV");
+  const klice = await redis("ZREVRANGE", "rozbory", "0", String(limit - 1));
   if (!klice || !klice.length) return [];
   const hodnoty = await redis("MGET", ...klice);
   return hodnoty.map((v) => { try { return JSON.parse(v); } catch { return null; } }).filter(Boolean);
