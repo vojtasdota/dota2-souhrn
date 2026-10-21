@@ -179,6 +179,29 @@
   .mapa-hud .rosh .zivy { color: #b07cff; font-weight: 600; } .mapa-hud .rosh .mrtvy { color: var(--muted); }
   .mapa-hud .rosh .okno { color: var(--accent2); font-weight: 600; }
   @media (max-width: 760px) { .mapa-hud { grid-template-columns: 1fr; } .mapa-hud .tym, .mapa-hud .tym.dire { justify-content: center; } .mapa-hud .stred { order: -1; } }
+  .mapa-tymy { display: grid; grid-template-columns: minmax(0, 1fr) 210px minmax(0, 1fr); gap: 12px; align-items: start; }
+  .tym-tab { background: var(--panel2); border: 1px solid var(--line); border-top: 3px solid var(--good); border-radius: 3px; }
+  .tym-tab.dire { border-top-color: var(--bad); }
+  .tym-tab h5 { margin: 0; padding: 6px 10px; font: 700 14px var(--display); text-transform: uppercase; letter-spacing: 1px; display: flex; justify-content: space-between; }
+  .tym-tab h5 span { color: var(--muted); font-weight: 600; }
+  .hr-radek { display: grid; grid-template-columns: 46px 1fr auto; gap: 8px; align-items: center; padding: 5px 10px; border-top: 1px solid var(--line); font-size: 12px; }
+  .hr-radek.ja { background: rgba(232,163,61,.10); box-shadow: inset 3px 0 0 var(--accent2); }
+  .hr-radek.mrtvy img.port { filter: grayscale(1) brightness(.4); }
+  .hr-radek img.port { width: 46px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 2px; display: block; }
+  .hr-radek b { display: block; font: 700 14px/1.1 var(--display); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hr-radek .cisla { color: var(--muted); white-space: nowrap; }
+  .hr-radek .cisla em { font-style: normal; color: var(--text); }
+  .hr-radek .itemy { display: flex; gap: 2px; justify-content: flex-end; }
+  .hr-radek .itemy img { width: 26px; height: 19px; object-fit: cover; border-radius: 2px; }
+  .hr-radek .resp { color: var(--bad); font-weight: 700; }
+  .objektivy { background: var(--panel2); border: 1px solid var(--line); border-radius: 3px; padding: 8px 10px; font-size: 12px; }
+  .objektivy .ob { padding: 6px 0; border-bottom: 1px solid var(--line); } .objektivy .ob:last-child { border-bottom: 0; }
+  .objektivy .ob b { display: block; font: 700 13px var(--display); text-transform: uppercase; letter-spacing: .5px; }
+  .objektivy .zivy { color: #b07cff; } .objektivy .mrtvy { color: var(--muted); } .objektivy .okno { color: var(--accent2); }
+  .objektivy .pristi { display: flex; justify-content: space-between; gap: 6px; }
+  .objektivy .pristi span:last-child { color: var(--accent2); font-weight: 600; }
+  .objektivy .pristi.hned span:last-child { color: #fff; background: var(--accent); padding: 0 5px; border-radius: 2px; }
+  @media (max-width: 900px) { .mapa-tymy { grid-template-columns: 1fr; } .objektivy { order: -1; } }
   .mapa-box { background: var(--panel); border: 1px solid var(--line); border-top: 0; padding: 14px 18px; }
   .mapa-box > summary { cursor: pointer; font: 700 18px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--accent2); }
   .mapa-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
@@ -322,12 +345,14 @@
       <div class="mapa-hud" id="mapaHud"></div>
       <div class="mapa-grid" id="mapaObsah">
         <svg id="mapaSvg" viewBox="0 0 1000 1000" role="img" aria-label="Schematická mapa zápasu"></svg>
+        <div class="mapa-tymy" id="mapaTymy"></div>
         <div class="mapa-panel">
           <h4>Vrstvy</h4>
           <label class="prepinac"><input type="checkbox" id="vWardy" checked> Wardy (aktivní v daném čase)</label>
           <label class="prepinac"><input type="checkbox" id="vSmrti" checked> Smrti v teamfightech</label>
           <label class="prepinac"><input type="checkbox" id="vLajna" checked> Moje pozice na lajně (0–10 min)</label>
           <label class="prepinac"><input type="checkbox" id="vBudovy" checked> Věže a baráky</label>
+          <label class="prepinac"><input type="checkbox" id="vRuny" checked> Runy (místa, zvýrazněná při spawnu)</label>
           <div class="legenda-mapy">
             <span><i style="background:#5fb36a"></i>můj tým</span><span><i style="background:#d4553f"></i>soupeř</span>
             <span><i style="background:#e8a33d"></i>já</span><span><i style="background:#f2d25c"></i>observer</span><span><i style="background:#6fb7ff"></i>sentry</span>
@@ -1483,6 +1508,18 @@ async function pripravMapu(matchId, hrdinaJm) {
     let l = 1; while (l < 30 && xp >= PRAH[l]) l++;
     return l;
   };
+  if (!ITEMY) ITEMY = await fetch(OD + "/constants/items").then((r) => r.json()).catch(() => ({}));
+  d.level = level;
+  d.goldAdv = Array.isArray(z.radiant_gold_adv) ? z.radiant_gold_adv : null;
+  d.tormentor = (z.objectives || []).filter((o) => /MINIBOSS|TORMENTOR/i.test(o.type || "")).map((o) => {
+    const p = o.slot != null ? z.players[o.slot] : z.players.find((x) => x.player_slot === o.player_slot);
+    const radiant = p ? p.player_slot < 128 : o.team === 2;
+    return { t: o.time, nas: radiant === mujRadiant, kdo: p ? jm(p) : null };
+  });
+  d.runy = [];
+  for (const p of z.players) for (const r of p.runes_log || [])
+    d.runy.push({ t: r.time, typ: Number(r.key), kdo: jm(p), id: p.hero_id, muj: (p.player_slot < 128) === mujRadiant, jsemTo: p === ja });
+  d.runy.sort((a, b) => a.t - b.t);
   d.hraci = z.players.map((p) => {
     const sm = smrtiHrace.get(p).sort((a, b) => a.t - b.t);
     let intervaly = sm.map((x) => ({ od: x.t, do: x.t + Math.min(100, 6 + 3.6 * level(p, x.t)), zabil: x.zabil }));
@@ -1495,8 +1532,11 @@ async function pripravMapu(matchId, hrdinaJm) {
       const i = intervaly.find((i) => b.time >= i.od && b.time <= i.do + 2);
       if (i) { i.do = b.time; i.buyback = true; }
     }
+    const nakupy = (p.purchase_log || []).filter((n) => !String(n.key).startsWith("recipe_") && (ITEMY[n.key]?.cost || 0) >= 1400)
+      .map((n) => ({ t: n.time, key: n.key }));
     return { id: p.hero_id, jm: jm(p), muj: (p.player_slot < 128) === mujRadiant, radiant: p.player_slot < 128,
-             jsemTo: p === ja, intervaly, chybi: Math.max(0, (p.deaths || 0) - sm.length) };
+             jsemTo: p === ja, intervaly, chybi: Math.max(0, (p.deaths || 0) - sm.length), p,
+             killy: (p.kills_log || []).map((k) => k.time), nakupy };
   });
   d.aegis = (z.objectives || []).filter((o) => /AEGIS/.test(o.type || "")).map((o) => {
     const p = o.slot != null ? z.players[o.slot] : z.players.find((x) => x.player_slot === o.player_slot);
@@ -1507,7 +1547,7 @@ async function pripravMapu(matchId, hrdinaJm) {
   return d;
 }
 
-let mapa = null, mapaHraje = null, mapaObr = null;
+let mapa = null, mapaHraje = null, mapaObr = null, ITEMY = null;
 // Volitelný podklad: obrázek minimapy uložený vedle trener.html jako mapa.jpg / mapa.png / mapa.webp
 (function nactiPodklad() {
   const zkus = (i) => {
@@ -1579,6 +1619,21 @@ function kresliMapu() {
         : `<rect x="${x - vel}" y="${y - vel}" width="${vel * 2}" height="${vel * 2}" fill="${barva}" opacity=".85" rx="2"/>`);
     }
   }
+  if ($("vRuny").checked) {
+    // přibližná místa run; zvýrazní se kolem spawnu (±20 s)
+    const blizkoSpawnu = (prvni, krok) => t >= prvni - 20 && ((t - prvni + 20) % krok) <= 40;
+    const MISTA = [
+      { poz: [.30, .65], typ: "power", bar: "#c58cff" }, { poz: [.70, .35], typ: "power", bar: "#c58cff" },
+      { poz: [.035, .52], typ: "wisdom", bar: "#7fd3ff" }, { poz: [.965, .48], typ: "wisdom", bar: "#7fd3ff" },
+    ];
+    for (const m of MISTA) {
+      const [x, y] = P(...m.poz);
+      const akt = m.typ === "power" ? (t < 340 ? blizkoSpawnu(120, 120) && t < 300 : blizkoSpawnu(360, 120)) : blizkoSpawnu(420, 420);
+      if (akt) s.push(`<circle cx="${x}" cy="${y}" r="34" fill="${m.bar}" opacity=".25"><animate attributeName="r" values="22;40;22" dur="1.2s" repeatCount="indefinite"/></circle>`);
+      s.push(`<g opacity="${akt ? 1 : 0.55}"><rect x="${x - 10}" y="${y - 10}" width="20" height="20" transform="rotate(45 ${x} ${y})" fill="${m.bar}" stroke="#000" stroke-width="2"/>`
+        + `<title>${m.typ === "power" ? "Power runa (do 6:00 water runy)" : "Wisdom runa"} – místo přibližně</title></g>`);
+    }
+  }
   if ($("vWardy").checked) {
     for (const w of mapa.wardy.filter((w) => w.t <= t && w.konec > t)) {
       const [x, y] = N(...w.poz);
@@ -1601,6 +1656,7 @@ function kresliMapu() {
   }
   $("mapaSvg").innerHTML = s.join("");
   kresliHud(t);
+  kresliTymy(t);
 
   // události kolem času t
   const u = [], okno = 45;
@@ -1609,6 +1665,8 @@ function kresliMapu() {
   for (const d of mapa.mojeSmrti) if (blizko(d.t)) u.push([d.t, `<b>Tvoje smrt</b> (zabil ${esc(d.kdo)})`]);
   for (const b of mapa.budovy) if (blizko(b.t)) u.push([b.t, `Padla ${b.nase ? "naše" : "jejich"} budova ${esc(b.typ)}`]);
   for (const r of mapa.roshan) if (blizko(r.t)) u.push([r.t, `Roshan – ${r.nas ? "náš tým" : "soupeř"}`]);
+  for (const r of mapa.runy || []) if (r.t <= t && t - r.t <= okno) u.push([r.t, `Runa ${esc(RUNY[r.typ] || "?")} – ${esc(r.kdo)} (${r.muj ? "náš" : "soupeř"})`]);
+  for (const x of mapa.tormentor || []) if (blizko(x.t)) u.push([x.t, `Tormentor – ${x.nas ? "náš tým" : "soupeř"}`]);
   for (const w of mapa.wardy) if (w.t <= t && t - w.t <= okno) u.push([w.t, `${w.typ === "obs" ? "Observer" : "Sentry"} – ${esc(w.kdo)} (${w.muj ? "náš" : "soupeř"})`]);
   u.sort((a, b) => a[0] - b[0]);
   $("mapaUdalosti").innerHTML = u.length ? u.map(([c, x]) => `<div><span class="cas">${casTxt(c)}</span>${x}</div>`).join("") : '<div class="prazdno">V tomhle okamžiku se nic zásadního neděje.</div>';
@@ -1626,7 +1684,7 @@ $("mapaPlay").addEventListener("click", () => {
   }, 120);
 });
 $("mapaSlider").addEventListener("input", kresliMapu);
-for (const id of ["vWardy", "vSmrti", "vLajna", "vBudovy"]) $(id).addEventListener("change", kresliMapu);
+for (const id of ["vWardy", "vSmrti", "vLajna", "vBudovy", "vRuny"]) $(id).addEventListener("change", kresliMapu);
 
 async function zobrazMapu(matchId, hrdinaJm, textRozboru) {
   zastavPrehravani();
@@ -1662,6 +1720,64 @@ async function zobrazMapu(matchId, hrdinaJm, textRozboru) {
     $("mapaMomenty").appendChild(b);
   }
   nastavCas(momenty.length ? momenty[0][0] : Math.min(600, mapa.trvani));
+}
+
+const RUNY = { 0: "Double Damage", 1: "Haste", 2: "Illusion", 3: "Invisibility", 4: "Regeneration", 5: "Bounty", 6: "Arcane", 7: "Water", 8: "Wisdom", 9: "Shield" };
+// orientační časy podle současných patchů
+const pristiSpawn = (t, prvni, krok) => (t < prvni ? prvni : prvni + Math.ceil((t - prvni) / krok) * krok);
+const vMinute = (a, t) => (Array.isArray(a) && a.length ? a[Math.min(a.length - 1, Math.max(0, Math.floor(t / 60)))] : null);
+const kfmt = (n) => (n == null ? "–" : Math.abs(n) >= 1000 ? (n / 1000).toFixed(1) + "k" : String(Math.round(n)));
+
+function kresliTymy(t) {
+  if (!mapa.hraci) { $("mapaTymy").innerHTML = ""; return; }
+  const radek = (h) => {
+    const smrt = h.intervaly.find((i) => i.od <= t && t < i.do);
+    const k = h.killy.filter((x) => x <= t).length, d = h.intervaly.filter((i) => i.od <= t).length;
+    const lh = vMinute(h.p.lh_t, t), zl = vMinute(h.p.gold_t, t), lvl = mapa.level(h.p, t);
+    const itemy = h.nakupy.filter((n) => n.t <= t).slice(-3)
+      .map((n) => ITEMY?.[n.key]?.img ? `<img alt="" title="${esc(ITEMY[n.key].dname || n.key)} (${casTxt(n.t)})" src="https://cdn.cloudflare.steamstatic.com${ITEMY[n.key].img}">` : "").join("");
+    return `<div class="hr-radek${smrt ? " mrtvy" : ""}${h.jsemTo ? " ja" : ""}">
+      <img class="port" alt="" src="${heroImg[h.id] || ""}">
+      <div><b>${esc(h.jm)}</b><span class="cisla">lvl <em>${lvl}</em> · <em>${k}/${d}</em> · LH <em>${lh ?? "–"}</em> · <em>${kfmt(zl)}</em> zl.${smrt ? ` · <span class="resp">† ${Math.ceil(smrt.do - t)} s</span>` : ""}</span></div>
+      <div class="itemy">${itemy}</div></div>`;
+  };
+  const tab = (radiant) => {
+    const hr = mapa.hraci.filter((h) => h.radiant === radiant);
+    const muj = hr[0]?.muj;
+    const zl = hr.reduce((a, h) => a + (vMinute(h.p.gold_t, t) || 0), 0);
+    return `<div class="tym-tab${radiant ? "" : " dire"}"><h5>${radiant ? "Radiant" : "Dire"}${muj ? " · tvůj tým" : ""}<span>${kfmt(zl)} zlata</span></h5>${hr.map(radek).join("")}</div>`;
+  };
+
+  // Roshan, Aegis, Tormentor, runy, lotusy
+  const ob = [];
+  const zabiti = mapa.roshan.filter((r) => r.t <= t).sort((a, b) => b.t - a.t)[0];
+  let rosh = '<span class="zivy">živý</span>';
+  if (zabiti) {
+    const od = zabiti.t + 480, dO = zabiti.t + 660;
+    rosh = t < od ? `<span class="mrtvy">mrtvý</span> · respawn ${casTxt(od)}–${casTxt(dO)}` : t < dO ? `<span class="okno">možná živý</span> (do ${casTxt(dO)})` : '<span class="zivy">živý</span>';
+  }
+  const aeg = mapa.aegis.filter((a) => a.t <= t && t - a.t < 300 && /AEGIS$/.test(a.typ)).pop();
+  ob.push(`<div class="ob"><b>👹 Roshan</b>${rosh}${aeg ? `<br>Aegis: ${esc(aeg.kdo)} do ${casTxt(aeg.t + 300)}` : ""}<br><span class="mrtvy">zabit ${mapa.roshan.filter((r) => r.t <= t).length}×</span></div>`);
+  const tz = (mapa.tormentor || []).filter((x) => x.t <= t).sort((a, b) => b.t - a.t)[0];
+  let torm = t < 1200 ? `spawn ve ${casTxt(1200)} (za ${casTxt(1200 - t)})` : '<span class="zivy">živý</span>';
+  if (tz) torm = t < tz.t + 600 ? `<span class="mrtvy">mrtvý</span> · respawn ${casTxt(tz.t + 600)} (${tz.nas ? "vzal náš tým" : "vzal soupeř"})` : '<span class="zivy">živý</span>';
+  ob.push(`<div class="ob"><b>🛡 Tormentor</b>${torm}${!(mapa.tormentor || []).length && t >= 1200 ? '<br><span class="mrtvy">zabití v datech nejsou</span>' : ""}</div>`);
+  const adv = vMinute(mapa.goldAdv, t);
+  if (adv != null) {
+    const nasRad = mapa.hraci.find((h) => h.muj)?.radiant;
+    const nas = nasRad ? adv : -adv;
+    ob.push(`<div class="ob"><b>Náskok zlata</b><span class="${nas >= 0 ? "zivy" : "okno"}" style="color:${nas >= 0 ? "var(--good)" : "var(--bad)"}">${nas >= 0 ? "+" : "−"}${kfmt(Math.abs(nas))} ${nas >= 0 ? "pro vás" : "pro soupeře"}</span></div>`);
+  }
+  const pristi = (nazev, prvni, krok) => {
+    const n = pristiSpawn(t, prvni, krok), za = n - t;
+    return `<div class="pristi${za <= 15 ? " hned" : ""}"><span>${nazev} ${casTxt(n)}</span><span>${za <= 0 ? "teď" : "za " + casTxt(za)}</span></div>`;
+  };
+  ob.push(`<div class="ob"><b>Runy a lotusy</b>${t < 300 ? pristi("Water runa", 120, 120) : ""}${pristi("Power runa", 360, 120)}${pristi("Bounty", 0, 180)}${pristi("Wisdom", 420, 420)}${pristi("Lotus", 180, 180)}
+    <span class="mrtvy" style="display:block;margin-top:4px">časy orientačně podle současných patchů</span></div>`);
+  const posl = (mapa.runy || []).filter((r) => r.t <= t).slice(-3).reverse();
+  if (posl.length) ob.push(`<div class="ob"><b>Poslední runy</b>${posl.map((r) => `${casTxt(r.t)} ${esc(RUNY[r.typ] || "?")} – ${esc(r.kdo)}`).join("<br>")}</div>`);
+
+  $("mapaTymy").innerHTML = tab(true) + `<div class="objektivy">${ob.join("")}</div>` + tab(false);
 }
 
 function kresliHud(t) {
