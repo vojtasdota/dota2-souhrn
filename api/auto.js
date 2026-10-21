@@ -5,9 +5,25 @@
 //  POST {akce:"smazat", klic} – smaže jeden rozbor
 
 const T = require("./_trener.js");
+const N = require("./_nastroje.js");
 
 const pockej = (ms) => new Promise((r) => setTimeout(r, ms));
-const NAJEDNOU = 3; // kolik rozborů max. v jednom běhu (časový limit funkce je 5 min)
+const NAJEDNOU = 2; // kolik rozborů max. v jednom běhu (časový limit funkce je 5 min)
+
+// když vyšel nový patch a ještě nemáme jeho shrnutí, vytvořit ho (jen když není jiná práce)
+async function zkontrolujPatch(hrac, out) {
+  try {
+    const p = await N.posledniPatch();
+    if (!p || (await T.redis("GET", `patch:${p.nazev}`))) return;
+    const k = await T.nactiKonstanty();
+    const { text } = await T.textOnce(N.patchBody(await N.patchData(hrac, k)));
+    if (T.jeChybnyText(text)) return;
+    const zaznam = JSON.stringify({ patch: p.nazev, datum: new Date().toISOString(), text });
+    await T.redis("SET", `patch:${p.nazev}`, zaznam);
+    await T.redis("SET", "patch:posledni", zaznam);
+    out.patch = p.nazev;
+  } catch (e) { out.chyby.push("patch: " + e.message); }
+}
 
 async function sync(hrac) {
   const start = Date.now();
@@ -30,7 +46,7 @@ async function sync(hrac) {
     let nove = kandidati.filter((_, i) => !existuji[i] && !vynechat.has(klice[i]))
       .sort((a, b) => b.start_time - a.start_time);
     out.nove = nove.length;
-    if (!nove.length) return out;
+    if (!nove.length) { await zkontrolujPatch(hrac, out); return out; }
 
     // denní limit, ať automatika neprojí kredit
     const den = new Date().toISOString().slice(0, 10);
@@ -67,13 +83,9 @@ async function sync(hrac) {
       try {
         const ja = T.najdiHrace(m, k.heroes, hrac);
         const data = await T.pripravData(m, ja, k);
-        const { text } = await T.claudeText(data);
-        if (T.jeChybnyText(text)) throw new Error("AI vrátila prázdný rozbor");
-        await T.ulozRozbor({
-          match: String(m.match_id), hrac: String(hrac), hrdinaZadany: "",
-          hrdina: data.hrac.hrdina, vysledek: data.zapas.vysledek + " · " + data.zapas.delka,
-          hrano: m.start_time, datum: new Date().toISOString(), auto: true, text,
-        });
+        const vysledek = await T.rozebrat(data, null);
+        if (T.jeChybnyText(vysledek.text)) throw new Error("AI vrátila prázdný rozbor");
+        await T.ulozRozbor(T.zaznam(m, data, vysledek, { hrac: String(hrac), hrdinaZadany: "", auto: true }));
         await T.redis("INCR", `trener:denne:${den}`);
         await T.redis("EXPIRE", `trener:denne:${den}`, "172800");
         out.rozebrano.push({ match: m.match_id, hrdina: data.hrac.hrdina });

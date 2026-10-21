@@ -15,11 +15,15 @@ const ROLE = { 1: "safe lane (carry)", 2: "mid", 3: "offlane", 4: "jungle" };
 
 // ------------------------------------------------------------ OpenDota
 
-async function odGet(path) {
-  const r = await fetch(OD + path, { headers: { "User-Agent": "dota2-souhrn" } });
-  if (r.status === 404) { const e = new Error("Zápas nenalezen. Zkontroluj číslo zápasu."); e.code = 404; throw e; }
-  if (!r.ok) throw new Error("OpenDota vrátila " + r.status);
-  return r.json();
+async function odGet(path, pokusu = 3) {
+  for (let i = 0; ; i++) {
+    const r = await fetch(OD + path, { headers: { "User-Agent": "dota2-souhrn" } });
+    if (r.status === 404) { const e = new Error("Nenalezeno na OpenDotě: " + path.split("?")[0]); e.code = 404; throw e; }
+    if (r.ok) return r.json();
+    // 429 = moc dotazů za minutu, 5xx = výpadek; chvíli počkat a zkusit znovu
+    if ((r.status === 429 || r.status >= 500) && i < pokusu - 1) { await new Promise((ok) => setTimeout(ok, 2500 * (i + 1))); continue; }
+    throw new Error("OpenDota vrátila " + r.status);
+  }
 }
 
 let konstanty = null; // cache mezi voláními téže instance
@@ -278,60 +282,264 @@ async function draft(zapas, ja, { heroes }) {
   return d;
 }
 
+// ------------------------------------------------------------ hráč: rank, lajna, vlastní průměr, profík, paměť
+
+const RANKY = ["", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
+const zaokr = (x) => (Math.abs(x) >= 100 ? Math.round(x) : Math.round(x * 10) / 10);
+const dnes = () => new Date().toISOString().slice(0, 10);
+
+async function hracInfo(accountId) {
+  if (!accountId) return null;
+  return cached(`cache:hrac:${accountId}`, 86400, async () => {
+    const p = await odGet(`/players/${accountId}`);
+    const t = p.rank_tier || 0, tier = Math.floor(t / 10), hv = t % 10;
+    return {
+      rank: tier ? `${RANKY[tier] || "?"}${tier < 8 && hv ? " " + hv : ""}` : "neznámý",
+      leaderboard: p.leaderboard_rank || null,
+      bracket: tier || null,
+    };
+  });
+}
+
+// prvních 10 minut po minutách proti soupeři na lajně
+function lajnaDetail(zapas, ja, heroes) {
+  if (!Array.isArray(ja.gold_t) || ja.gold_t.length < 3) return null;
+  const jm = (p) => heroes[p.hero_id]?.localized_name || "?";
+  const radiant = jeRadiant(ja);
+  const proti = { 1: 3, 3: 1, 2: 2 }[ja.lane_role];
+  const soup = zapas.players.filter((p) => jeRadiant(p) !== radiant && p.lane_role === proti);
+  const spol = zapas.players.filter((p) => p !== ja && jeRadiant(p) === radiant && p.lane_role === ja.lane_role);
+  const mujNpc = heroes[ja.hero_id]?.name;
+
+  const minuty = [];
+  let pred = null, zvrat = null;
+  for (let m = 1; m <= 10; m++) {
+    const mz = vMin(ja.gold_t, m);
+    if (mz == null) break;
+    const sz = soup.map((p) => vMin(p.gold_t, m)).filter((x) => x != null);
+    const diff = sz.length ? mz - Math.max(...sz) : null; // proti nejbohatšímu soupeři na lajně
+    minuty.push({
+      min: m, LH: vMin(ja.lh_t, m), DN: vMin(ja.dn_t, m), zlato: mz, XP: vMin(ja.xp_t, m),
+      souper_LH: soup.map((p) => vMin(p.lh_t, m)), rozdil_zlata_vs_souper: diff,
+    });
+    if (diff != null && pred != null && (!zvrat || Math.abs(diff - pred) > Math.abs(zvrat.zmena))) zvrat = { min: m, zmena: diff - pred };
+    pred = diff;
+  }
+  const smrti = [];
+  for (const p of zapas.players)
+    for (const k of p.kills_log || []) if (k.key === mujNpc && k.time <= 600) smrti.push(`${cas(k.time)} (zabil ${jm(p)})`);
+  const zabil = (ja.kills_log || []).filter((k) => k.time <= 600).map((k) => cas(k.time));
+  const konec = minuty[minuty.length - 1];
+  return {
+    souperi_na_lajne: soup.map(jm), spoluhraci_na_lajne: spol.map(jm),
+    po_minutach: minuty,
+    vysledek_lajny_10min: konec?.rozdil_zlata_vs_souper == null ? "nelze určit"
+      : konec.rozdil_zlata_vs_souper > 400 ? "vyhraná" : konec.rozdil_zlata_vs_souper < -400 ? "prohraná" : "vyrovnaná",
+    nejvetsi_zvrat: zvrat ? `${zvrat.min}. minuta: rozdíl zlata se změnil o ${zvrat.zmena > 0 ? "+" : ""}${zvrat.zmena}` : null,
+    smrti_do_10min: smrti.sort(), killy_do_10min: zabil,
+    efektivita_lajny_pct: ja.lane_efficiency_pct ?? null,
+  };
+}
+
+// tenhle zápas proti mým posledním 20 hrám na stejném hrdinovi
+async function mujPrumer(zapas, ja) {
+  if (!ja.account_id) return null;
+  const pole = ["kills", "deaths", "assists", "gold_per_min", "xp_per_min", "last_hits", "hero_damage", "duration", "radiant_win", "player_slot"];
+  const q = pole.map((x) => `project=${x}`).join("&");
+  const list = await cached(`cache:hist:${ja.account_id}:${ja.hero_id}`, 3600, () =>
+    odGet(`/players/${ja.account_id}/matches?hero_id=${ja.hero_id}&limit=25&${q}`));
+  const ostatni = (Array.isArray(list) ? list : [])
+    .filter((z) => String(z.match_id) !== String(zapas.match_id) && (z.duration || 0) >= 600).slice(0, 20);
+  if (ostatni.length < 3) return { pocet_her: ostatni.length, poznamka: "na hrdinovi málo her na srovnání" };
+
+  const metr = {
+    GPM: (z) => z.gold_per_min, XPM: (z) => z.xp_per_min,
+    "LH/min": (z) => z.last_hits / (z.duration / 60),
+    "hero damage/min": (z) => z.hero_damage / (z.duration / 60),
+    smrti: (z) => z.deaths,
+    KDA: (z) => (z.kills + z.assists) / Math.max(1, z.deaths),
+  };
+  const ted = { ...ja, duration: zapas.duration };
+  const out = {};
+  for (const [n, f] of Object.entries(metr)) {
+    const h = ostatni.map(f).filter(Number.isFinite);
+    const t = f(ted);
+    if (h.length < 3 || !Number.isFinite(t)) continue;
+    const vse = [...h, t].sort((a, b) => (n === "smrti" ? a - b : b - a));
+    const prum = h.reduce((a, b) => a + b, 0) / h.length;
+    out[n] = `${zaokr(t)} – ${vse.indexOf(t) + 1}. nejlepší z ${vse.length} (tvůj průměr ${zaokr(prum)})`;
+  }
+  const vyhry = ostatni.filter((z) => (z.player_slot < 128) === z.radiant_win).length;
+  return {
+    pocet_her: ostatni.length,
+    winrate_poslednich_her: `${Math.round((100 * vyhry) / ostatni.length)} %`,
+    tento_zapas: out,
+  };
+}
+
+// nedávný profesionální zápas na stejném hrdinovi (ideálně stejná lajna)
+async function profik(ja, k) {
+  return cached(`cache:pro:${ja.hero_id}:${ja.lane_role || 0}`, 21600, async () => {
+    const list = await odGet(`/heroes/${ja.hero_id}/matches`);
+    let vybrany = null;
+    for (const z of (Array.isArray(list) ? list : []).slice(0, 4)) {
+      let m;
+      try { m = await odGet(`/matches/${z.match_id}`); } catch { continue; }
+      const p = (m.players || []).find((x) => x.hero_id === ja.hero_id);
+      if (!p || m.version == null) continue;
+      const shoda = !ja.lane_role || p.lane_role === ja.lane_role;
+      if (!vybrany || (shoda && !vybrany.shoda)) vybrany = { m, p, shoda };
+      if (shoda) break;
+    }
+    if (!vybrany) return null;
+    const { m, p } = vybrany;
+    return {
+      hrac: p.name || p.personaname || "profík", liga: m.league?.name || null,
+      datum: new Date(m.start_time * 1000).toISOString().slice(0, 10), match_id: m.match_id,
+      vysledek: (p.player_slot < 128) === m.radiant_win ? "výhra" : "prohra", delka: cas(m.duration),
+      role: ROLE[p.lane_role] || "?", KDA: `${p.kills}/${p.deaths}/${p.assists}`,
+      GPM: p.gold_per_min, XPM: p.xp_per_min,
+      LH_10min: vMin(p.lh_t, 10), zlato_10min: vMin(p.gold_t, 10), zlato_20min: vMin(p.gold_t, 20),
+      klicove_nakupy: (p.purchase_log || [])
+        .filter((n) => !n.key.startsWith("recipe_") && (k.items[n.key]?.cost || 0) >= 1000)
+        .slice(0, 8).map((n) => `${cas(n.time)} ${k.items[n.key]?.dname || n.key}`),
+      finalni_itemy: [0, 1, 2, 3, 4, 5].map((i) => k.itemById[p[`item_${i}`]]).filter(Boolean),
+    };
+  });
+}
+
+// paměť trenéra: shrnutí předchozích rozborů
+async function pamet(hrac, matchId) {
+  if (!maUloziste() || !hrac) return null;
+  const list = (await seznamRozboru(60))
+    .filter((z) => String(z.hrac) === String(hrac) && String(z.match) !== String(matchId) && z.hodnoceni)
+    .sort((a, b) => (b.hrano || 0) - (a.hrano || 0));
+  if (!list.length) return null;
+  const pocty = {};
+  for (const z of list.slice(0, 20)) for (const s of z.hodnoceni.stitky_chyb || []) pocty[s.stitek] = (pocty[s.stitek] || 0) + 1;
+  return {
+    posledni_rozbory: list.slice(0, 8).map((z) => ({
+      datum: z.hrano ? new Date(z.hrano * 1000).toISOString().slice(0, 10) : null,
+      hrdina: z.hrdina, vysledek: z.vysledek, znamka: z.hodnoceni.celkem,
+      chyby: (z.hodnoceni.stitky_chyb || []).map((s) => s.stitek),
+      cil: z.hodnoceni.cil_na_dalsi_hru || null,
+    })),
+    nejcastejsi_chyby_poslednich_20: Object.entries(pocty).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([s, n]) => `${s} (${n}×)`),
+    cil_z_minule_hry: list[0].hodnoceni.cil_na_dalsi_hru || null,
+  };
+}
+
+// ------------------------------------------------------------ znalostní báze a nastavení
+
+async function znalosti(heroId) {
+  if (!maUloziste()) return null;
+  const v = await redis("GET", `znalosti:${heroId}`);
+  return v ? JSON.parse(v) : null;
+}
+async function ulozZnalosti(heroId, zmeny) {
+  const n = { ...((await znalosti(heroId)) || {}), ...zmeny };
+  await redis("SET", `znalosti:${heroId}`, JSON.stringify(n));
+  return n;
+}
+async function nastaveni() {
+  const zakl = { autoGuide: true, guideStariDni: 21 };
+  if (!maUloziste()) return zakl;
+  try { return { ...zakl, ...JSON.parse((await redis("GET", "nastaveni")) || "{}") }; } catch { return zakl; }
+}
+async function ulozNastaveni(zmeny) {
+  const n = { ...(await nastaveni()), ...zmeny };
+  await redis("SET", "nastaveni", JSON.stringify(n));
+  return n;
+}
+const guideJeStary = (zn, dni) => !zn?.guide || !zn.guide_datum || Date.now() - new Date(zn.guide_datum).getTime() > dni * 86400000;
+
+// ------------------------------------------------------------ příprava dat pro rozbor
+
 async function pripravData(zapas, ja, k) {
   const data = shrnuti(zapas, ja, k);
-  try { data.draft = await draft(zapas, ja, k); }
-  catch (e) { data.draft = { chyba: "draft data se nepodařilo získat: " + e.message }; }
+  const bezpecne = (p) => p.catch((e) => ({ chyba: e.message }));
+  const [dr, info, prum, pro, pam, zn] = await Promise.all([
+    bezpecne(draft(zapas, ja, k)),
+    bezpecne(hracInfo(ja.account_id)),
+    bezpecne(mujPrumer(zapas, ja)),
+    bezpecne(profik(ja, k)),
+    bezpecne(pamet(ja.account_id, zapas.match_id)),
+    bezpecne(znalosti(ja.hero_id)),
+  ]);
+  data.hrac_uroven = info;
+  data.draft = dr;
+  data.lajna_detail = lajnaDetail(zapas, ja, k.heroes);
+  data.srovnani_s_mym_prumerem = prum;
+  data.srovnani_s_profikem = pro;
+  data.pamet_trenera = pam;
+  if (zn && !zn.chyba && (zn.poznamky || zn.guide)) {
+    data.znalosti_o_hrdinovi = {
+      moje_poznamky: zn.poznamky || null,
+      aktualni_guide: zn.guide ? `(${zn.guide_datum?.slice(0, 10)}) ${zn.guide}` : null,
+    };
+  }
   return data;
 }
 
 // ------------------------------------------------------------ Claude
 
+const MODEL = () => process.env.TRENER_MODEL || "claude-opus-5-5";
+const MODEL_LEVNY = () => process.env.TRENER_MODEL_KONTROLA || "claude-sonnet-5-5";
+const webTool = (n) => (process.env.TRENER_WEB === "0" ? {} : { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: n }] });
+
 const SYSTEM = `Jsi špičkový trenér Doty 2 (úroveň profesionálního analytika a coache).
 Dostaneš data z jednoho zápasu hráče. Napiš česky konkrétní a upřímný rozbor v Markdownu.
 
-Než začneš psát, můžeš použít webové vyhledávání (max. 3 hledání) a ověřit si aktuální
-patch, doporučené buildy a tipy profesionálních hráčů pro hrdinu hráče a proti
-soupeřům, které měl (např. Liquipedia, Dota 2 guidy, rozhovory a rady pro hráčů).
-Zjištění zapracuj do rozboru, ale nevypisuj postup hledání.
+KALIBRACE: Úroveň hráče je v "hrac_uroven" (rank). Rady přizpůsob jí – u Divine/Immortal
+vynech základy (kupuj wardy, last hituj), jdi do detailů: timingy, rozhodování, pozicování,
+čtení mapy, power spiky. U nižších ranků můžeš být základnější.
+
+PODKLADY: Než začneš psát, můžeš použít webové vyhledávání (max. 3 hledání) k ověření
+aktuálního patche, buildů a rad pro hráčů. Pokud je v datech "znalosti_o_hrdinovi", ber
+hráčovy poznámky a uložený guide jako důležitý kontext (guide může být starší než patch).
+Postup hledání nevypisuj.
 
 Struktura:
-## 1. Celkové hodnocení (2–3 věty, známka 1–10 za výkon v dané roli)
+## 1. Celkové hodnocení
+2–3 věty, známka 1–10 za výkon v dané roli.
 ## 2. Pick – hodnocení 1–10 a co jiného picknout
-Ohodnoť pick vůči soupeřům (data v "draft"). Zohledni, kteří soupeři byli vidět v době picku –
-za counter-pick, který přišel až po tobě, hráč nemůže. Pak doporuč 2–3 alternativy POUZE z jeho
-hero poolu ("alternativy_z_meho_poolu") a u každé jednou větou proč (proti komu je dobrá).
-Pokud byl jeho pick mezi nejlepšími možnostmi, řekni to. Čísla matchupů ber jako orientační.
-## 3. Co šlo dobře – konkrétně, s čísly a časy
-## 4. Největší chyby – 3 až 5 nejdůležitějších podle dopadu; u každé: co se stalo (s časem), proč je to problém, co dělat příště
-## 5. Build – byl rozumný vůči soupeřům a aktuálnímu patchi? Co by na jeho místě stavěli dobří hráči?
-## 6. Na co se zaměřit – 1 až 3 konkrétní návyky do dalších her
-## 7. Momenty k shlédnutí v replayi
-Seznam 5–8 konkrétních časových úseků, seřazený podle času, ve formátu:
-- **MM:SS–MM:SS** – co se tam stalo a na co se při sledování dívat (minimapa, pozice, kde byla vize, co měl soupeř)
-Zahrň hlavně smrti mimo teamfight, teamfighty, kde hráč nebyl, prohrané/vyhrané klíčové fighty,
-pomalá období farmy a momenty kolem padlých věží a Roshana. Okno začínej cca 20–30 s před událostí.
+Ohodnoť pick vůči soupeřům (data "draft"). Zohledni, kteří soupeři byli vidět v době picku –
+za counter-pick, který přišel až po hráči, nemůže. Doporuč 2–3 alternativy POUZE z jeho
+hero poolu ("alternativy_z_meho_poolu"), u každé jednou větou proč. Čísla ber orientačně.
+## 3. Lajna (0–10 min)
+Z "lajna_detail": kdo lajnu vyhrál, kdy se zlomila (nejvetsi_zvrat), CS a zlato proti soupeři
+po minutách (stačí klíčové minuty), smrti a killy na lajně a co měl hráč udělat jinak.
+## 4. Co šlo dobře – konkrétně, s čísly a časy
+## 5. Největší chyby – 3 až 5 podle dopadu; u každé: co se stalo (s časem), proč je to problém, co dělat příště
+## 6. Build a timingy
+Byl build rozumný vůči soupeřům a patchi? Porovnej timingy klíčových itemů s profíkem
+("srovnani_s_profikem" – uveď jméno a že jde o jeden konkrétní zápas, ne pravidlo).
+Pokud se hodí přehledné srovnání, použij Markdown tabulku.
+## 7. Oproti tvým minulým hrám
+Z "srovnani_s_mym_prumerem": byl tenhle zápas na hrdinovi nadprůměrný, nebo podprůměrný
+(např. „3. nejhorší GPM z posledních 20“). Z "pamet_trenera": opakují se stejné chyby? Splnil
+hráč cíl z minulé hry ("cil_z_minule_hry")? Pokud paměť chybí, tuhle část zkrať.
+## 8. Na co se zaměřit
+1–3 konkrétní návyky a na konec jeden měřitelný **Cíl na další hru**.
+## 9. Momenty k shlédnutí v replayi
+Seznam 5–8 časových úseků seřazených podle času, ve formátu:
+- **MM:SS–MM:SS** – co se tam stalo a na co se dívat (minimapa, pozice, vize, co měl soupeř)
+Zahrň smrti mimo teamfight, teamfighty bez hráče, klíčové fighty, pomalou farmu, věže a Roshana.
+Okno začínej cca 20–30 s před událostí.
 
-Pravidla: Čísla a časy ber jen z dat, nevymýšlej si situace, které z nich nevyplývají.
-Nemáš pozice na mapě, takže u smrtí mluv o pravděpodobných příčinách, ne o jistotách.
-Percentily jsou srovnání s ostatními hráči stejného hrdiny. Pokud replay není
-rozparsovaný, některá data chybí – řekni to a hodnoť jen to, co máš.
-Buď přímý jako dobrý trenér, ne zbytečně pochvalný, ale ani zlý. Max. ~1300 slov.`;
+Pravidla: Čísla, časy a jména ber jen z dat, nevymýšlej si situace, které z nich nevyplývají.
+Nemáš pozice na mapě, takže u smrtí mluv o pravděpodobných příčinách. Pokud replay není
+rozparsovaný nebo nějaká data chybí, řekni to a hodnoť jen to, co máš.
+Buď přímý jako dobrý trenér, ne zbytečně pochvalný, ale ani zlý. Max. ~1600 slov.`;
 
-function claudeBody(data, stream) {
-  return JSON.stringify({
-    model: process.env.TRENER_MODEL || "claude-opus-5-5",
-    max_tokens: 16000,
-    stream,
-    ...(process.env.TRENER_WEB === "0"
-      ? {}
-      : { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }] }),
-    system: SYSTEM,
+function rozborBody(data, stream) {
+  return {
+    model: MODEL(), max_tokens: 16000, stream, ...webTool(3), system: SYSTEM,
     messages: [{ role: "user", content: "Data ze zápasu:\n\n" + JSON.stringify(data, null, 2) }],
-  });
+  };
 }
 
-async function claudeFetch(data, stream) {
+async function claudeFetch(body) {
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -339,7 +547,7 @@ async function claudeFetch(data, stream) {
       "x-api-key": process.env.ANTHROPIC_API_KEY,
       "anthropic-version": "2023-06-01",
     },
-    body: claudeBody(data, stream),
+    body: JSON.stringify(body),
   });
   if (!r.ok) {
     const t = await r.text();
@@ -352,9 +560,9 @@ async function claudeFetch(data, stream) {
   return r;
 }
 
-// streamuje rozbor do odpovědi a vrací celý text
-async function streamClaude(data, res) {
-  const r = await claudeFetch(data, true);
+// streamuje text do odpovědi a vrací ho celý
+async function streamText(body, res) {
+  const r = await claudeFetch({ ...body, stream: true });
   const reader = r.body.getReader();
   const dec = new TextDecoder();
   let buf = "", stop = null, text = "";
@@ -370,28 +578,122 @@ async function streamClaude(data, res) {
       if (!line.startsWith("data:")) continue;
       let ev;
       try { ev = JSON.parse(line.slice(5)); } catch { continue; }
-      if (ev.type === "content_block_start" && ev.content_block?.type === "text" && text) {
-        pis("\n\n");
-      } else if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") {
-        pis(ev.delta.text);
-      } else if (ev.type === "message_delta" && ev.delta?.stop_reason) {
-        stop = ev.delta.stop_reason;
-      } else if (ev.type === "error") {
-        throw new Error("Claude API: " + (ev.error?.message || "chyba při generování"));
-      }
+      if (ev.type === "content_block_start" && ev.content_block?.type === "text" && text) pis("\n\n");
+      else if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") pis(ev.delta.text);
+      else if (ev.type === "message_delta" && ev.delta?.stop_reason) stop = ev.delta.stop_reason;
+      else if (ev.type === "error") throw new Error("Claude API: " + (ev.error?.message || "chyba při generování"));
     }
   }
-  if (stop === "max_tokens") res.write("\n\n_(Rozbor byl useknutý kvůli limitu délky.)_");
+  if (stop === "max_tokens") res.write("\n\n_(Text byl useknutý kvůli limitu délky.)_");
   if (!text) res.write(`\n\n⚠️ AI nevrátila žádný text (stop_reason: ${stop}).`);
   return { text, stop };
 }
 
-// bez streamování (pro automatické rozbory)
-async function claudeText(data) {
-  const r = await claudeFetch(data, false);
+async function textOnce(body) {
+  const r = await claudeFetch({ ...body, stream: false });
   const j = await r.json();
   const text = (j.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n\n").trim();
   return { text, stop: j.stop_reason };
+}
+
+// stavový řádek pro stránku (stránka ho nezobrazí v textu, jen jako stav)
+const stavRadek = (res, msg) => res.write(`\u001d${msg}\n`);
+
+// ------------------------------------------------------------ guide k hrdinovi (AI hledá na webu)
+
+const GUIDE_SYSTEM = `Jsi analytik Doty 2. Pomocí webového vyhledávání najdi NEJAKTUÁLNĚJŠÍ kvalitní guidy
+a buildy pro zadaného hrdinu (aktuální patch; preferuj zdroje jako Liquipedia, aktuální
+high-MMR/pro buildy, guidy profesionálních hráčů a coachů, oficiální patch notes).
+Shrň je česky v Markdownu, max. ~450 slov:
+## Patch a role (pro jaký patch guide platí, na jaké pozice se hrdina hraje)
+## Skill build a talenty
+## Itemy (start, early, core, situační – vždy s podmínkou KDY který)
+## Lajna a timingy (power spiky, kdy farmit/bojovat)
+## Mid a late game
+## Dobré a špatné matchupy
+## Zdroje (názvy a odkazy, ze kterých jsi čerpal)
+Nevypisuj postup hledání. Pokud si něčím nejsi jistý, napiš to.`;
+
+const guideBody = (heroName) => ({
+  model: MODEL(), max_tokens: 6000, ...webTool(5), system: GUIDE_SYSTEM,
+  messages: [{ role: "user", content: `Hrdina: ${heroName}. Dnešní datum: ${dnes()}.` }],
+});
+
+// ------------------------------------------------------------ kontrola faktů + strukturované hodnocení
+
+const STITKY = [
+  "smrt mimo teamfight", "smrt bez vize", "smrt po buybacku", "slabá lajna", "pomalá farma",
+  "pozdní klíčový item", "chybí BKB/defenzivní item", "build nesedí na soupeře", "chybí v teamfightu",
+  "nevyužitý náskok", "slabý tlak na objektivy", "špatný pick", "málo wardů", "zbytečný buyback",
+  "nízký damage", "pozdní rotace", "riskantní farma", "jiné",
+];
+const KATEGORIE = ["celkem", "pick", "lajna", "farma", "teamfighty", "pozicovani", "build"];
+
+const KONTROLA_SYSTEM = `Jsi pečlivý kontrolor faktů a analytik Doty 2. Dostaneš DATA zápasu (JSON) a ROZBOR od trenéra.
+
+Úkol 1 – kontrola faktů: najdi v rozboru tvrzení, která jsou v jasném rozporu s daty
+(špatná čísla, časy, jména hrdinů nebo itemů, vymyšlené události, které z dat nevyplývají).
+Pro každé uveď "puvodni" = DOSLOVNÝ úryvek z rozboru (krátký, přesně zkopírovaný, aby šel
+automaticky nahradit) a "nove" = opravené znění. Neopravuj styl ani názory, jen fakta.
+Webové informace o patchi a buildech (nejsou v datech) neopravuj.
+
+Úkol 2 – strukturované hodnocení podle rozboru a dat: známky 1–10 pro kategorie
+${KATEGORIE.join(", ")}; štítky chyb POUZE z tohoto seznamu: ${STITKY.join("; ")};
+krátké silné stránky; jeden konkrétní měřitelný cíl na další hru.
+
+Vrať POUZE JSON, bez dalšího textu a bez Markdownu:
+{"opravy":[{"puvodni":"...","nove":"..."}],
+ "hodnoceni":{"celkem":7,"pick":6,"lajna":8,"farma":7,"teamfighty":5,"pozicovani":4,"build":6,
+  "stitky_chyb":[{"stitek":"smrt mimo teamfight","cas":"36:48","popis":"krátce"}],
+  "silne_stranky":["krátce"],"cil_na_dalsi_hru":"..."}}`;
+
+function parseJson(t) {
+  if (!t) return null;
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b <= a) return null;
+  try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; }
+}
+
+function normalizujHodnoceni(h) {
+  if (!h || typeof h !== "object") return null;
+  const out = {};
+  for (const k of KATEGORIE) {
+    const v = Math.round(Number(h[k]));
+    if (Number.isFinite(v)) out[k] = Math.min(10, Math.max(1, v));
+  }
+  out.stitky_chyb = (Array.isArray(h.stitky_chyb) ? h.stitky_chyb : []).slice(0, 8).map((s) => ({
+    stitek: STITKY.includes(s?.stitek) ? s.stitek : "jiné",
+    cas: typeof s?.cas === "string" ? s.cas : null,
+    popis: String(s?.popis || "").slice(0, 200),
+  }));
+  out.silne_stranky = (Array.isArray(h.silne_stranky) ? h.silne_stranky : []).slice(0, 5).map((x) => String(x).slice(0, 200));
+  out.cil_na_dalsi_hru = h.cil_na_dalsi_hru ? String(h.cil_na_dalsi_hru).slice(0, 300) : null;
+  return out.celkem ? out : null;
+}
+
+async function kontrola(data, text) {
+  const { text: out } = await textOnce({
+    model: MODEL_LEVNY(), max_tokens: 4000, system: KONTROLA_SYSTEM,
+    messages: [{ role: "user", content: `DATA:\n${JSON.stringify(data)}\n\nROZBOR:\n${text}` }],
+  });
+  const j = parseJson(out);
+  let finalni = text, opravy = 0;
+  for (const o of Array.isArray(j?.opravy) ? j.opravy : []) {
+    if (o?.puvodni && typeof o.nove === "string" && o.puvodni.length >= 3 && finalni.includes(o.puvodni)) {
+      finalni = finalni.replace(o.puvodni, o.nove);
+      opravy++;
+    }
+  }
+  return { text: finalni, opravy, hodnoceni: normalizujHodnoceni(j?.hodnoceni) };
+}
+
+// celý rozbor: text (streamovaně nebo naráz) + kontrola + hodnocení
+async function rozebrat(data, res) {
+  const { text } = res ? await streamText(rozborBody(data), res) : await textOnce(rozborBody(data));
+  if (jeChybnyText(text)) return { text, hodnoceni: null, opravy: 0 };
+  if (res) stavRadek(res, "Kontroluji fakta a ukládám hodnocení…");
+  try { return await kontrola(data, text); }
+  catch (e) { return { text, hodnoceni: null, opravy: 0, chybaKontroly: e.message }; }
 }
 
 // ------------------------------------------------------------ úložiště (Upstash Redis přes REST)
@@ -422,6 +724,14 @@ async function ulozRozbor(z) {
   await redis("SREM", "trener:smazane", k);
 }
 
+// záznam rozboru ze zápasu a připravených dat
+const zaznam = (zapas, data, vysledek, extra) => ({
+  match: String(zapas.match_id), hrdina: data.hrac.hrdina,
+  vysledek: data.zapas.vysledek + " · " + data.zapas.delka,
+  souperi: data.zapas.souperi, hrano: zapas.start_time, datum: new Date().toISOString(),
+  text: vysledek.text, hodnoceni: vysledek.hodnoceni || null, ...extra,
+});
+
 async function seznamRozboru(limit = 200) {
   if (!maUloziste()) return null;
   const klice = await redis("ZREVRANGE", "rozbory", "0", String(limit - 1));
@@ -445,7 +755,8 @@ async function smazane() {
 const jeChybnyText = (t) => !t || t.trim().length < 300 || /^\s*⚠️/.test(t.trim());
 
 module.exports = {
-  OD, odGet, nactiKonstanty, najdiHrace, shrnuti, pripravData, cas,
-  streamClaude, claudeText,
-  maUloziste, redis, klicRozboru, ulozRozbor, seznamRozboru, smazRozbor, smazane, jeChybnyText,
+  OD, ROLE, odGet, nactiKonstanty, najdiHrace, shrnuti, pripravData, cas, cached, matchupy, hracInfo, dnes,
+  streamText, textOnce, stavRadek, rozebrat, guideBody, MODEL, MODEL_LEVNY, webTool,
+  znalosti, ulozZnalosti, nastaveni, ulozNastaveni, guideJeStary, STITKY, KATEGORIE,
+  maUloziste, redis, klicRozboru, ulozRozbor, zaznam, seznamRozboru, smazRozbor, smazane, jeChybnyText,
 };
