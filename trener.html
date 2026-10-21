@@ -181,7 +181,19 @@
   @media (max-width: 760px) { .mapa-hud { grid-template-columns: 1fr; } .mapa-hud .tym, .mapa-hud .tym.dire { justify-content: center; } .mapa-hud .stred { order: -1; } }
   .mapa-box { background: var(--panel); border: 1px solid var(--line); border-top: 0; padding: 14px 18px; }
   .mapa-box > summary { cursor: pointer; font: 700 18px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--accent2); }
-  .mapa-grid { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 14px; margin-top: 12px; }
+  .mapa-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-top: 12px; }
+  .mapa-grid .mapa-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
+  .mapa-grid .mapa-panel h4:first-child { grid-column: 1 / -1; }
+  .mapa-box.velka { position: fixed; inset: 1vh 1vw; z-index: 200; overflow: auto; border: 1px solid var(--line); box-shadow: 0 0 0 100vmax rgba(0,0,0,.75); }
+  .mapa-box.velka .mapa-grid { grid-template-columns: auto minmax(220px, 1fr); align-items: start; }
+  .mapa-box.velka .mapa-grid .mapa-panel { display: block; }
+  .mapa-box.velka #mapaSvg { width: min(calc(98vw - 300px), calc(98vh - 230px)); }
+  .kalibrace { margin-top: 10px; font-size: 13px; }
+  .kalibrace summary { cursor: pointer; color: var(--muted); }
+  .kal-mrizka { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 12px; align-items: end; }
+  .kal-mrizka input { padding: 0; accent-color: var(--accent2); }
+  @media (max-width: 760px) { .mapa-grid .mapa-panel { grid-template-columns: 1fr; } .mapa-box.velka .mapa-grid { grid-template-columns: 1fr; }
+    .mapa-box.velka #mapaSvg { width: 96vw; } .kal-mrizka { grid-template-columns: 1fr; } }
   #mapaSvg { width: 100%; aspect-ratio: 1; display: block; border-radius: 4px; background: #11171b; }
   .mapa-panel { font-size: 13px; }
   .mapa-panel label.prepinac { margin: 4px 0; font-size: 13px; }
@@ -198,7 +210,7 @@
   .mapa-osa i.bud { background: #9aa0a6; height: 6px; top: 5px; } .mapa-osa i.rosh { background: #b07cff; }
   .legenda-mapy span { display: inline-flex; gap: 5px; align-items: center; margin: 2px 10px 2px 0; }
   .legenda-mapy i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-  @media (max-width: 760px) { .mapa-grid { grid-template-columns: 1fr; } .mapa-osa { margin-left: 46px; margin-right: 56px; } }
+  @media (max-width: 760px) { .mapa-osa { margin-left: 46px; margin-right: 56px; } }
   .hist-filtry { grid-template-columns: repeat(4, 1fr); }
   .hist-tab { background: var(--panel); border: 1px solid var(--line); }
   .hist-hlava, .hz { display: grid; grid-template-columns: 26px minmax(170px, 2fr) 1.2fr 1fr 1fr 1.3fr 150px; gap: 10px; align-items: center; padding: 6px 12px; }
@@ -303,7 +315,10 @@
     <div class="znamky" id="znamky"></div>
     <details class="mapa-box" id="mapaBox" hidden open>
       <summary>2D mapa zápasu</summary>
-      <p class="info-text" id="mapaInfo" style="margin:8px 0 0"></p>
+      <div class="radek" style="justify-content:space-between;margin:8px 0 0">
+        <p class="info-text" id="mapaInfo" style="margin:0;flex:1 1 300px"></p>
+        <button class="vedl mini" id="mapaVelka" type="button">⤢ Celá obrazovka</button>
+      </div>
       <div class="mapa-hud" id="mapaHud"></div>
       <div class="mapa-grid" id="mapaObsah">
         <svg id="mapaSvg" viewBox="0 0 1000 1000" role="img" aria-label="Schematická mapa zápasu"></svg>
@@ -328,6 +343,16 @@
       </div>
       <div class="mapa-osa" id="mapaOsa"></div>
       <div class="chipy" id="mapaMomenty"></div>
+      <details class="kalibrace">
+        <summary>Podklad mapy a kalibrace</summary>
+        <p class="info-text" id="mapaPodkladInfo"></p>
+        <div class="kal-mrizka">
+          <label>Posun vodorovně <input type="range" id="kalX" min="-150" max="150" step="1" value="0"></label>
+          <label>Posun svisle <input type="range" id="kalY" min="-150" max="150" step="1" value="0"></label>
+          <label>Velikost <input type="range" id="kalS" min="80" max="130" step="1" value="100"></label>
+          <button class="vedl mini" id="kalReset" type="button">Výchozí</button>
+        </div>
+      </details>
     </details>
 
     <div class="md" id="vystup" style="display:none"></div>
@@ -1415,7 +1440,7 @@ async function pripravMapu(matchId, hrdinaJm) {
       for (const w of log || []) {
         const poz = pozice(w); if (!poz) continue;
         const odchod = (leftLog || []).find((l) => (w.ehandle != null && l.ehandle === w.ehandle) || (l.key === w.key && l.time >= w.time));
-        d.wardy.push({ typ, t: w.time, konec: odchod ? odchod.time : w.time + trvani, poz, muj, jsemTo, kdo: jm(p) });
+        d.wardy.push({ typ, t: w.time, konec: odchod ? odchod.time : w.time + trvani, poz, muj, jsemTo, kdo: jm(p), id: p.hero_id });
       }
     }
   }
@@ -1433,7 +1458,7 @@ async function pripravMapu(matchId, hrdinaJm) {
       const p = z.players[i]; if (!p) return;
       for (const [x, ys] of Object.entries(tp.deaths_pos || {}))
         for (const [y] of Object.entries(ys))
-          d.smrti.push({ t: f.end, od: f.start, poz: [Number(x), Number(y)], muj: (p.player_slot < 128) === mujRadiant, jsemTo: p === ja, kdo: jm(p) });
+          d.smrti.push({ t: f.end, od: f.start, poz: [Number(x), Number(y)], muj: (p.player_slot < 128) === mujRadiant, jsemTo: p === ja, kdo: jm(p), id: p.hero_id });
     });
   }
   for (const o of z.objectives || []) {
@@ -1482,27 +1507,70 @@ async function pripravMapu(matchId, hrdinaJm) {
   return d;
 }
 
-let mapa = null, mapaHraje = null;
+let mapa = null, mapaHraje = null, mapaObr = null;
+// Volitelný podklad: obrázek minimapy uložený vedle trener.html jako mapa.jpg / mapa.png / mapa.webp
+(function nactiPodklad() {
+  const zkus = (i) => {
+    const kandidati = ["mapa.jpg", "mapa.png", "mapa.webp"];
+    if (i >= kandidati.length) { mapaObr = null; podkladInfo(); return; }
+    const img = new Image();
+    img.onload = () => { mapaObr = kandidati[i]; podkladInfo(); if (mapa) kresliMapu(); };
+    img.onerror = () => zkus(i + 1);
+    img.src = kandidati[i];
+  };
+  zkus(0);
+})();
+function podkladInfo() {
+  $("mapaPodkladInfo").textContent = mapaObr
+    ? `Podklad: ${mapaObr}. Pokud wardy a věže nesedí na obrázek, posuň ho posuvníky (nastavení se pamatuje).`
+    : "Teď se používá schematická mapa. Pro skutečnou minimapu nahraj obrázek mapy do hlavní složky webu jako mapa.jpg (nebo .png / .webp) – stránka ho sama použije.";
+}
+const KAL = { x: 0, y: 0, s: 100 };
+try { Object.assign(KAL, JSON.parse(localStorage.getItem("mapa_kal") || "{}")); } catch {}
+const kalUloz = () => { try { localStorage.setItem("mapa_kal", JSON.stringify(KAL)); } catch {} };
+$("kalX").value = KAL.x; $("kalY").value = KAL.y; $("kalS").value = KAL.s;
+for (const [id, k] of [["kalX", "x"], ["kalY", "y"], ["kalS", "s"]])
+  $(id).addEventListener("input", () => { KAL[k] = Number($(id).value); kalUloz(); kresliMapu(); });
+$("kalReset").addEventListener("click", () => { Object.assign(KAL, { x: 0, y: 0, s: 100 }); $("kalX").value = 0; $("kalY").value = 0; $("kalS").value = 100; kalUloz(); kresliMapu(); });
+$("mapaVelka").addEventListener("click", () => {
+  const v = $("mapaBox").classList.toggle("velka");
+  $("mapaVelka").textContent = v ? "✕ Zavřít" : "⤢ Celá obrazovka";
+  document.body.style.overflow = v ? "hidden" : "";
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("mapaBox").classList.contains("velka")) $("mapaVelka").click(); });
+// ikonka hrdiny v kruhu
+const ikonkaHrdiny = (id, x, y, r, barva, sirka) =>
+  `<circle cx="${x}" cy="${y}" r="${r + sirka / 2}" fill="#000" stroke="${barva}" stroke-width="${sirka}"/>` +
+  (heroImg[id] ? `<image href="${heroImg[id]}" x="${x - r}" y="${y - r}" width="${r * 2}" height="${r * 2}" preserveAspectRatio="xMidYMid slice" clip-path="url(#kruh)"/>` : "");
 function kresliMapu() {
   if (!mapa || mapa.neparsovany) return;
   const t = Number($("mapaSlider").value);
   $("mapaCas").textContent = casTxt(t); $("mapaCasNadpis").textContent = casTxt(t);
   const s = [];
-  // podklad: strany, řeka, lajny, základny
-  s.push(`<defs><linearGradient id="mg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#16251b"/><stop offset=".5" stop-color="#141a1d"/><stop offset="1" stop-color="#2a1716"/></linearGradient></defs>`);
-  s.push(`<rect width="1000" height="1000" fill="url(#mg)"/>`);
-  s.push(`<path d="M0,330 C300,420 420,470 500,500 S720,600 1000,700" fill="none" stroke="#1d3b4d" stroke-width="46" opacity=".9"/>`);
-  const lajna = (pts) => `<polyline points="${pts.map((p) => P(...p).join(",")).join(" ")}" fill="none" stroke="#3a3f47" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>`;
-  s.push(lajna([[.12, .15], [.09, .9], [.86, .91]]), lajna([[.15, .12], [.9, .09], [.91, .86]]), lajna([[.15, .15], [.85, .85]]));
-  s.push(`<circle cx="${P(.11, .12)[0]}" cy="${P(.11, .12)[1]}" r="70" fill="#1f3a26" opacity=".7"/><circle cx="${P(.89, .88)[0]}" cy="${P(.89, .88)[1]}" r="70" fill="#4a2420" opacity=".7"/>`);
+  s.push(`<defs><clipPath id="kruh" clipPathUnits="objectBoundingBox"><circle cx=".5" cy=".5" r=".5"/></clipPath>
+    <linearGradient id="mg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#16251b"/><stop offset=".5" stop-color="#141a1d"/><stop offset="1" stop-color="#2a1716"/></linearGradient></defs>`);
+  if (mapaObr) {
+    // skutečná minimapa jako podklad (posun a velikost z kalibrace)
+    const vel = 10 * KAL.s, o = (1000 - vel) / 2;
+    s.push(`<rect width="1000" height="1000" fill="#0b0f12"/><image href="${mapaObr}" x="${o + KAL.x}" y="${o + KAL.y}" width="${vel}" height="${vel}" preserveAspectRatio="none"/>`);
+    s.push(`<rect width="1000" height="1000" fill="#000" opacity=".15"/>`);
+  } else {
+    // schematická mapa: strany, řeka, lajny, základny
+    s.push(`<rect width="1000" height="1000" fill="url(#mg)"/>`);
+    s.push(`<path d="M0,330 C300,420 420,470 500,500 S720,600 1000,700" fill="none" stroke="#1d3b4d" stroke-width="46" opacity=".9"/>`);
+    const lajna = (pts) => `<polyline points="${pts.map((p) => P(...p).join(",")).join(" ")}" fill="none" stroke="#3a3f47" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>`;
+    s.push(lajna([[.12, .15], [.09, .9], [.86, .91]]), lajna([[.15, .12], [.9, .09], [.91, .86]]), lajna([[.15, .15], [.85, .85]]));
+    s.push(`<circle cx="${P(.11, .12)[0]}" cy="${P(.11, .12)[1]}" r="70" fill="#1f3a26" opacity=".7"/><circle cx="${P(.89, .88)[0]}" cy="${P(.89, .88)[1]}" r="70" fill="#4a2420" opacity=".7"/>`);
+  }
 
   if ($("vLajna").checked && mapa.lajna.length) {
     const max = Math.max(...mapa.lajna.map((l) => l.n));
-    for (const l of mapa.lajna) { const [x, y] = N(...l.poz); s.push(`<rect x="${x - 4}" y="${y - 4}" width="8" height="8" fill="#e8a33d" opacity="${(0.15 + 0.6 * (l.n / max)).toFixed(2)}"/>`); }
+    for (const l of mapa.lajna) { const [x, y] = N(...l.poz); s.push(`<rect x="${x - 4}" y="${y - 4}" width="8" height="8" fill="#e8a33d" opacity="${(0.25 + 0.6 * (l.n / max)).toFixed(2)}"/>`); }
   }
   if ($("vBudovy").checked) {
     for (const strana of ["goodguys", "badguys"]) for (const [typ, poz] of Object.entries(BUDOVY[strana])) {
       const padla = mapa.budovy.find((b) => b.strana === strana && b.typ === typ && b.t <= t);
+      if (mapaObr && !padla) continue; // na skutečné minimapě jsou budovy vidět, značíme jen padlé
       const [x, y] = P(...poz);
       const barva = (strana === "goodguys") ? "#5fb36a" : "#d4553f";
       const vel = typ === "fort" ? 22 : typ.includes("rax") ? 8 : 12;
@@ -1517,7 +1585,7 @@ function kresliMapu() {
       const barva = w.typ === "obs" ? "#f2d25c" : "#6fb7ff";
       const okraj = w.jsemTo ? "#e8a33d" : w.muj ? "#5fb36a" : "#d4553f";
       if (w.typ === "obs") s.push(`<circle cx="${x}" cy="${y}" r="85" fill="${barva}" opacity=".07"/>`);
-      s.push(`<circle cx="${x}" cy="${y}" r="${w.jsemTo ? 10 : 8}" fill="${barva}" stroke="${okraj}" stroke-width="${w.jsemTo ? 4 : 3}"><title>${esc(w.typ === "obs" ? "Observer" : "Sentry")} · ${esc(w.kdo)} · ${casTxt(w.t)}–${casTxt(w.konec)}</title></circle>`);
+      s.push(`<circle cx="${x}" cy="${y}" r="${w.jsemTo ? 13 : 11}" fill="${barva}" stroke="${okraj}" stroke-width="${w.jsemTo ? 5 : 4}"><title>${esc(w.typ === "obs" ? "Observer" : "Sentry")} · ${esc(w.kdo)} · ${casTxt(w.t)}–${casTxt(w.konec)}</title></circle>`);
     }
   }
   if ($("vSmrti").checked) {
@@ -1525,9 +1593,10 @@ function kresliMapu() {
       const [x, y] = N(...d.poz);
       const cerstva = t - d.t < 60;
       const barva = d.jsemTo ? "#e8a33d" : d.muj ? "#5fb36a" : "#d4553f";
-      const r = d.jsemTo ? 14 : 10;
-      s.push(`<g opacity="${cerstva ? 1 : 0.35}"><path d="M${x - r},${y - r}L${x + r},${y + r}M${x + r},${y - r}L${x - r},${y + r}" stroke="${barva}" stroke-width="${d.jsemTo ? 6 : 4}" stroke-linecap="round"/><title>${esc(d.kdo)} zemřel v teamfightu ${casTxt(d.od)}–${casTxt(d.t)}</title></g>`);
-      if (d.jsemTo && cerstva) s.push(`<text x="${x + 18}" y="${y - 14}" fill="#e8a33d" font-size="30" font-weight="700">ty</text>`);
+      const r = d.jsemTo ? 30 : 22, k = r * 0.55;
+      s.push(`<g opacity="${cerstva ? 1 : 0.4}"${cerstva ? "" : ' style="filter:grayscale(1)"'}>${ikonkaHrdiny(d.id, x, y, r, barva, d.jsemTo ? 6 : 4)}`
+        + `<path d="M${x - k},${y - k}L${x + k},${y + k}M${x + k},${y - k}L${x - k},${y + k}" stroke="#ff3b2f" stroke-width="5" stroke-linecap="round" opacity=".9"/>`
+        + `<title>${esc(d.kdo)} zemřel v teamfightu ${casTxt(d.od)}–${casTxt(d.t)}</title></g>`);
     }
   }
   $("mapaSvg").innerHTML = s.join("");
