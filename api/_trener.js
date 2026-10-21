@@ -242,8 +242,13 @@ async function draft(zapas, ja, { heroes }) {
   // můj hero pool (posledních 365 dní, stejná lajna)
   if (!ja.account_id) { d.alternativy = "hráč má skrytý profil – hero pool není k dispozici"; return d; }
   const lane = ja.lane_role ? `&lane_role=${ja.lane_role}` : "";
-  const pool = await cached(`cache:pool:${ja.account_id}:${ja.lane_role || 0}`, 43200, () =>
+  let pool = await cached(`cache:pool:${ja.account_id}:${ja.lane_role || 0}`, 43200, () =>
     odGet(`/players/${ja.account_id}/heroes?date=365${lane}`));
+  if (lane && !(pool || []).some((h) => h.games >= 8)) {
+    // na téhle lajně skoro nehraje → vzít pool ze všech lajn (role core/support se filtruje níž)
+    pool = await cached(`cache:pool:${ja.account_id}:0`, 43200, () => odGet(`/players/${ja.account_id}/heroes?date=365`));
+    d.poznamka_k_poolu = "na téhle lajně hráč skoro nehraje, alternativy jsou z celého jeho poolu";
+  }
   const muj_zaznam = (pool || []).find((h) => Number(h.hero_id) === ja.hero_id);
   d.moje_hry_na_picku = muj_zaznam && muj_zaznam.games
     ? `${muj_zaznam.games} her, ${Math.round((100 * muj_zaznam.win) / muj_zaznam.games)} % WR (posl. rok, tahle lajna)` : "na téhle lajně skoro nehraný";
@@ -528,6 +533,8 @@ Zahrň smrti mimo teamfight, teamfighty bez hráče, klíčové fighty, pomalou 
 Okno začínej cca 20–30 s před událostí.
 
 Pravidla: Čísla, časy a jména ber jen z dat, nevymýšlej si situace, které z nich nevyplývají.
+Délku zápasu ber výhradně z "zapas.delka". V textu nikdy nezmiňuj technické názvy polí z dat
+(např. alternativy_z_meho_poolu) – piš normální češtinou („z tvého hero poolu“).
 Nemáš pozice na mapě, takže u smrtí mluv o pravděpodobných příčinách. Pokud replay není
 rozparsovaný nebo nějaká data chybí, řekni to a hodnoť jen to, co máš.
 Buď přímý jako dobrý trenér, ne zbytečně pochvalný, ale ani zlý. Max. ~1600 slov.`;
@@ -633,6 +640,7 @@ const KONTROLA_SYSTEM = `Jsi pečlivý kontrolor faktů a analytik Doty 2. Dosta
 
 Úkol 1 – kontrola faktů: najdi v rozboru tvrzení, která jsou v jasném rozporu s daty
 (špatná čísla, časy, jména hrdinů nebo itemů, vymyšlené události, které z dat nevyplývají).
+Vždy zkontroluj hlavně délku zápasu (zapas.delka), výsledek, KDA a časy smrtí.
 Pro každé uveď "puvodni" = DOSLOVNÝ úryvek z rozboru (krátký, přesně zkopírovaný, aby šel
 automaticky nahradit) a "nove" = opravené znění. Neopravuj styl ani názory, jen fakta.
 Webové informace o patchi a buildech (nejsou v datech) neopravuj.
