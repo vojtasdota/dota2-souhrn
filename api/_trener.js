@@ -662,27 +662,45 @@ function parseJson(t) {
   try { return JSON.parse(t.slice(a, b + 1)); } catch { return null; }
 }
 
+const bezDiakritiky = (x) => String(x).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z_]/g, "");
+const cislo = (v) => { const m = String(v ?? "").replace(",", ".").match(/\d+(\.\d+)?/); return m ? Number(m[0]) : NaN; };
+
 function normalizujHodnoceni(h) {
   if (!h || typeof h !== "object") return null;
+  // klíče bez diakritiky a velkých písmen („Pozicování“ → pozicovani), hodnoty i jako „8/10“
+  const n = {};
+  for (const [k, v] of Object.entries(h)) n[bezDiakritiky(k)] = v;
   const out = {};
   for (const k of KATEGORIE) {
-    const v = Math.round(Number(h[k]));
+    const v = Math.round(cislo(n[k]));
     if (Number.isFinite(v)) out[k] = Math.min(10, Math.max(1, v));
   }
-  out.stitky_chyb = (Array.isArray(h.stitky_chyb) ? h.stitky_chyb : []).slice(0, 8).map((s) => ({
-    stitek: STITKY.includes(s?.stitek) ? s.stitek : "jiné",
-    cas: typeof s?.cas === "string" ? s.cas : null,
-    popis: String(s?.popis || "").slice(0, 200),
-  }));
-  out.silne_stranky = (Array.isArray(h.silne_stranky) ? h.silne_stranky : []).slice(0, 5).map((x) => String(x).slice(0, 200));
-  out.cil_na_dalsi_hru = h.cil_na_dalsi_hru ? String(h.cil_na_dalsi_hru).slice(0, 300) : null;
+  const stitky = Array.isArray(n.stitky_chyb) ? n.stitky_chyb : Array.isArray(n.stitky) ? n.stitky : [];
+  out.stitky_chyb = stitky.slice(0, 8).map((s) => {
+    const nazev = typeof s === "string" ? s : s?.stitek;
+    const shoda = STITKY.find((x) => bezDiakritiky(x) === bezDiakritiky(nazev || ""));
+    return { stitek: shoda || "jiné", cas: typeof s?.cas === "string" ? s.cas : null, popis: String(s?.popis || (shoda ? "" : nazev || "")).slice(0, 200) };
+  });
+  out.silne_stranky = (Array.isArray(n.silne_stranky) ? n.silne_stranky : []).slice(0, 5).map((x) => String(x).slice(0, 200));
+  out.cil_na_dalsi_hru = n.cil_na_dalsi_hru ? String(n.cil_na_dalsi_hru).slice(0, 300) : null;
+  if (!out.celkem) {
+    // celková známka chybí → průměr ostatních
+    const ost = KATEGORIE.filter((k) => out[k]).map((k) => out[k]);
+    if (ost.length >= 3) out.celkem = Math.round(ost.reduce((a, b) => a + b, 0) / ost.length);
+  }
   return out.celkem ? out : null;
 }
 
+const HODNOCENI_SYSTEM = `Jsi analytik Doty 2. Podle DAT zápasu a ROZBORU vrať POUZE JSON (bez dalšího textu):
+{"celkem":7,"pick":6,"lajna":8,"farma":7,"teamfighty":5,"pozicovani":4,"build":6,
+ "stitky_chyb":[{"stitek":"...","cas":"MM:SS","popis":"krátce"}],"silne_stranky":["..."],"cil_na_dalsi_hru":"..."}
+Známky jsou celá čísla 1–10. Štítky POUZE z tohoto seznamu: ${STITKY.join("; ")}.`;
+
 async function kontrola(data, text) {
+  const zadani = `DATA:\n${JSON.stringify(data)}\n\nROZBOR:\n${text}`;
   const { text: out } = await textOnce({
-    model: MODEL_LEVNY(), max_tokens: 4000, system: KONTROLA_SYSTEM,
-    messages: [{ role: "user", content: `DATA:\n${JSON.stringify(data)}\n\nROZBOR:\n${text}` }],
+    model: MODEL_LEVNY(), max_tokens: 8000, system: KONTROLA_SYSTEM,
+    messages: [{ role: "user", content: zadani }],
   });
   const j = parseJson(out);
   let finalni = text, opravy = 0;
@@ -692,7 +710,22 @@ async function kontrola(data, text) {
       opravy++;
     }
   }
-  return { text: finalni, opravy, hodnoceni: normalizujHodnoceni(j?.hodnoceni) };
+  let hodnoceni = normalizujHodnoceni(j?.hodnoceni || (j && j.celkem ? j : null));
+  if (!hodnoceni) {
+    // druhý pokus: jen hodnocení, kratší úkol
+    try {
+      const { text: out2 } = await textOnce({
+        model: MODEL_LEVNY(), max_tokens: 3000, system: HODNOCENI_SYSTEM,
+        messages: [{ role: "user", content: `DATA:\n${JSON.stringify(data)}\n\nROZBOR:\n${finalni}` }],
+      });
+      const j2 = parseJson(out2);
+      hodnoceni = normalizujHodnoceni(j2?.hodnoceni || j2);
+    } catch { /* necháme bez hodnocení */ }
+  }
+  return {
+    text: finalni, opravy, hodnoceni,
+    chybaKontroly: !j ? "odpověď kontroly se nepodařilo přečíst" : !hodnoceni ? "nepodařilo se vytvořit hodnocení" : null,
+  };
 }
 
 // celý rozbor: text (streamovaně nebo naráz) + kontrola + hodnocení
@@ -765,6 +798,6 @@ const jeChybnyText = (t) => !t || t.trim().length < 300 || /^\s*⚠️/.test(t.t
 module.exports = {
   OD, ROLE, odGet, nactiKonstanty, najdiHrace, shrnuti, pripravData, cas, cached, matchupy, hracInfo, dnes,
   streamText, textOnce, stavRadek, rozebrat, guideBody, MODEL, MODEL_LEVNY, webTool,
-  znalosti, ulozZnalosti, nastaveni, ulozNastaveni, guideJeStary, STITKY, KATEGORIE,
+  znalosti, ulozZnalosti, nastaveni, ulozNastaveni, guideJeStary, STITKY, KATEGORIE, normalizujHodnoceni,
   maUloziste, redis, klicRozboru, ulozRozbor, zaznam, seznamRozboru, smazRozbor, smazane, jeChybnyText,
 };
