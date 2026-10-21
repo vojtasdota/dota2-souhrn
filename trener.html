@@ -17,6 +17,7 @@
     --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--body); }
   body { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); min-height: 100vh;
          background: radial-gradient(1200px 500px at 85% -10%, rgba(200,64,47,.13), transparent 60%), var(--bg); }
@@ -162,6 +163,42 @@
                     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .vyber .hlavicka-vyberu { padding: 8px 10px 4px; font: 700 12px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
   .vyber .nic { padding: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  .mapa-hud { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px; align-items: center; margin-top: 12px;
+              background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; }
+  .mapa-hud .tym { display: flex; gap: 4px; } .mapa-hud .tym.dire { justify-content: flex-end; }
+  .mapa-hud .hr-ikona { position: relative; width: 52px; flex: 0 1 52px; }
+  .mapa-hud .hr-ikona img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; display: block; border-radius: 2px; border-bottom: 3px solid var(--good); }
+  .mapa-hud .dire .hr-ikona img { border-bottom-color: var(--bad); }
+  .mapa-hud .hr-ikona.ja img { outline: 2px solid var(--accent2); outline-offset: 1px; }
+  .mapa-hud .hr-ikona.mrtvy img { filter: grayscale(1) brightness(.35); }
+  .mapa-hud .hr-ikona .odp { position: absolute; inset: 0 0 3px; display: flex; align-items: center; justify-content: center;
+                             font: 800 15px var(--display); color: #fff; text-shadow: 0 1px 2px #000; }
+  .mapa-hud .stred { text-align: center; min-width: 120px; }
+  .mapa-hud .stred b { display: block; font: 800 22px/1 var(--display); }
+  .mapa-hud .rosh { font-size: 12px; color: var(--muted); margin-top: 3px; line-height: 1.3; }
+  .mapa-hud .rosh .zivy { color: #b07cff; font-weight: 600; } .mapa-hud .rosh .mrtvy { color: var(--muted); }
+  .mapa-hud .rosh .okno { color: var(--accent2); font-weight: 600; }
+  @media (max-width: 760px) { .mapa-hud { grid-template-columns: 1fr; } .mapa-hud .tym, .mapa-hud .tym.dire { justify-content: center; } .mapa-hud .stred { order: -1; } }
+  .mapa-box { background: var(--panel); border: 1px solid var(--line); border-top: 0; padding: 14px 18px; }
+  .mapa-box > summary { cursor: pointer; font: 700 18px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--accent2); }
+  .mapa-grid { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 14px; margin-top: 12px; }
+  #mapaSvg { width: 100%; aspect-ratio: 1; display: block; border-radius: 4px; background: #11171b; }
+  .mapa-panel { font-size: 13px; }
+  .mapa-panel label.prepinac { margin: 4px 0; font-size: 13px; }
+  .mapa-panel h4 { font: 700 14px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin: 12px 0 6px; }
+  .mapa-udalosti { max-height: 220px; overflow-y: auto; }
+  .mapa-udalosti div { padding: 3px 0; border-bottom: 1px solid var(--line); }
+  .mapa-udalosti .cas { color: var(--accent2); font-weight: 600; margin-right: 6px; }
+  .mapa-cas { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; margin-top: 10px; }
+  .mapa-cas input[type=range] { padding: 0; accent-color: var(--accent2); }
+  .mapa-cas b { font: 700 18px var(--display); min-width: 52px; text-align: right; }
+  .mapa-osa { position: relative; height: 16px; margin: 2px 0 0 52px; margin-right: 62px; }
+  .mapa-osa i { position: absolute; top: 2px; width: 4px; height: 12px; margin-left: -2px; border-radius: 1px; cursor: pointer; }
+  .mapa-osa i.smrt { background: var(--bad); } .mapa-osa i.tf { background: var(--accent2); opacity: .6; height: 8px; top: 4px; }
+  .mapa-osa i.bud { background: #9aa0a6; height: 6px; top: 5px; } .mapa-osa i.rosh { background: #b07cff; }
+  .legenda-mapy span { display: inline-flex; gap: 5px; align-items: center; margin: 2px 10px 2px 0; }
+  .legenda-mapy i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  @media (max-width: 760px) { .mapa-grid { grid-template-columns: 1fr; } .mapa-osa { margin-left: 46px; margin-right: 56px; } }
   .hist-filtry { grid-template-columns: repeat(4, 1fr); }
   .hist-tab { background: var(--panel); border: 1px solid var(--line); }
   .hist-hlava, .hz { display: grid; grid-template-columns: 26px minmax(170px, 2fr) 1.2fr 1fr 1fr 1.3fr 150px; gap: 10px; align-items: center; padding: 6px 12px; }
@@ -264,6 +301,35 @@
     </div>
     <div id="hlava"></div>
     <div class="znamky" id="znamky"></div>
+    <details class="mapa-box" id="mapaBox" hidden open>
+      <summary>2D mapa zápasu</summary>
+      <p class="info-text" id="mapaInfo" style="margin:8px 0 0"></p>
+      <div class="mapa-hud" id="mapaHud"></div>
+      <div class="mapa-grid" id="mapaObsah">
+        <svg id="mapaSvg" viewBox="0 0 1000 1000" role="img" aria-label="Schematická mapa zápasu"></svg>
+        <div class="mapa-panel">
+          <h4>Vrstvy</h4>
+          <label class="prepinac"><input type="checkbox" id="vWardy" checked> Wardy (aktivní v daném čase)</label>
+          <label class="prepinac"><input type="checkbox" id="vSmrti" checked> Smrti v teamfightech</label>
+          <label class="prepinac"><input type="checkbox" id="vLajna" checked> Moje pozice na lajně (0–10 min)</label>
+          <label class="prepinac"><input type="checkbox" id="vBudovy" checked> Věže a baráky</label>
+          <div class="legenda-mapy">
+            <span><i style="background:#5fb36a"></i>můj tým</span><span><i style="background:#d4553f"></i>soupeř</span>
+            <span><i style="background:#e8a33d"></i>já</span><span><i style="background:#f2d25c"></i>observer</span><span><i style="background:#6fb7ff"></i>sentry</span>
+          </div>
+          <h4>Co se děje kolem <span id="mapaCasNadpis">0:00</span></h4>
+          <div class="mapa-udalosti" id="mapaUdalosti"></div>
+        </div>
+      </div>
+      <div class="mapa-cas">
+        <button class="vedl mini" id="mapaPlay" type="button">▶</button>
+        <input type="range" id="mapaSlider" min="0" max="2400" step="5" value="0">
+        <b id="mapaCas">0:00</b>
+      </div>
+      <div class="mapa-osa" id="mapaOsa"></div>
+      <div class="chipy" id="mapaMomenty"></div>
+    </details>
+
     <div class="md" id="vystup" style="display:none"></div>
     <div id="akce">
       <button class="vedl" id="kopir" type="button">Kopírovat rozbor</button>
@@ -506,7 +572,7 @@ async function post(url, body, { onStav, onText, onStart } = {}) {
 }
 
 // ---------------------------------------------------------------- hrdinové
-let heroJm = null, heroPodleJmena = {}, heroImg = {};
+let heroJm = null, heroPodleJmena = {}, heroImg = {}, heroNpc = {};
 async function hrdinove() {
   if (!heroJm) {
     const j = await (await fetch(OD + "/constants/heroes")).json();
@@ -514,6 +580,7 @@ async function hrdinove() {
     for (const h of Object.values(j)) {
       heroJm[h.id] = h.localized_name; heroPodleJmena[h.localized_name.toLowerCase()] = h.id;
       heroImg[h.id] = h.img ? "https://cdn.cloudflare.steamstatic.com" + h.img : "";
+      heroNpc[h.id] = h.name;
     }
     $("seznamHrdinu").innerHTML = Object.values(heroJm).sort().map((n) => `<option value="${esc(n)}">`).join("");
   }
@@ -673,6 +740,7 @@ function ukazUlozeny(z, zprava) {
   $("akce").style.display = "flex";
   $("znovu").hidden = false;
   stav(zprava || `Uložený rozbor z ${datum(z.datum)}.`);
+  zobrazMapu(z.match, z.hrdina, text);
   setTimeout(() => $("hlava").scrollIntoView({ behavior: "smooth", block: "start" }), 50);
 }
 
@@ -693,6 +761,7 @@ async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
   seznamZapasu(false);
   $("go").disabled = true; $("bez").hidden = true; $("znovu").hidden = true;
   $("hlava").style.display = "none"; $("vystup").style.display = "none"; $("znamky").style.display = "none"; $("akce").style.display = "none";
+  $("mapaBox").hidden = true;
   text = "";
   try {
     for (let pokus = 0; ; pokus++) {
@@ -720,6 +789,7 @@ async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
       ukazMd($("vystup"), text, true);
       vykresliZnamky(r.meta?.hodnoceni);
       $("akce").style.display = "flex"; $("znovu").hidden = false;
+      zobrazMapu(match, hrdinaJm, text);
 
       const chyba = text.trim().length < 300 || /^\s*⚠️/.test(text.trim());
       if (chyba) { stav(""); return "chyba"; }
@@ -1183,6 +1253,7 @@ function seznamZapasu(ukazat) {
 $("prepnoutSeznam").addEventListener("click", () => {
   seznamZapasu(true);
   $("hlava").style.display = "none"; $("znamky").style.display = "none"; $("vystup").style.display = "none"; $("akce").style.display = "none";
+  $("mapaBox").hidden = true;
   stav("");
   $("zapasyBox").scrollIntoView({ behavior: "smooth", block: "start" });
 });
@@ -1306,6 +1377,248 @@ async function ukazCip() {
   });
   input.addEventListener("change", ukazCip);
 })();
+
+// ---------------------------------------------------------------- 2D mapa zápasu
+// Souřadnice OpenDoty: x, y − 64 → 0–127 od levého dolního rohu. Vlastní schematická mapa (ne obrázek ze hry).
+const MAPA_DATA = new Map();
+const N = (x, y) => [((x - 64) / 128) * 1000, (1 - (y - 64) / 128) * 1000];
+const P = (nx, ny) => [nx * 1000, (1 - ny) * 1000];
+// přibližné pozice budov (0–1, levý dolní roh = Radiant)
+const BUDOVY = {
+  goodguys: { fort: [.12, .13], tower1_top: [.10, .62], tower2_top: [.11, .45], tower3_top: [.08, .30],
+    tower1_mid: [.42, .40], tower2_mid: [.31, .31], tower3_mid: [.22, .22], tower1_bot: [.80, .09], tower2_bot: [.50, .10],
+    tower3_bot: [.29, .08], tower4: [.15, .17], melee_rax_top: [.06, .27], range_rax_top: [.10, .27], melee_rax_mid: [.19, .21],
+    range_rax_mid: [.21, .18], melee_rax_bot: [.27, .06], range_rax_bot: [.27, .10] },
+};
+BUDOVY.badguys = Object.fromEntries(Object.entries(BUDOVY.goodguys).map(([k, [x, y]]) => [k, [1 - x, 1 - y]]));
+const casTxt = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const pozice = (o) => {
+  if (o && Number.isFinite(o.x) && Number.isFinite(o.y)) return [o.x, o.y];
+  try { const k = typeof o?.key === "string" ? JSON.parse(o.key) : o?.key; if (Array.isArray(k)) return k; } catch {}
+  return null;
+};
+
+async function pripravMapu(matchId, hrdinaJm) {
+  const klic = `${matchId}|${hracId()}|${hrdinaJm}`;
+  if (MAPA_DATA.has(klic)) return MAPA_DATA.get(klic);
+  const [hj, z] = await Promise.all([hrdinove(), fetch(`${OD}/matches/${matchId}`).then((r) => r.json())]);
+  if (!z || !Array.isArray(z.players)) throw new Error("zápas se nepodařilo načíst");
+  if (z.version == null) return { neparsovany: true };
+  const ja = z.players.find((p) => String(p.account_id) === hracId()) || z.players.find((p) => hj[p.hero_id] === hrdinaJm);
+  const mujRadiant = ja ? ja.player_slot < 128 : true;
+  const jm = (p) => hj[p.hero_id] || "?";
+  const d = { trvani: z.duration, wardy: [], smrti: [], lajna: [], budovy: [], roshan: [], mojeSmrti: [], fighty: [], ja: ja ? jm(ja) : null };
+
+  for (const p of z.players) {
+    const muj = (p.player_slot < 128) === mujRadiant, jsemTo = p === ja;
+    for (const [typ, log, leftLog, trvani] of [["obs", p.obs_log, p.obs_left_log, 360], ["sen", p.sen_log, p.sen_left_log, 420]]) {
+      for (const w of log || []) {
+        const poz = pozice(w); if (!poz) continue;
+        const odchod = (leftLog || []).find((l) => (w.ehandle != null && l.ehandle === w.ehandle) || (l.key === w.key && l.time >= w.time));
+        d.wardy.push({ typ, t: w.time, konec: odchod ? odchod.time : w.time + trvani, poz, muj, jsemTo, kdo: jm(p) });
+      }
+    }
+  }
+  // moje smrti z kills_log ostatních (bez pozice)
+  if (ja) {
+    const npc = heroNpc[ja.hero_id];
+    for (const p of z.players) for (const k of p.kills_log || []) if (k.key === npc) d.mojeSmrti.push({ t: k.time, kdo: jm(p) });
+    d.mojeSmrti.sort((a, b) => a.t - b.t);
+    for (const [x, ys] of Object.entries(ja.lane_pos || {}))
+      for (const [y, n] of Object.entries(ys)) d.lajna.push({ poz: [Number(x), Number(y)], n });
+  }
+  for (const f of z.teamfights || []) {
+    d.fighty.push({ od: f.start, do: f.end, smrti: f.deaths });
+    (f.players || []).forEach((tp, i) => {
+      const p = z.players[i]; if (!p) return;
+      for (const [x, ys] of Object.entries(tp.deaths_pos || {}))
+        for (const [y] of Object.entries(ys))
+          d.smrti.push({ t: f.end, od: f.start, poz: [Number(x), Number(y)], muj: (p.player_slot < 128) === mujRadiant, jsemTo: p === ja, kdo: jm(p) });
+    });
+  }
+  for (const o of z.objectives || []) {
+    if (o.type === "building_kill" && o.key) {
+      const m = o.key.match(/npc_dota_(goodguys|badguys)_(.+)$/); if (!m) continue;
+      let typ = m[2].replace(/_(\d)$/, "");
+      const poz = BUDOVY[m[1]][typ] || BUDOVY[m[1]][typ.replace(/^tower4.*/, "tower4")];
+      if (poz) d.budovy.push({ t: o.time, strana: m[1], typ, poz, nase: (m[1] === "goodguys") === mujRadiant });
+    } else if (o.type === "CHAT_MESSAGE_ROSHAN_KILL") d.roshan.push({ t: o.time, nas: o.team === (mujRadiant ? 2 : 3) });
+  }
+  // kdo je mrtvý: smrti z kills_log zabijáků (jen smrti od hrdinů), délka podle levelu, srovnaná s celkovým časem mrtvý
+  const npcHrdiny = Object.fromEntries(z.players.map((p) => [heroNpc[p.hero_id], p]));
+  const smrtiHrace = new Map(z.players.map((p) => [p, []]));
+  for (const p of z.players) for (const k of p.kills_log || []) {
+    const obet = npcHrdiny[k.key];
+    if (obet) smrtiHrace.get(obet).push({ t: k.time, zabil: jm(p) });
+  }
+  const level = (p, t) => {
+    const xp = Array.isArray(p.xp_t) ? p.xp_t[Math.min(p.xp_t.length - 1, Math.max(0, Math.floor(t / 60)))] : null;
+    if (xp == null) return Math.max(1, Math.round((p.level || 15) * Math.min(1, t / Math.max(1, z.duration))));
+    const PRAH = [0, 240, 640, 1160, 1760, 2440, 3200, 4000, 4900, 5900, 7000, 8200, 9500, 10900, 12400, 14000, 15700, 17500, 19400, 21400, 23600, 26000, 28600, 31400, 34400, 38400, 43400, 49400, 56400, 63900];
+    let l = 1; while (l < 30 && xp >= PRAH[l]) l++;
+    return l;
+  };
+  d.hraci = z.players.map((p) => {
+    const sm = smrtiHrace.get(p).sort((a, b) => a.t - b.t);
+    let intervaly = sm.map((x) => ({ od: x.t, do: x.t + Math.min(100, 6 + 3.6 * level(p, x.t)), zabil: x.zabil }));
+    const celkem = intervaly.reduce((a, i) => a + (i.do - i.od), 0);
+    if (p.life_state_dead && celkem > 0 && sm.length === (p.deaths || sm.length)) {
+      const k = Math.min(1.6, Math.max(0.6, p.life_state_dead / celkem)); // srovnat s celkovým časem mrtvý
+      intervaly = intervaly.map((i) => ({ ...i, do: i.od + (i.do - i.od) * k }));
+    }
+    for (const b of p.buyback_log || []) {
+      const i = intervaly.find((i) => b.time >= i.od && b.time <= i.do + 2);
+      if (i) { i.do = b.time; i.buyback = true; }
+    }
+    return { id: p.hero_id, jm: jm(p), muj: (p.player_slot < 128) === mujRadiant, radiant: p.player_slot < 128,
+             jsemTo: p === ja, intervaly, chybi: Math.max(0, (p.deaths || 0) - sm.length) };
+  });
+  d.aegis = (z.objectives || []).filter((o) => /AEGIS/.test(o.type || "")).map((o) => {
+    const p = o.slot != null ? z.players[o.slot] : z.players.find((x) => x.player_slot === o.player_slot);
+    return { t: o.time, typ: o.type, kdo: p ? jm(p) : "?", muj: p ? (p.player_slot < 128) === mujRadiant : null };
+  });
+  d.mujRadiant = mujRadiant;
+  MAPA_DATA.set(klic, d);
+  return d;
+}
+
+let mapa = null, mapaHraje = null;
+function kresliMapu() {
+  if (!mapa || mapa.neparsovany) return;
+  const t = Number($("mapaSlider").value);
+  $("mapaCas").textContent = casTxt(t); $("mapaCasNadpis").textContent = casTxt(t);
+  const s = [];
+  // podklad: strany, řeka, lajny, základny
+  s.push(`<defs><linearGradient id="mg" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#16251b"/><stop offset=".5" stop-color="#141a1d"/><stop offset="1" stop-color="#2a1716"/></linearGradient></defs>`);
+  s.push(`<rect width="1000" height="1000" fill="url(#mg)"/>`);
+  s.push(`<path d="M0,330 C300,420 420,470 500,500 S720,600 1000,700" fill="none" stroke="#1d3b4d" stroke-width="46" opacity=".9"/>`);
+  const lajna = (pts) => `<polyline points="${pts.map((p) => P(...p).join(",")).join(" ")}" fill="none" stroke="#3a3f47" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/>`;
+  s.push(lajna([[.12, .15], [.09, .9], [.86, .91]]), lajna([[.15, .12], [.9, .09], [.91, .86]]), lajna([[.15, .15], [.85, .85]]));
+  s.push(`<circle cx="${P(.11, .12)[0]}" cy="${P(.11, .12)[1]}" r="70" fill="#1f3a26" opacity=".7"/><circle cx="${P(.89, .88)[0]}" cy="${P(.89, .88)[1]}" r="70" fill="#4a2420" opacity=".7"/>`);
+
+  if ($("vLajna").checked && mapa.lajna.length) {
+    const max = Math.max(...mapa.lajna.map((l) => l.n));
+    for (const l of mapa.lajna) { const [x, y] = N(...l.poz); s.push(`<rect x="${x - 4}" y="${y - 4}" width="8" height="8" fill="#e8a33d" opacity="${(0.15 + 0.6 * (l.n / max)).toFixed(2)}"/>`); }
+  }
+  if ($("vBudovy").checked) {
+    for (const strana of ["goodguys", "badguys"]) for (const [typ, poz] of Object.entries(BUDOVY[strana])) {
+      const padla = mapa.budovy.find((b) => b.strana === strana && b.typ === typ && b.t <= t);
+      const [x, y] = P(...poz);
+      const barva = (strana === "goodguys") ? "#5fb36a" : "#d4553f";
+      const vel = typ === "fort" ? 22 : typ.includes("rax") ? 8 : 12;
+      s.push(padla
+        ? `<g opacity=".45"><rect x="${x - vel}" y="${y - vel}" width="${vel * 2}" height="${vel * 2}" fill="none" stroke="${barva}" stroke-width="2"/><path d="M${x - vel},${y - vel}L${x + vel},${y + vel}M${x + vel},${y - vel}L${x - vel},${y + vel}" stroke="${barva}" stroke-width="2"/></g>`
+        : `<rect x="${x - vel}" y="${y - vel}" width="${vel * 2}" height="${vel * 2}" fill="${barva}" opacity=".85" rx="2"/>`);
+    }
+  }
+  if ($("vWardy").checked) {
+    for (const w of mapa.wardy.filter((w) => w.t <= t && w.konec > t)) {
+      const [x, y] = N(...w.poz);
+      const barva = w.typ === "obs" ? "#f2d25c" : "#6fb7ff";
+      const okraj = w.jsemTo ? "#e8a33d" : w.muj ? "#5fb36a" : "#d4553f";
+      if (w.typ === "obs") s.push(`<circle cx="${x}" cy="${y}" r="85" fill="${barva}" opacity=".07"/>`);
+      s.push(`<circle cx="${x}" cy="${y}" r="${w.jsemTo ? 10 : 8}" fill="${barva}" stroke="${okraj}" stroke-width="${w.jsemTo ? 4 : 3}"><title>${esc(w.typ === "obs" ? "Observer" : "Sentry")} · ${esc(w.kdo)} · ${casTxt(w.t)}–${casTxt(w.konec)}</title></circle>`);
+    }
+  }
+  if ($("vSmrti").checked) {
+    for (const d of mapa.smrti.filter((d) => d.od <= t)) {
+      const [x, y] = N(...d.poz);
+      const cerstva = t - d.t < 60;
+      const barva = d.jsemTo ? "#e8a33d" : d.muj ? "#5fb36a" : "#d4553f";
+      const r = d.jsemTo ? 14 : 10;
+      s.push(`<g opacity="${cerstva ? 1 : 0.35}"><path d="M${x - r},${y - r}L${x + r},${y + r}M${x + r},${y - r}L${x - r},${y + r}" stroke="${barva}" stroke-width="${d.jsemTo ? 6 : 4}" stroke-linecap="round"/><title>${esc(d.kdo)} zemřel v teamfightu ${casTxt(d.od)}–${casTxt(d.t)}</title></g>`);
+      if (d.jsemTo && cerstva) s.push(`<text x="${x + 18}" y="${y - 14}" fill="#e8a33d" font-size="30" font-weight="700">ty</text>`);
+    }
+  }
+  $("mapaSvg").innerHTML = s.join("");
+  kresliHud(t);
+
+  // události kolem času t
+  const u = [], okno = 45;
+  const blizko = (x) => Math.abs(x - t) <= okno;
+  for (const f of mapa.fighty) if (f.od - okno <= t && t <= f.do + okno) u.push([f.od, `Teamfight ${casTxt(f.od)}–${casTxt(f.do)}, padlo ${f.smrti} hrdinů`]);
+  for (const d of mapa.mojeSmrti) if (blizko(d.t)) u.push([d.t, `<b>Tvoje smrt</b> (zabil ${esc(d.kdo)})`]);
+  for (const b of mapa.budovy) if (blizko(b.t)) u.push([b.t, `Padla ${b.nase ? "naše" : "jejich"} budova ${esc(b.typ)}`]);
+  for (const r of mapa.roshan) if (blizko(r.t)) u.push([r.t, `Roshan – ${r.nas ? "náš tým" : "soupeř"}`]);
+  for (const w of mapa.wardy) if (w.t <= t && t - w.t <= okno) u.push([w.t, `${w.typ === "obs" ? "Observer" : "Sentry"} – ${esc(w.kdo)} (${w.muj ? "náš" : "soupeř"})`]);
+  u.sort((a, b) => a[0] - b[0]);
+  $("mapaUdalosti").innerHTML = u.length ? u.map(([c, x]) => `<div><span class="cas">${casTxt(c)}</span>${x}</div>`).join("") : '<div class="prazdno">V tomhle okamžiku se nic zásadního neděje.</div>';
+}
+
+function nastavCas(t) { $("mapaSlider").value = String(Math.max(0, Math.min(Number($("mapaSlider").max), t))); kresliMapu(); }
+function zastavPrehravani() { clearInterval(mapaHraje); mapaHraje = null; $("mapaPlay").textContent = "▶"; }
+$("mapaPlay").addEventListener("click", () => {
+  if (mapaHraje) return zastavPrehravani();
+  $("mapaPlay").textContent = "⏸";
+  mapaHraje = setInterval(() => {
+    const t = Number($("mapaSlider").value) + 5;
+    if (t > Number($("mapaSlider").max)) return zastavPrehravani();
+    nastavCas(t);
+  }, 120);
+});
+$("mapaSlider").addEventListener("input", kresliMapu);
+for (const id of ["vWardy", "vSmrti", "vLajna", "vBudovy"]) $(id).addEventListener("change", kresliMapu);
+
+async function zobrazMapu(matchId, hrdinaJm, textRozboru) {
+  zastavPrehravani();
+  const box = $("mapaBox");
+  box.hidden = false;
+  $("mapaObsah").hidden = true; $("mapaOsa").innerHTML = ""; $("mapaMomenty").innerHTML = "";
+  $("mapaInfo").innerHTML = '<span class="spin"></span> Načítám data pro mapu…';
+  try {
+    mapa = await pripravMapu(matchId, hrdinaJm);
+  } catch (e) { $("mapaInfo").textContent = "Mapu se nepodařilo načíst: " + (e.message || e); return; }
+  if (mapa.neparsovany) { $("mapaInfo").textContent = "Mapa potřebuje rozparsovaný replay – u tohohle zápasu ho OpenDota nemá."; return; }
+  $("mapaObsah").hidden = false;
+  const chybiSmrti = (mapa.hraci || []).reduce((a, h) => a + h.chybi, 0);
+  $("mapaInfo").textContent = "Nahoře kdo je živý a kdo mrtvý (s odhadem respawnu) a stav Roshana; na mapě wardy, smrti v teamfightech, tvoje lajnování a věže. "
+    + "Pohyb hrdinů OpenDota neposkytuje." + (chybiSmrti ? ` Smrti od creepů a věží (${chybiSmrti}) v datech nejsou, takže tam se mrtvý hrdina neukáže.` : "");
+  $("mapaSlider").max = String(mapa.trvani);
+  // osa s událostmi
+  const osa = [];
+  const znacka = (t, cls, title) => osa.push(`<i class="${cls}" style="left:${(100 * t) / mapa.trvani}%" data-t="${t}" title="${esc(title)}"></i>`);
+  for (const f of mapa.fighty) znacka(f.od, "tf", `Teamfight ${casTxt(f.od)}`);
+  for (const b of mapa.budovy) znacka(b.t, "bud", `Budova ${b.typ} ${casTxt(b.t)}`);
+  for (const r of mapa.roshan) znacka(r.t, "rosh", `Roshan ${casTxt(r.t)}`);
+  for (const d of mapa.mojeSmrti) znacka(d.t, "smrt", `Tvoje smrt ${casTxt(d.t)}`);
+  $("mapaOsa").innerHTML = osa.join("");
+  for (const i of $("mapaOsa").querySelectorAll("i")) i.addEventListener("click", () => nastavCas(Number(i.dataset.t) - 10));
+  // momenty z rozboru (sekce „Momenty k shlédnutí“)
+  const re = /\*\*(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})\*\*/g;
+  const momenty = []; let m;
+  while ((m = re.exec(textRozboru || ""))) momenty.push([Number(m[1]) * 60 + Number(m[2]), `${m[1]}:${m[2]}–${m[3]}:${m[4]}`]);
+  for (const [t, popis] of momenty) {
+    const b = document.createElement("button"); b.type = "button"; b.className = "vedl"; b.textContent = "▶ " + popis;
+    b.addEventListener("click", () => { nastavCas(t); $("mapaSvg").scrollIntoView({ behavior: "smooth", block: "center" }); });
+    $("mapaMomenty").appendChild(b);
+  }
+  nastavCas(momenty.length ? momenty[0][0] : Math.min(600, mapa.trvani));
+}
+
+function kresliHud(t) {
+  if (!mapa.hraci) { $("mapaHud").innerHTML = ""; return; }
+  const ikona = (h) => {
+    const smrt = h.intervaly.find((i) => i.od <= t && t < i.do);
+    const zbyva = smrt ? Math.ceil(smrt.do - t) : 0;
+    const titulek = smrt ? `${h.jm} – mrtvý (zabil ${smrt.zabil}), respawn za ~${zbyva} s${smrt.buyback ? " (buyback)" : ""}` : `${h.jm} – živý`;
+    return `<div class="hr-ikona${smrt ? " mrtvy" : ""}${h.jsemTo ? " ja" : ""}" title="${esc(titulek)}"><img alt="${esc(h.jm)}" src="${heroImg[h.id] || ""}">${smrt ? `<span class="odp">${zbyva}</span>` : ""}</div>`;
+  };
+  const rad = mapa.hraci.filter((h) => h.radiant), dire = mapa.hraci.filter((h) => !h.radiant);
+  // Roshan: po zabití respawn v okně 8–11 minut
+  const zabiti = mapa.roshan.filter((r) => r.t <= t).sort((a, b) => b.t - a.t)[0];
+  let rosh = '<span class="zivy">Roshan živý</span>';
+  if (zabiti) {
+    const od = zabiti.t + 480, dO = zabiti.t + 660;
+    if (t < od) rosh = `<span class="mrtvy">Roshan mrtvý</span> · respawn ${casTxt(od)}–${casTxt(dO)}`;
+    else if (t < dO) rosh = `<span class="okno">Roshan možná živý</span> (okno do ${casTxt(dO)})`;
+    else rosh = '<span class="zivy">Roshan živý</span>';
+  }
+  const aeg = mapa.aegis.filter((a) => a.t <= t && t - a.t < 300 && /AEGIS$/.test(a.typ)).pop();
+  if (aeg) rosh += `<br>Aegis: ${esc(aeg.kdo)} (${aeg.muj ? "náš" : "soupeř"}) do ${casTxt(aeg.t + 300)}`;
+  $("mapaHud").innerHTML = `<div class="tym">${rad.map(ikona).join("")}</div>
+    <div class="stred"><b>${casTxt(t)}</b><div class="rosh">${rosh}</div></div>
+    <div class="tym dire">${dire.map(ikona).join("")}</div>`;
+}
 
 // ---------------------------------------------------------------- start
 $("heslo").addEventListener("change", () => { store.set("trener_heslo", $("heslo").value); nastrojeUlozene = null; nactiHistorii().then(automatika); });
