@@ -12,7 +12,7 @@
   :root {
     --bg: #0d0f12; --panel: #15181d; --panel2: #1c2027; --line: #2a2f38;
     --text: #e6e2d8; --muted: #8d8f94; --accent: #c8402f; --accent2: #e8a33d;
-    --good: #5fb36a; --bad: #d4553f;
+    --good: #5fb36a; --mid: #d9a441; --bad: #d4553f;
     --display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
     --body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
   }
@@ -20,137 +20,275 @@
   html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 var(--body); }
   body { padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom); min-height: 100vh;
          background: radial-gradient(1200px 500px at 85% -10%, rgba(200,64,47,.13), transparent 60%), var(--bg); }
-  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 18px 80px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 24px 18px 80px; }
   a { color: var(--accent2); }
   .zpet { font-size: 14px; text-decoration: none; color: var(--muted); }
   .zpet:hover { color: var(--text); }
-  h1 { font: 800 clamp(40px, 8vw, 68px)/.95 var(--display); letter-spacing: .5px; text-transform: uppercase; margin: 18px 0 6px; }
+  h1 { font: 800 clamp(40px, 8vw, 64px)/.95 var(--display); letter-spacing: .5px; text-transform: uppercase; margin: 16px 0 6px; }
   h1 span { color: var(--accent); }
-  .sub { color: var(--muted); margin: 0 0 26px; max-width: 60ch; }
+  .sub { color: var(--muted); margin: 0 0 18px; max-width: 64ch; }
+  h2.sek { font: 700 22px var(--display); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 8px; color: var(--muted); }
 
-  form { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent);
-         padding: 18px; display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+  .ucet { display: flex; gap: 10px; flex-wrap: wrap; align-items: end; margin-bottom: 14px; }
+  .ucet label { flex: 1 1 200px; }
   label { display: grid; gap: 5px; font: 600 13px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
-  label.cele { grid-column: 1 / -1; }
-  input { font: 500 16px var(--body); color: var(--text); background: var(--panel2); border: 1px solid var(--line);
+  input, select, textarea { font: 500 16px var(--body); color: var(--text); background: var(--panel2); border: 1px solid var(--line);
           padding: 10px 12px; border-radius: 3px; width: 100%; }
-  input:focus { outline: 2px solid var(--accent2); outline-offset: -1px; }
+  textarea { min-height: 140px; resize: vertical; line-height: 1.5; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent2); outline-offset: -1px; }
   small { font: 400 12px var(--body); text-transform: none; letter-spacing: 0; color: var(--muted); }
-  .tlacitka { grid-column: 1 / -1; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  button { font: 700 18px var(--display); text-transform: uppercase; letter-spacing: 1px; cursor: pointer;
-           background: var(--accent); color: #fff; border: 0; padding: 11px 22px; border-radius: 3px; }
+  button { font: 700 17px var(--display); text-transform: uppercase; letter-spacing: 1px; cursor: pointer;
+           background: var(--accent); color: #fff; border: 0; padding: 10px 20px; border-radius: 3px; }
   button:hover:not(:disabled) { filter: brightness(1.12); }
   button:disabled { opacity: .5; cursor: default; }
-  button.vedl { background: transparent; color: var(--text); border: 1px solid var(--line); font-size: 15px; padding: 9px 14px; }
+  button.vedl { background: transparent; color: var(--text); border: 1px solid var(--line); font-size: 15px; padding: 8px 14px; }
+  button.mini { font-size: 13px; padding: 5px 10px; }
 
-  #stav { margin: 22px 0 0; color: var(--muted); min-height: 1.6em; display: flex; gap: 10px; align-items: center; }
+  nav.zalozky { display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--line); margin: 0 0 20px; scrollbar-width: thin; }
+  nav.zalozky button { background: none; color: var(--muted); border: 0; border-bottom: 3px solid transparent; border-radius: 0;
+                       padding: 10px 12px; font-size: 16px; white-space: nowrap; }
+  nav.zalozky button.akt { color: var(--text); border-bottom-color: var(--accent); }
+  section.tab { display: none; } section.tab.akt { display: block; }
+
+  .panel { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent); padding: 18px; }
+  form.panel { display: grid; gap: 14px; grid-template-columns: 2fr 1fr; }
+  .cele { grid-column: 1 / -1; }
+  .radek { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
+  .prazdno, .info-text { color: var(--muted); font-size: 14px; }
+
+  .stav { margin: 18px 0 0; color: var(--muted); min-height: 1.6em; display: flex; gap: 10px; align-items: center; }
   .spin { width: 14px; height: 14px; border: 2px solid var(--line); border-top-color: var(--accent2); border-radius: 50%;
-          animation: t .8s linear infinite; flex: none; }
+          animation: t .8s linear infinite; flex: none; display: inline-block; }
   @keyframes t { to { transform: rotate(360deg); } }
   .chyba { color: var(--bad) !important; }
 
-  #hlava { display: none; margin: 26px 0 0; padding: 14px 18px; background: var(--panel2); border: 1px solid var(--line);
+  #hlava { display: none; margin: 22px 0 0; padding: 14px 18px; background: var(--panel2); border: 1px solid var(--line);
            font: 700 24px var(--display); text-transform: uppercase; letter-spacing: .5px; }
   #hlava .vys { float: right; font-size: 18px; }
-  #hlava .vys.win { color: var(--good); } #hlava .vys.loss { color: var(--bad); }
-  #vystup { background: var(--panel); border: 1px solid var(--line); border-top: 0; padding: 4px 22px 18px; display: none; }
-  #vystup h1, #vystup h2, #vystup h3 { font-family: var(--display); text-transform: uppercase; letter-spacing: .5px; line-height: 1.15; }
-  #vystup h1 { font-size: 30px; } #vystup h2 { font-size: 24px; color: var(--accent2); margin: 26px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
-  #vystup h3 { font-size: 19px; margin: 18px 0 6px; }
-  #vystup li { margin: 4px 0; }
-  .tabulka { overflow-x: auto; margin: 10px 0; }
-  #vystup table { border-collapse: collapse; font-size: 14px; min-width: 60%; }
-  #vystup th, #vystup td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
-  #vystup th { background: var(--panel2); font-family: var(--display); text-transform: uppercase; letter-spacing: .5px; } #vystup strong { color: #fff; }
-  #vystup p, #vystup ul, #vystup ol { margin: 8px 0; }
-  .kurzor::after { content: "▌"; color: var(--accent2); animation: b 1s steps(1) infinite; }
-  @keyframes b { 50% { opacity: 0; } }
-  #akce { display: none; margin-top: 12px; gap: 10px; }
+  .win { color: var(--good); } .loss { color: var(--bad); }
 
-  #hist { margin-top: 40px; }
-  #hist h2 { font: 700 22px var(--display); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px; color: var(--muted); }
-  #hist .prazdno { color: var(--muted); font-size: 14px; }
-  #autoinfo { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; }
-  .polozka { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line);
-             border-left: 4px solid var(--line); margin-bottom: 6px; cursor: pointer; }
-  .polozka:hover { background: var(--panel2); }
-  .polozka.win { border-left-color: var(--good); } .polozka.loss { border-left-color: var(--bad); }
-  .polozka .hr { font: 700 18px var(--display); text-transform: uppercase; min-width: 130px; }
-  .polozka .info { color: var(--muted); font-size: 14px; flex: 1; }
-  .polozka .x { background: none; border: 0; color: var(--muted); font-size: 20px; padding: 0 6px; cursor: pointer; }
-  .polozka .x:hover { color: var(--bad); filter: none; }
-  #starsi { margin-top: 40px; }
-  #starsi h2 { font: 700 22px var(--display); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 6px; color: var(--muted); }
-  .radek { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin: 10px 0; }
-  select { font: 500 15px var(--body); color: var(--text); background: var(--panel2); border: 1px solid var(--line); padding: 9px 10px; border-radius: 3px; }
-  .zapas { display: grid; grid-template-columns: 22px 130px 1fr auto; gap: 10px; align-items: center; padding: 8px 12px;
-           background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); margin-bottom: 4px; font-size: 14px; }
-  .zapas.win { border-left-color: var(--good); } .zapas.loss { border-left-color: var(--bad); }
-  .zapas input { width: 18px; height: 18px; accent-color: var(--accent); }
-  .zapas .hr { font: 700 17px var(--display); text-transform: uppercase; }
-  .zapas .info { color: var(--muted); }
-  .prava { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
-  button.mini { font-size: 13px; padding: 5px 10px; }
-  .legenda { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
-  .legenda b { color: var(--text); font-weight: 600; }
+  .znamky { display: none; background: var(--panel); border: 1px solid var(--line); border-top: 0; padding: 14px 18px; }
+  .znamky .rada { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
+  .zn { min-width: 74px; text-align: center; padding: 6px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel2); }
+  .zn b { display: block; font: 800 26px/1 var(--display); }
+  .zn span { font: 600 11px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .zn.velka b { font-size: 36px; }
+  .g-good b { color: var(--good); } .g-mid b { color: var(--mid); } .g-bad b { color: var(--bad); }
+  .stitky { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
   .stitek { font: 600 12px var(--display); text-transform: uppercase; letter-spacing: .5px; padding: 3px 8px; border-radius: 3px;
             border: 1px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .stitek.chyba-tag { color: #f0b3a8; border-color: #6b2e25; background: #2a1714; }
   .stitek.ok { color: var(--good); border-color: var(--good); }
   .stitek.parse { color: var(--accent2); border-color: var(--accent2); }
   .stitek.prace { color: #fff; background: var(--accent); border-color: var(--accent); }
-  @media (max-width: 600px) { .zapas { grid-template-columns: 22px 1fr auto; } .zapas .info { grid-column: 2 / -1; grid-row: 2; } }
-  @media (max-width: 600px) { form { grid-template-columns: 1fr; } #hlava .vys { float: none; display: block; } }
+  .cil { margin-top: 10px; font-size: 15px; } .cil b { color: var(--accent2); }
+
+  .md { background: var(--panel); border: 1px solid var(--line); border-top: 0; padding: 4px 22px 18px; }
+  .md.samostatny { border-top: 1px solid var(--line); margin-top: 14px; }
+  .md h1, .md h2, .md h3 { font-family: var(--display); text-transform: uppercase; letter-spacing: .5px; line-height: 1.15; }
+  .md h1 { font-size: 28px; } .md h2 { font-size: 23px; color: var(--accent2); margin: 24px 0 8px; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  .md h3 { font-size: 19px; margin: 18px 0 6px; }
+  .md li { margin: 4px 0; } .md strong { color: #fff; }
+  .md p, .md ul, .md ol { margin: 8px 0; }
+  .tabulka { overflow-x: auto; margin: 10px 0; }
+  .md table { border-collapse: collapse; font-size: 14px; min-width: 60%; }
+  .md th, .md td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+  .md th { background: var(--panel2); font-family: var(--display); text-transform: uppercase; letter-spacing: .5px; }
+  .kurzor::after { content: "▌"; color: var(--accent2); animation: b 1s steps(1) infinite; }
+  @keyframes b { 50% { opacity: 0; } }
+  #akce { display: none; margin-top: 12px; gap: 10px; flex-wrap: wrap; }
+
+  .filtry { display: grid; grid-template-columns: 2fr repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+  .filtry input, .filtry select { font-size: 14px; padding: 8px 10px; }
+  .polozka { display: grid; grid-template-columns: 54px 1fr auto; gap: 12px; align-items: center; padding: 10px 14px; background: var(--panel);
+             border: 1px solid var(--line); border-left: 4px solid var(--line); margin-bottom: 6px; cursor: pointer; }
+  .polozka:hover { background: var(--panel2); }
+  .polozka.win { border-left-color: var(--good); color: inherit; } .polozka.loss { border-left-color: var(--bad); color: inherit; }
+  .polozka .znm { font: 800 26px/1 var(--display); text-align: center; }
+  .polozka .hr { font: 700 18px var(--display); text-transform: uppercase; }
+  .polozka .info { color: var(--muted); font-size: 13px; }
+  .polozka .stitky { margin-top: 4px; }
+  .polozka .x { background: none; border: 0; color: var(--muted); font-size: 20px; padding: 0 6px; }
+  .polozka .x:hover { color: var(--bad); filter: none; }
+  #autoinfo { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; }
+
+  .karty { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-bottom: 14px; }
+  .karta { background: var(--panel); border: 1px solid var(--line); padding: 14px 16px; }
+  .karta h3 { font: 700 17px var(--display); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 10px; color: var(--muted); }
+  .bar { display: grid; grid-template-columns: 1fr 120px 54px; gap: 8px; align-items: center; font-size: 14px; margin: 5px 0; }
+  .bar .stopa { height: 8px; background: var(--panel2); border-radius: 4px; overflow: hidden; }
+  .bar .stopa i { display: block; height: 100%; background: var(--accent); }
+  .bar .stopa i.good { background: var(--good); }
+  .trend-up { color: var(--bad); } .trend-down { color: var(--good); } .trend-same { color: var(--muted); }
+  svg.graf { width: 100%; height: 140px; display: block; }
+
+  #hlava, #zapasyBox { scroll-margin-top: 210px; }
+  form.lepkavy { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; box-shadow: 0 8px 20px rgba(0,0,0,.45); }
+  .seznam-zapasu { background: var(--panel); border: 1px solid var(--line); }
+  .seznam-zapasu .vz { display: grid; grid-template-columns: 54px 1fr auto; gap: 10px; align-items: center; padding: 7px 12px;
+                       cursor: pointer; border-left: 3px solid transparent; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .seznam-zapasu .vz:last-child { border-bottom: 0; }
+  .seznam-zapasu .vz.win { border-left-color: var(--good); } .seznam-zapasu .vz.loss { border-left-color: var(--bad); }
+  .seznam-zapasu .vz:hover { background: var(--panel2); }
+  .seznam-zapasu .vz.vybrany { background: #2a2418; box-shadow: inset 0 0 0 1px var(--accent2); }
+  .seznam-zapasu .vz img { width: 54px; height: 30px; object-fit: cover; border-radius: 2px; }
+  .seznam-zapasu .vz b { font: 700 16px/1.1 var(--display); text-transform: uppercase; }
+  .seznam-zapasu .male { display: block; color: var(--muted); font-size: 12px; }
+  .seznam-zapasu .vpravo { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+  .seznam-zapasu .znb { font: 800 18px/1 var(--display); padding: 2px 7px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel2); }
+  .vyber-obal { position: relative; display: block; }
+  .vyber { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50; max-height: 380px; overflow-y: auto;
+           background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 12px 30px rgba(0,0,0,.5);
+           text-transform: none; letter-spacing: 0; font: 400 14px var(--body); color: var(--text); }
+  .vyber .vz { display: grid; grid-template-columns: 54px 1fr auto; gap: 10px; align-items: center; padding: 6px 10px;
+               cursor: pointer; border-left: 3px solid transparent; }
+  .vyber .vz.win { border-left-color: var(--good); } .vyber .vz.loss { border-left-color: var(--bad); }
+  .vyber .vz:hover, .vyber .vz.akt, .vyber .vh:hover, .vyber .vh.akt { background: #262b34; }
+  .vyber .vz img { width: 54px; height: 30px; object-fit: cover; border-radius: 2px; }
+  .vyber .vz b { font: 700 15px/1.1 var(--display); text-transform: uppercase; }
+  .vyber .male { display: block; color: var(--muted); font-size: 12px; }
+  .vyber .vz .vpravo { text-align: right; font-size: 13px; }
+  .vyber .znb { font: 800 18px/1 var(--display); padding: 2px 7px; border: 1px solid var(--line); border-radius: 3px; }
+  .vyber .mrizka { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 4px; padding: 6px; }
+  .vyber .vh { cursor: pointer; padding: 4px; border-radius: 3px; text-align: center; }
+  .vyber .vh img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 2px; display: block; background: var(--panel); }
+  .vyber .vh span { display: block; font: 600 12px/1.2 var(--display); text-transform: uppercase; margin-top: 3px;
+                    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vyber .hlavicka-vyberu { padding: 8px 10px 4px; font: 700 12px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .vyber .nic { padding: 12px; color: var(--muted); display: flex; gap: 8px; align-items: center; }
+  .hist-filtry { grid-template-columns: repeat(4, 1fr); }
+  .hist-tab { background: var(--panel); border: 1px solid var(--line); }
+  .hist-hlava, .hz { display: grid; grid-template-columns: 26px minmax(170px, 2fr) 1.2fr 1fr 1fr 1.3fr 150px; gap: 10px; align-items: center; padding: 6px 12px; }
+  .hist-hlava { font: 700 14px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .hz { border-bottom: 1px solid var(--line); border-left: 3px solid transparent; cursor: pointer; font-size: 14px; }
+  .hz:hover { background: var(--panel2); }
+  .hz.win { border-left-color: var(--good); color: inherit; } .hz.loss { border-left-color: var(--bad); color: inherit; }
+  .hz input { width: 18px; height: 18px; accent-color: var(--accent); padding: 0; }
+  .hz .hero { display: flex; gap: 10px; align-items: center; min-width: 0; }
+  .hz .hero img { width: 54px; height: 30px; object-fit: cover; border-radius: 2px; flex: none; background: var(--panel2); }
+  .hz .hero b { display: block; font: 700 16px/1.1 var(--display); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .hz .male { display: block; color: var(--muted); font-size: 12px; }
+  .hz .vyhra { color: var(--good); font-weight: 600; } .hz .prohra { color: var(--bad); font-weight: 600; }
+  .hz .tyc { height: 4px; background: var(--panel2); border-radius: 2px; margin-top: 3px; overflow: hidden; }
+  .hz .tyc i { display: block; height: 100%; background: var(--text); opacity: .7; }
+  .hz .kda-tyc { display: flex; height: 4px; margin-top: 3px; border-radius: 2px; overflow: hidden; }
+  .hz .kda-tyc i:nth-child(1) { background: var(--good); } .hz .kda-tyc i:nth-child(2) { background: var(--bad); } .hz .kda-tyc i:nth-child(3) { background: var(--muted); }
+  .hz .ai { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+  .hz .znb { font: 800 20px/1 var(--display); padding: 2px 8px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel2); }
+  .hz .odkazy { font-size: 11px; color: var(--muted); }
+  .hz .odkazy a { color: var(--muted); margin-right: 6px; text-decoration: none; } .hz .odkazy a:hover { color: var(--accent2); }
+  @media (max-width: 760px) {
+    .hist-hlava { display: none; }
+    .hz { grid-template-columns: 22px 1fr auto; grid-template-areas: "c h a" "c v v" "c t t"; row-gap: 2px; }
+    .hz > :nth-child(1) { grid-area: c; } .hz > :nth-child(2) { grid-area: h; } .hz > :nth-child(7) { grid-area: a; }
+    .hz > :nth-child(3), .hz > :nth-child(4), .hz > :nth-child(5), .hz > :nth-child(6) { display: inline-block; }
+    .hz > :nth-child(3) { grid-area: v; } .hz > :nth-child(4), .hz > :nth-child(5), .hz > :nth-child(6) { display: none; }
+    .hist-filtry { grid-template-columns: 1fr 1fr; }
+  }
+  .zapas { display: grid; grid-template-columns: 22px 130px 1fr auto; gap: 10px; align-items: center; padding: 8px 12px;
+           background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--line); margin-bottom: 4px; font-size: 14px; cursor: pointer; }
+  .zapas.win { border-left-color: var(--good); color: inherit; } .zapas.loss { border-left-color: var(--bad); color: inherit; }
+  .zapas input { width: 18px; height: 18px; accent-color: var(--accent); padding: 0; }
+  .zapas .hr { font: 700 17px var(--display); text-transform: uppercase; }
+  .zapas .info { color: var(--muted); }
+  .prava { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
+  .legenda { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
+  .legenda b { color: var(--text); font-weight: 600; }
+  .chipy { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  .chipy button { font-size: 14px; padding: 5px 10px; }
+  .prepinac { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
+  .prepinac input { width: 18px; height: 18px; accent-color: var(--accent); padding: 0; }
+
+  @media (max-width: 680px) {
+    form.panel { grid-template-columns: 1fr; }
+    .filtry { grid-template-columns: 1fr 1fr; } .filtry input { grid-column: 1 / -1; }
+    .zapas { grid-template-columns: 22px 1fr auto; } .zapas .info { grid-column: 2 / -1; grid-row: 2; }
+    #hlava .vys { float: none; display: block; }
+    .bar { grid-template-columns: 1fr 80px 44px; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <a class="zpet" href="/">← Dota 2 souhrn</a>
   <h1>AI <span>trenér</span></h1>
-  <p class="sub">Zadej zápas a AI ti z rozparsovaného replaye napíše rozbor: co šlo dobře, největší chyby s časy, build a na co se příště zaměřit.</p>
+  <p class="sub">Rozbory zápasů, hodnocení picku, srovnání s tvým průměrem i s profíky, návody proti hrdinům a dopad patchů.</p>
 
-  <form id="f">
-    <label class="cele">Číslo zápasu
-      <input id="match" inputmode="numeric" placeholder="např. 8958223510 nebo odkaz z OpenDoty/Dotabuffu" required>
-    </label>
-    <label>Tvoje ID hráče
-      <input id="hrac" inputmode="numeric" placeholder="Friend ID z OpenDoty">
-      <small>Pamatuje se v tomhle prohlížeči.</small>
-    </label>
-    <label>…nebo hrdina
-      <input id="hrdina" placeholder="např. Clinkz">
-      <small>Když máš skrytý profil.</small>
-    </label>
-    <label class="cele">Heslo
-      <input id="heslo" type="password" autocomplete="current-password" placeholder="heslo k AI trenérovi">
-    </label>
-    <div class="tlacitka">
-      <button id="go" type="submit">Rozebrat zápas</button>
-      <button id="bez" class="vedl" type="button" hidden>Rozebrat i bez replaye</button>
+  <div class="ucet">
+    <label>Tvoje ID hráče <input id="hrac" inputmode="numeric" placeholder="Friend ID z OpenDoty"></label>
+    <label>Heslo <input id="heslo" type="password" autocomplete="current-password" placeholder="heslo k AI trenérovi"></label>
+  </div>
+
+  <nav class="zalozky" id="zalozky">
+    <button data-tab="rozbor" class="akt">Rozbor</button>
+    <button data-tab="rozbory">Moje rozbory</button>
+    <button data-tab="statistiky">Statistiky</button>
+    <button data-tab="starsi">Historie zápasů</button>
+    <button data-tab="proti">Proti hrdinovi</button>
+    <button data-tab="pool">Hero pool</button>
+    <button data-tab="patch">Patch</button>
+    <button data-tab="znalosti">Znalosti</button>
+  </nav>
+
+  <!-- ================= ROZBOR ================= -->
+  <section class="tab akt" id="tab-rozbor">
+    <form class="panel lepkavy" id="f">
+      <label>Číslo zápasu
+        <input id="match" autocomplete="off" placeholder="Vyber zápas v seznamu níž, nebo vlož číslo / odkaz" required>
+      </label>
+      <label>…nebo hrdina
+        <input id="hrdina" placeholder="jen při skrytém profilu">
+      </label>
+      <div class="radek cele" style="margin:0">
+        <button id="go" type="submit">Rozebrat zápas</button>
+        <button id="bez" class="vedl" type="button" hidden>Rozebrat i bez replaye</button>
+        <button id="prepnoutSeznam" class="vedl" type="button" hidden>▾ Vybrat jiný zápas</button>
+      </div>
+    </form>
+    <div class="stav" id="stav"></div>
+    <div id="zapasyBox">
+      <div class="radek" style="justify-content:space-between;margin:16px 0 6px">
+        <h2 class="sek" style="margin:0">Tvoje zápasy</h2><span class="info-text" id="zapasyInfo"></span>
+      </div>
+      <div class="seznam-zapasu" id="zapasySeznam"></div>
+      <div class="radek" style="justify-content:center"><button class="vedl" id="zapasyDalsi" type="button" hidden>Zobrazit další</button></div>
     </div>
-  </form>
+    <div id="hlava"></div>
+    <div class="znamky" id="znamky"></div>
+    <div class="md" id="vystup" style="display:none"></div>
+    <div id="akce">
+      <button class="vedl" id="kopir" type="button">Kopírovat rozbor</button>
+      <button class="vedl" id="znovu" type="button" hidden>Rozebrat znovu</button>
+    </div>
+  </section>
 
-  <div id="stav"></div>
-  <div id="hlava"></div>
-  <div id="vystup"></div>
-  <div id="akce"><button class="vedl" id="kopir" type="button">Kopírovat rozbor</button>
-    <button class="vedl" id="znovu" type="button" hidden>Rozebrat znovu</button></div>
-
-  <section id="hist">
-    <h2>Moje rozbory</h2>
+  <!-- ================= MOJE ROZBORY ================= -->
+  <section class="tab" id="tab-rozbory">
     <p id="autoinfo" class="prazdno"></p>
+    <div class="filtry">
+      <input id="fHledat" placeholder="Hledat (hrdina, číslo zápasu, text rozboru)…">
+      <select id="fHrdina"><option value="">Všichni hrdinové</option></select>
+      <select id="fVysledek"><option value="">Výhry i prohry</option><option value="w">Jen výhry</option><option value="l">Jen prohry</option></select>
+      <select id="fTyp"><option value="">Auto i ruční</option><option value="a">Automatické</option><option value="r">Ruční</option></select>
+      <select id="fZnamka"><option value="">Jakákoli známka</option><option value="7">7 a víc</option><option value="5">5 a víc</option><option value="-4">4 a méně</option></select>
+    </div>
+    <p class="info-text" id="pocetRozboru"></p>
     <div id="seznam"></div>
   </section>
 
-  <section id="starsi">
-    <h2>Starší zápasy</h2>
-    <p class="prazdno">Načti své zápasy až 2 měsíce zpátky a vyber, které chceš rozebrat. Valve replaye po zhruba 2 týdnech maže,
-      takže u starších zápasů jde plný rozbor jen tehdy, když je OpenDota zpracovala dřív. Ostatní se rozeberou ze základních statistik.</p>
-    <div class="radek">
-      <select id="obdobi">
-        <option value="7">Posledních 7 dní</option><option value="14">Posledních 14 dní</option>
-        <option value="30">Posledních 30 dní</option><option value="60" selected>Poslední 2 měsíce</option>
-      </select>
-      <button class="vedl" id="nacist" type="button">Načíst zápasy</button>
+  <!-- ================= STATISTIKY ================= -->
+  <section class="tab" id="tab-statistiky">
+    <p class="info-text">Statistiky se počítají z rozborů, které mají strukturované hodnocení (známky a štítky chyb). Starší rozbory bez hodnocení se nezapočítají.</p>
+    <div id="stat"></div>
+  </section>
+
+  <!-- ================= STARŠÍ ZÁPASY ================= -->
+  <section class="tab" id="tab-starsi">
+    <div class="filtry hist-filtry">
+      <select id="hHrdina"><option value="">Všichni hrdinové</option></select>
+      <select id="hVysledek"><option value="">Výhry i prohry</option><option value="1">Jen výhry</option><option value="0">Jen prohry</option></select>
+      <select id="hTyp"><option value="">Všechny typy</option><option value="ranked">Ranked</option><option value="unranked">Unranked</option><option value="turbo">Turbo</option></select>
+      <select id="hObdobi"><option value="">Celá historie</option><option value="7">Posledních 7 dní</option><option value="30">Posledních 30 dní</option><option value="60">Poslední 2 měsíce</option><option value="365">Poslední rok</option></select>
     </div>
     <div class="radek" id="starsiOvl" hidden>
       <button class="vedl" id="vybratNe" type="button">Vybrat nerozebrané</button>
@@ -159,169 +297,131 @@
       <button class="vedl" id="stop" type="button" hidden>Zastavit</button>
     </div>
     <p id="starsiInfo" class="prazdno"></p>
-    <p class="legenda"><b>Plný rozbor</b> = OpenDota už replay zpracovala, rozbor bude včetně časů smrtí, teamfightů a lajny.
-      <b>Plný rozbor (po zpracování)</b> = novější zápas, o zpracování se požádá automaticky.
-      <b>Jen statistiky</b> = replay už Valve smazal a OpenDota ho nestihla zpracovat.
-      Kliknutím na zápas se vyplní formulář, tlačítkem <b>Rozebrat</b> se rovnou rozebere.</p>
-    <div id="starsiSeznam"></div>
+    <div class="hist-tab">
+      <div class="hist-hlava"><span></span><span>Hrdina</span><span>Výsledek</span><span>Typ</span><span>Délka</span><span>KDA</span><span>AI rozbor</span></div>
+      <div id="starsiSeznam"></div>
+    </div>
+    <div class="radek" style="justify-content:center"><button class="vedl" id="dalsi" type="button" hidden>Načíst dalších 50</button></div>
+    <p class="legenda"><b>Známka</b> = už rozebráno (klikni pro otevření). <b>Plný rozbor</b> = replay je zpracovaný.
+      <b>Po zpracování</b> = o zpracování se požádá samo. <b>Jen statistiky</b> = replay už Valve smazal (cca po 2 týdnech).
+      Kliknutím na řádek se zápas vyplní do formuláře, tlačítkem <b>Rozebrat</b> se rovnou rozebere.</p>
   </section>
+
+  <!-- ================= PROTI HRDINOVI ================= -->
+  <section class="tab" id="tab-proti">
+    <div class="panel">
+      <h2 class="sek">Jak hrát proti…</h2>
+      <p class="info-text" style="margin-top:0">Osobní návod podle tvých her proti hrdinovi, tvého hero poolu, tvých opakovaných chyb a aktuálního patche.</p>
+      <div class="radek">
+        <span class="vyber-obal" style="flex:1 1 220px"><input id="protiHero" autocomplete="off" placeholder="Klikni a vyber hrdinu, nebo začni psát…"></span>
+        <button id="protiGo" type="button">Vytvořit návod</button>
+      </div>
+      <div class="chipy" id="protiUlozene"></div>
+    </div>
+    <div class="stav" id="protiStav"></div>
+    <div class="md samostatny" id="protiOut" style="display:none"></div>
+  </section>
+
+  <!-- ================= HERO POOL ================= -->
+  <section class="tab" id="tab-pool">
+    <div class="panel">
+      <h2 class="sek">Hero pool</h2>
+      <p class="info-text" style="margin-top:0">Koho si nechat, koho vyřadit, kdo ti jde a hraješ ho málo a co přidat podle aktuální mety ve tvém ranku.</p>
+      <div class="radek"><button id="poolGo" type="button">Zhodnotit můj hero pool</button><span class="info-text" id="poolDatum"></span></div>
+    </div>
+    <div class="stav" id="poolStav"></div>
+    <div class="md samostatny" id="poolOut" style="display:none"></div>
+  </section>
+
+  <!-- ================= PATCH ================= -->
+  <section class="tab" id="tab-patch">
+    <div class="panel">
+      <h2 class="sek">Dopad patche</h2>
+      <p class="info-text" style="margin-top:0">Jen změny, které se týkají tvých hrdinů a itemů. Shrnutí nového patche se vytvoří i samo (při denní kontrole).</p>
+      <div class="radek">
+        <button id="patchGo" type="button">Zobrazit dopad patche</button>
+        <button id="patchZnovu" class="vedl" type="button">Vytvořit znovu</button>
+        <span class="info-text" id="patchDatum"></span>
+      </div>
+    </div>
+    <div class="stav" id="patchStav"></div>
+    <div class="md samostatny" id="patchOut" style="display:none"></div>
+  </section>
+
+  <!-- ================= ZNALOSTI ================= -->
+  <section class="tab" id="tab-znalosti">
+    <div class="panel">
+      <h2 class="sek">Znalosti o hrdinech</h2>
+      <p class="info-text" style="margin-top:0">Tvoje poznámky a aktuální guide k hrdinovi. Trenér je dostane u každého rozboru daného hrdiny.</p>
+      <label class="prepinac"><input type="checkbox" id="autoGuide"> AI si sama najde aktuální guide, když chybí nebo je starší než 3 týdny (při ručním rozboru)</label>
+      <div class="radek">
+        <span class="vyber-obal" style="flex:1 1 220px"><input id="znHero" autocomplete="off" placeholder="Klikni a vyber hrdinu, nebo začni psát…"></span>
+        <button id="znNacist" class="vedl" type="button">Otevřít</button>
+      </div>
+      <div id="znObsah" hidden>
+        <label>Moje poznámky
+          <textarea id="znPoznamky" placeholder="Např. build, který mi funguje, na co si dávat pozor, rady z videí…"></textarea>
+        </label>
+        <div class="radek"><button id="znUlozit" type="button">Uložit poznámky</button>
+          <button id="znGuide" class="vedl" type="button">Najít aktuální guide (AI)</button>
+          <span class="info-text" id="znGuideDatum"></span></div>
+      </div>
+    </div>
+    <div class="stav" id="znStav"></div>
+    <div class="md samostatny" id="znOut" style="display:none"></div>
+  </section>
+
+  <datalist id="seznamHrdinu"></datalist>
 </div>
 
 <script>
 const $ = (id) => document.getElementById(id);
+const OD = "https://api.opendota.com/api";
 const store = {
   get: (k) => { try { return localStorage.getItem(k) || ""; } catch { return ""; } },
   set: (k, v) => { try { localStorage.setItem(k, v); } catch {} },
 };
-
-// předvyplnění z adresy (?match=…&hrac=…) a z paměti
 const q = new URLSearchParams(location.search);
 $("match").value = q.get("match") || "";
 $("hrac").value = q.get("hrac") || store.get("trener_hrac");
 $("hrdina").value = q.get("hrdina") || "";
 $("heslo").value = store.get("trener_heslo");
+$("hrac").addEventListener("change", () => store.set("trener_hrac", $("hrac").value.trim()));
+const hracId = () => $("hrac").value.trim().replace(/\D/g, "");
 
-let text = "";
-let bezi = false;
-
-// --- historie rozborů: na serveru (když je nastavené úložiště), jinak v tomhle prohlížeči
-const HIST = "trener_historie";
-let serverovy = false;      // true = rozbory se berou ze serveru
-let chybaServeru = "";
-let historie = [];          // aktuálně zobrazený seznam
-function nactiLokal() { try { return JSON.parse(localStorage.getItem(HIST) || "[]"); } catch { return []; } }
-function ulozLokal(h) { try { localStorage.setItem(HIST, JSON.stringify(h.slice(0, 150))); } catch {} }
-function klic(match, hrac, hrdina) {
-  return serverovy
-    ? `rozbor:${match}:${(hrac || "").trim() || "h-" + (hrdina || "").trim().toLowerCase()}`
-    : match + "|" + (hrac || "").trim() + "|" + (hrdina || "").trim().toLowerCase();
+// ---------------------------------------------------------------- záložky
+function prepni(tab) {
+  if (!$("tab-" + tab)) tab = "rozbor";
+  for (const b of document.querySelectorAll("#zalozky button")) b.classList.toggle("akt", b.dataset.tab === tab);
+  for (const s of document.querySelectorAll("section.tab")) s.classList.toggle("akt", s.id === "tab-" + tab);
+  if (location.hash.slice(1) !== tab) history.replaceState(null, "", "#" + tab);
+  if (tab === "statistiky") vykresliStatistiky();
+  if (tab === "starsi" && !starsi.length && hracId()) nactiStarsi();
+  if (["proti", "pool", "patch"].includes(tab)) nactiUlozeneNastroje();
+  if (tab === "znalosti") nactiNastaveni();
 }
-function najdiVHist(match, hrac, hrdina) { return historie.find((z) => z.klic === klic(match, hrac, hrdina)); }
+for (const b of document.querySelectorAll("#zalozky button")) b.addEventListener("click", () => prepni(b.dataset.tab));
+window.addEventListener("hashchange", () => prepni(location.hash.slice(1)));
 
-async function api(akce, extra = {}) {
-  const r = await fetch("/api/auto", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ akce, heslo: $("heslo").value, hrac: $("hrac").value.trim(), ...extra }),
-  });
-  const j = await r.json().catch(() => ({}));
-  return { status: r.status, ...j };
+// ---------------------------------------------------------------- pomocné
+function stavEl(el, msg, { spin = false, chyba = false } = {}) {
+  el.className = "stav" + (chyba ? " chyba" : "");
+  el.innerHTML = (spin ? '<span class="spin"></span>' : "") + "<span></span>";
+  el.lastChild.textContent = msg || "";
 }
-
-async function nactiHistorii() {
-  chybaServeru = "";
-  if (!$("heslo").value) { serverovy = false; historie = nactiLokal(); chybaServeru = "nejdřív vyplň heslo"; return vykresliSeznam(); }
-  try {
-    const j = await api("seznam");
-    if (j.status === 200 && Array.isArray(j.rozbory)) {
-      serverovy = true;
-      if (j.hrac && !$("hrac").value.trim()) { $("hrac").value = j.hrac; store.set("trener_hrac", j.hrac); }
-      historie = j.rozbory;
-      // jednorázově přesunout rozbory uložené dřív jen v prohlížeči (zobrazí se dál i bez serveru)
-      const lok = nactiLokal().filter((z) => !historie.some((y) => String(y.match) === String(z.match) && (y.hrac || "") === (z.hrac || "")));
-      historie = historie.concat(lok.map((z) => ({ ...z, lokalni: true })));
-    } else {
-      serverovy = false; historie = nactiLokal();
-      chybaServeru = j.error || `chyba ${j.status}`;
-    }
-  } catch (e) { serverovy = false; historie = nactiLokal(); chybaServeru = e.message || String(e); }
-  vykresliSeznam();
-  if (starsi.length) vykresliStarsi();
-}
-
-function infoAuto(msg, spin) {
-  $("autoinfo").innerHTML = (spin ? '<span class="spin"></span>' : "") + "<span></span>";
-  $("autoinfo").lastChild.textContent = msg;
-}
-
-async function automatika() {
-  if (!serverovy) {
-    infoAuto("Rozbory se ukládají jen v tomhle prohlížeči. Server: " + (chybaServeru || "úložiště není nastavené") + ".", false);
-    return;
-  }
-  infoAuto("Kontroluji nové zápasy na OpenDotě…", true);
-  try {
-    const j = await api("sync");
-    if (j.status !== 200) return infoAuto("Automatika: " + (j.error || "chyba " + j.status), false);
-    if (j.bezi) return infoAuto("Automatika už právě běží, zkus obnovit stránku za pár minut.", false);
-    const casti = [];
-    if (j.rozebrano.length) casti.push(`Nově rozebráno: ${j.rozebrano.map((x) => x.hrdina).join(", ")}.`);
-    if (j.ceka.length) casti.push(`${j.ceka.length} ${j.ceka.length === 1 ? "zápas čeká" : "zápasy čekají"} na zpracování, rozebere se při příští kontrole.`);
-    if (j.limit) casti.push("Dosažen denní limit automatických rozborů.");
-    if (j.chyby.length) casti.push("Chyby: " + j.chyby.join("; "));
-    if (!casti.length) casti.push("Žádné nové zápasy k rozebrání.");
-    infoAuto(casti.join(" "), false);
-    if (j.rozebrano.length) await nactiHistorii();
-  } catch (e) {
-    infoAuto("Automatika selhala: " + (e.message || e), false);
-  }
-}
-
+const stav = (msg, o) => stavEl($("stav"), msg, o);
 function datum(iso) {
   const d = new Date(iso);
   return d.toLocaleDateString("cs-CZ") + " " + d.toLocaleTimeString("cs-CZ", { hour: "2-digit", minute: "2-digit" });
 }
+const pockej = (ms) => new Promise((r) => setTimeout(r, ms));
+function matchId(v) { const m = String(v).match(/matches\/(\d+)/); return m ? m[1] : String(v).replace(/\D/g, ""); }
 
-function vykresliSeznam() {
-  const el = $("seznam");
-  el.innerHTML = "";
-  if (!historie.length) { el.innerHTML = '<p class="prazdno">Zatím žádné. Každý hotový rozbor se sem uloží.</p>'; return; }
-  for (const z of historie) {
-    const row = document.createElement("div");
-    row.className = "polozka " + (String(z.vysledek).startsWith("VÝHRA") ? "win" : "loss");
-    row.innerHTML = '<span class="hr"></span><span class="info"></span><button class="x" type="button" title="Smazat">×</button>';
-    row.querySelector(".hr").textContent = z.hrdina;
-    const hrano = z.hrano ? ` · hráno ${datum(z.hrano * 1000)}` : "";
-    row.querySelector(".info").textContent = `${z.auto ? "🤖 " : ""}${z.vysledek} · zápas ${z.match}${hrano || " · rozebráno " + datum(z.datum)}`;
-    row.addEventListener("click", () => ukazUlozeny(z));
-    row.querySelector(".x").addEventListener("click", async (e) => {
-      e.stopPropagation();
-      if (!confirm(`Smazat rozbor zápasu ${z.match} (${z.hrdina})?`)) return;
-      if (serverovy && !z.lokalni) await api("smazat", { klic: z.klic });
-      ulozLokal(nactiLokal().filter((y) => !(y.match === z.match && y.hrac === z.hrac)));
-      historie = historie.filter((y) => y !== z);
-      vykresliSeznam();
-    });
-    el.appendChild(row);
-  }
-}
-
-function hlavicka(hrdina, vys) {
-  $("hlava").innerHTML = `<span></span><span class="vys ${vys.startsWith("VÝHRA") ? "win" : "loss"}"></span>`;
-  $("hlava").firstChild.textContent = hrdina;
-  $("hlava").lastChild.textContent = vys;
-  $("hlava").style.display = "block";
-  $("vystup").style.display = "block";
-}
-
-function ukazUlozeny(z, zprava) {
-  $("match").value = z.match;
-  $("hrac").value = z.hrac || "";
-  $("hrdina").value = z.hrdinaZadany || "";
-  text = z.text;
-  hlavicka(z.hrdina, z.vysledek);
-  vykresli(true);
-  $("akce").style.display = "flex";
-  $("znovu").hidden = false;
-  stav(zprava || `Uložený rozbor z ${datum(z.datum)}.`);
-  $("hlava").scrollIntoView({ behavior: "smooth", block: "start" });
-}
-
-function stav(msg, { spin = false, chyba = false } = {}) {
-  $("stav").className = chyba ? "chyba" : "";
-  $("stav").innerHTML = (spin ? '<span class="spin"></span>' : "") + "<span></span>";
-  $("stav").lastChild.textContent = msg;
-}
-
-function matchId(v) {
-  const m = String(v).match(/matches\/(\d+)/);
-  return m ? m[1] : String(v).replace(/\D/g, "");
-}
-
-// --- jednoduchý Markdown → HTML (nadpisy, tučné, kurzíva, seznamy, odstavce)
+// Markdown → HTML (nadpisy, tučné, kurzíva, seznamy, tabulky, odkazy)
 function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
 function inline(s) {
   return esc(s)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
     .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
     .replace(/(^|[\s(])_(.+?)_(?=[\s.,;:!?)]|$)/g, "$1<em>$2</em>")
     .replace(/(^|[\s(])\*(?!\s)(.+?)\*(?=[\s.,;:!?)]|$)/g, "$1<em>$2</em>")
@@ -339,7 +439,7 @@ function md(src) {
     out.push(h + "</tbody></table></div>");
     tab = null;
   };
-  for (const raw of src.split("\n")) {
+  for (const raw of String(src).split("\n")) {
     const l = raw.trimEnd();
     let m;
     if (/^\s*\|.*\|\s*$/.test(l)) { zavri(); (tab = tab || []).push(bunky(l)); continue; }
@@ -354,92 +454,279 @@ function md(src) {
   zavri(); zavriTab();
   return out.join("");
 }
-function vykresli(konec) {
-  $("vystup").innerHTML = md(text);
-  $("vystup").classList.toggle("kurzor", !konec);
+function ukazMd(el, text, konec) {
+  el.style.display = "block";
+  el.innerHTML = md(text);
+  el.classList.toggle("kurzor", !konec);
 }
 
-const pockej = (ms) => new Promise((r) => setTimeout(r, ms));
+// POST + čtení streamu. Stavové řádky (\u001d…) jdou do onStav, za \u001e je JSON s metadaty.
+async function post(url, body, { onStav, onText, onStart } = {}) {
+  const r = await fetch(url, {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ heslo: $("heslo").value, hrac: $("hrac").value.trim(), ...body }),
+  });
+  const typ = r.headers.get("content-type") || "";
+  if (typ.includes("application/json") || !r.body) {
+    const j = await r.json().catch(() => ({}));
+    return { status: r.status, json: j, headers: r.headers };
+  }
+  if (onStart) onStart(r);
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let raw = "", cekam = false, dokonceno = false;
+  const zpracuj = () => {
+    const [hlavni] = raw.split("\u001e");
+    const stavy = hlavni.match(/\u001d[^\n]*/g);
+    if (stavy && onStav) onStav(stavy[stavy.length - 1].slice(1));
+    if (onText) onText(hlavni.replace(/\u001d[^\n]*\n?/g, ""));
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    raw += dec.decode(value, { stream: true });
+    if (!cekam) { cekam = true; requestAnimationFrame(() => { cekam = false; if (!dokonceno) zpracuj(); }); }
+  }
+  dokonceno = true;
+  zpracuj();
+  const i = raw.indexOf("\u001e");
+  let meta = null;
+  if (i >= 0) { try { meta = JSON.parse(raw.slice(i + 1)); } catch {} }
+  const text = (i >= 0 ? raw.slice(0, i) : raw).replace(/\u001d[^\n]*\n?/g, "");
+  return { status: r.status, text, meta, headers: r.headers };
+}
 
-let zastavit = false;
+// ---------------------------------------------------------------- hrdinové
+let heroJm = null, heroPodleJmena = {}, heroImg = {};
+async function hrdinove() {
+  if (!heroJm) {
+    const j = await (await fetch(OD + "/constants/heroes")).json();
+    heroJm = {};
+    for (const h of Object.values(j)) {
+      heroJm[h.id] = h.localized_name; heroPodleJmena[h.localized_name.toLowerCase()] = h.id;
+      heroImg[h.id] = h.img ? "https://cdn.cloudflare.steamstatic.com" + h.img : "";
+    }
+    $("seznamHrdinu").innerHTML = Object.values(heroJm).sort().map((n) => `<option value="${esc(n)}">`).join("");
+  }
+  return heroJm;
+}
+const heroIdZJmena = (n) => heroPodleJmena[String(n || "").trim().toLowerCase()] || null;
+
+// ---------------------------------------------------------------- historie rozborů
+const HIST = "trener_historie";
+let serverovy = false, chybaServeru = "", historie = [];
+function nactiLokal() { try { return JSON.parse(localStorage.getItem(HIST) || "[]"); } catch { return []; } }
+function ulozLokal(h) { try { localStorage.setItem(HIST, JSON.stringify(h.slice(0, 150))); } catch {} }
+const stejny = (a, match, hrac) => String(a.match) === String(match) && (a.hrac || "") === (hrac || "");
+function najdiVHist(match, hrac, hrdina) {
+  return historie.find((z) => stejny(z, match, hrac) && (hrac || (z.hrdinaZadany || "").toLowerCase() === (hrdina || "").toLowerCase()));
+}
+
+async function nactiHistorii() {
+  chybaServeru = "";
+  if (!$("heslo").value) { serverovy = false; historie = nactiLokal(); chybaServeru = "nejdřív vyplň heslo"; return poNacteni(); }
+  try {
+    const j = await post("/api/auto", { akce: "seznam" });
+    if (j.status === 200 && Array.isArray(j.json.rozbory)) {
+      serverovy = true;
+      if (j.json.hrac && !$("hrac").value.trim()) { $("hrac").value = j.json.hrac; store.set("trener_hrac", j.json.hrac); }
+      historie = j.json.rozbory;
+      const lok = nactiLokal().filter((z) => !historie.some((y) => stejny(y, z.match, z.hrac)));
+      historie = historie.concat(lok.map((z) => ({ ...z, lokalni: true })));
+    } else { serverovy = false; historie = nactiLokal(); chybaServeru = j.json.error || `chyba ${j.status}`; }
+  } catch (e) { serverovy = false; historie = nactiLokal(); chybaServeru = e.message || String(e); }
+  poNacteni();
+}
+function poNacteni() {
+  naplnFiltrHrdinu();
+  if (typeof vykresliZapasyRozbor === "function" && !$("zapasyBox").hidden) vykresliZapasyRozbor();
+  vykresliSeznam();
+  if (starsi.length) vykresliStarsi();
+  if ($("tab-statistiky").classList.contains("akt")) vykresliStatistiky();
+}
+
+function infoAuto(msg, spin) {
+  $("autoinfo").innerHTML = (spin ? '<span class="spin"></span>' : "") + "<span></span>";
+  $("autoinfo").lastChild.textContent = msg;
+}
+async function automatika() {
+  if (!serverovy) return infoAuto("Rozbory se ukládají jen v tomhle prohlížeči. Server: " + (chybaServeru || "úložiště není nastavené") + ".");
+  infoAuto("Kontroluji nové zápasy na OpenDotě…", true);
+  try {
+    const j = await post("/api/auto", { akce: "sync" });
+    if (j.status !== 200) return infoAuto("Automatika: " + (j.json.error || "chyba " + j.status));
+    const v = j.json;
+    if (v.bezi) return infoAuto("Automatika už právě běží, obnov stránku za pár minut.");
+    const c = [];
+    if (v.rozebrano.length) c.push(`Nově rozebráno: ${v.rozebrano.map((x) => x.hrdina).join(", ")}.`);
+    if (v.ceka.length) c.push(`${v.ceka.length} ${v.ceka.length === 1 ? "zápas čeká" : "zápasy čekají"} na zpracování, rozebere se příště.`);
+    if (v.limit) c.push("Dosažen denní limit automatických rozborů.");
+    if (v.patch) c.push(`Vyšel patch ${v.patch} – shrnutí najdeš v záložce Patch.`);
+    if (v.chyby.length) c.push("Chyby: " + v.chyby.join("; "));
+    if (!c.length) c.push("Žádné nové zápasy k rozebrání.");
+    infoAuto(c.join(" "));
+    if (v.rozebrano.length) await nactiHistorii();
+  } catch (e) { infoAuto("Automatika selhala: " + (e.message || e)); }
+}
+
+// ---------------------------------------------------------------- filtry a seznam
+function naplnFiltrHrdinu() {
+  const akt = $("fHrdina").value;
+  const jm = [...new Set(historie.map((z) => z.hrdina).filter(Boolean))].sort();
+  $("fHrdina").innerHTML = '<option value="">Všichni hrdinové</option>' + jm.map((n) => `<option>${esc(n)}</option>`).join("");
+  $("fHrdina").value = jm.includes(akt) ? akt : "";
+}
+function filtrovane() {
+  const t = $("fHledat").value.trim().toLowerCase();
+  const h = $("fHrdina").value, v = $("fVysledek").value, typ = $("fTyp").value, zn = $("fZnamka").value;
+  return historie.filter((z) => {
+    if (h && z.hrdina !== h) return false;
+    const vyhra = String(z.vysledek).startsWith("VÝHRA");
+    if (v === "w" && !vyhra) return false;
+    if (v === "l" && vyhra) return false;
+    if (typ === "a" && !z.auto) return false;
+    if (typ === "r" && z.auto) return false;
+    if (zn) {
+      const g = z.hodnoceni?.celkem;
+      if (!g) return false;
+      if (Number(zn) > 0 && g < Number(zn)) return false;
+      if (Number(zn) < 0 && g > -Number(zn)) return false;
+    }
+    if (t && !(`${z.hrdina} ${z.match} ${z.text || ""}`.toLowerCase().includes(t))) return false;
+    return true;
+  });
+}
+const tridaZnamky = (g) => (g >= 7 ? "g-good" : g >= 5 ? "g-mid" : "g-bad");
+function vykresliSeznam() {
+  const el = $("seznam");
+  el.innerHTML = "";
+  const list = filtrovane();
+  $("pocetRozboru").textContent = historie.length ? `Zobrazeno ${list.length} z ${historie.length} rozborů.` : "";
+  if (!historie.length) { el.innerHTML = '<p class="prazdno">Zatím žádné. Každý hotový rozbor se sem uloží.</p>'; return; }
+  for (const z of list) {
+    const row = document.createElement("div");
+    const g = z.hodnoceni?.celkem;
+    row.className = "polozka " + (String(z.vysledek).startsWith("VÝHRA") ? "win" : "loss");
+    row.innerHTML = `<span class="znm ${g ? tridaZnamky(g) : ""}"><b></b></span><div><div class="hr"></div><div class="info"></div><div class="stitky"></div></div><button class="x" type="button" title="Smazat">×</button>`;
+    row.querySelector(".znm b").textContent = g || "–";
+    row.querySelector(".hr").textContent = z.hrdina;
+    const hrano = z.hrano ? `hráno ${datum(z.hrano * 1000)}` : `rozebráno ${datum(z.datum)}`;
+    row.querySelector(".info").textContent = `${z.auto ? "🤖 " : ""}${z.vysledek} · zápas ${z.match} · ${hrano}`;
+    for (const s of (z.hodnoceni?.stitky_chyb || []).slice(0, 4)) {
+      const t = document.createElement("span"); t.className = "stitek chyba-tag"; t.textContent = s.stitek;
+      row.querySelector(".stitky").appendChild(t);
+    }
+    row.addEventListener("click", () => { ukazUlozeny(z); prepni("rozbor"); });
+    row.querySelector(".x").addEventListener("click", async (e) => {
+      e.stopPropagation();
+      if (!confirm(`Smazat rozbor zápasu ${z.match} (${z.hrdina})?`)) return;
+      if (serverovy && !z.lokalni) await post("/api/auto", { akce: "smazat", klic: z.klic });
+      ulozLokal(nactiLokal().filter((y) => !stejny(y, z.match, z.hrac)));
+      historie = historie.filter((y) => y !== z);
+      poNacteni();
+    });
+    el.appendChild(row);
+  }
+}
+for (const id of ["fHledat", "fHrdina", "fVysledek", "fTyp", "fZnamka"]) $(id).addEventListener("input", vykresliSeznam);
+
+// ---------------------------------------------------------------- zobrazení rozboru
+let text = "", bezi = false, zastavit = false, aktualni = null;
+const KAT = [["celkem", "Celkem"], ["pick", "Pick"], ["lajna", "Lajna"], ["farma", "Farma"], ["teamfighty", "Teamfighty"], ["pozicovani", "Pozicování"], ["build", "Build"]];
+function vykresliZnamky(h) {
+  const el = $("znamky");
+  if (!h || !h.celkem) { el.style.display = "none"; return; }
+  let html = '<div class="rada">';
+  for (const [k, n] of KAT) if (h[k]) html += `<div class="zn ${k === "celkem" ? "velka " : ""}${tridaZnamky(h[k])}"><b>${h[k]}</b><span>${n}</span></div>`;
+  html += "</div><div class=\"stitky\">";
+  for (const s of h.stitky_chyb || []) html += `<span class="stitek chyba-tag" title="${esc(s.popis || "")}">${esc(s.stitek)}${s.cas ? " · " + esc(s.cas) : ""}</span>`;
+  for (const s of h.silne_stranky || []) html += `<span class="stitek ok">${esc(s)}</span>`;
+  html += "</div>";
+  if (h.cil_na_dalsi_hru) html += `<div class="cil"><b>Cíl na další hru:</b> ${esc(h.cil_na_dalsi_hru)}</div>`;
+  el.innerHTML = html;
+  el.style.display = "block";
+}
+function hlavicka(hrdina, vys) {
+  $("hlava").innerHTML = `<span></span><span class="vys ${String(vys).startsWith("VÝHRA") ? "win" : "loss"}"></span>`;
+  $("hlava").firstChild.textContent = hrdina;
+  $("hlava").lastChild.textContent = vys;
+  $("hlava").style.display = "block";
+}
+function ukazUlozeny(z, zprava) {
+  aktualni = z;
+  seznamZapasu(false);
+  $("match").value = z.match;
+  $("hrdina").value = z.hrdinaZadany || "";
+  text = z.text || "";
+  hlavicka(z.hrdina, z.vysledek);
+  vykresliZnamky(z.hodnoceni);
+  ukazMd($("vystup"), text, true);
+  $("akce").style.display = "flex";
+  $("znovu").hidden = false;
+  stav(zprava || `Uložený rozbor z ${datum(z.datum)}.`);
+  setTimeout(() => $("hlava").scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+}
+
+// ---------------------------------------------------------------- rozbor zápasu
 async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
   if (bezi) return "bezi";
   const match = matchId($("match").value);
-  const hrac = $("hrac").value.trim();
-  const hrdina = $("hrdina").value.trim();
-  const heslo = $("heslo").value;
+  const hrac = hracId(), hrdina = $("hrdina").value.trim(), heslo = $("heslo").value;
   if (!match) { stav("Zadej číslo zápasu.", { chyba: true }); return "chyba"; }
-  if (!hrac && !hrdina) { stav("Zadej svoje ID hráče, nebo hrdinu.", { chyba: true }); return "chyba"; }
-  store.set("trener_hrac", hrac);
-  store.set("trener_heslo", heslo);
+  if (!hrac && !hrdina) { stav("Nahoře vyplň svoje ID hráče, nebo tady hrdinu.", { chyba: true }); return "chyba"; }
+  if (!heslo) { stav("Nahoře vyplň heslo.", { chyba: true }); return "chyba"; }
+  store.set("trener_hrac", hrac); store.set("trener_heslo", heslo);
 
   const ulozeny = !znovu && najdiVHist(match, hrac, hrdina);
-  if (ulozeny) { ukazUlozeny(ulozeny, `Tenhle zápas už máš rozebraný (${datum(ulozeny.datum)}), zobrazuji uložený rozbor. Nový stojí kredit, proto jen přes „Rozebrat znovu“.`); return "ulozeny"; }
+  if (ulozeny) { ukazUlozeny(ulozeny, `Tenhle zápas už máš rozebraný (${datum(ulozeny.datum)}). Nový rozbor stojí kredit, proto jen přes „Rozebrat znovu“.`); return "ulozeny"; }
 
   bezi = true;
+  seznamZapasu(false);
   $("go").disabled = true; $("bez").hidden = true; $("znovu").hidden = true;
-  $("hlava").style.display = "none"; $("vystup").style.display = "none"; $("akce").style.display = "none";
+  $("hlava").style.display = "none"; $("vystup").style.display = "none"; $("znamky").style.display = "none"; $("akce").style.display = "none";
   text = "";
-
   try {
     for (let pokus = 0; ; pokus++) {
-      stav(pokus === 0 ? "Stahuji zápas z OpenDoty…" : `OpenDota zpracovává replay… (${pokus * 15} s, obvykle 1–5 min)`, { spin: true });
-      const r = await fetch("/api/rozbor", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ match, hrac, hrdina, heslo, bezReplaye }),
+      stav(pokus === 0 ? "Stahuji zápas a připravuji data (tvůj průměr, profík, draft)…" : `OpenDota zpracovává replay… (${pokus * 15} s, obvykle 1–5 min)`, { spin: true });
+      const r = await post("/api/rozbor", { match, hrdina, bezReplaye }, {
+        onStart: (resp) => hlavicka(decodeURIComponent(resp.headers.get("X-Hrdina") || ""), decodeURIComponent(resp.headers.get("X-Vysledek") || "")),
+        onStav: (s) => stav(s, { spin: true }),
+        onText: (t) => { if (t.trim()) { text = t; ukazMd($("vystup"), t, false); } },
       });
-      const typ = r.headers.get("content-type") || "";
-
       if (r.status === 202) {
         if (zastavit) { stav("Zastaveno."); return "zastaveno"; }
         if (pokus >= maxPokusu) {
-          stav("Replay se nepodařilo zpracovat (možná už vypršel). Můžeš to zkusit znovu později, nebo rozebrat jen ze základních statistik.", { chyba: true });
+          stav("Replay se nepodařilo zpracovat (možná už vypršel). Můžeš to zkusit později, nebo rozebrat jen ze základních statistik.", { chyba: true });
           $("bez").hidden = false;
           return "neparsovano";
         }
         await pockej(15000);
         continue;
       }
-      if (typ.includes("application/json")) {
-        const j = await r.json().catch(() => ({}));
-        stav(j.error || `Chyba serveru (${r.status}).`, { chyba: true });
-        return "chyba";
-      }
-      if (!r.ok || !r.body) { stav(`Chyba serveru (${r.status}).`, { chyba: true }); return "chyba"; }
-
-      // streamovaný rozbor
+      if (r.json) { stav(r.json.error || `Chyba serveru (${r.status}).`, { chyba: true }); return "chyba"; }
       const hrdinaJm = decodeURIComponent(r.headers.get("X-Hrdina") || "");
       const vys = decodeURIComponent(r.headers.get("X-Vysledek") || "");
       hlavicka(hrdinaJm, vys);
-      stav("Trenér studuje zápas a ověřuje aktuální buildy a rady pro hráčů… (může trvat i minutu)", { spin: true });
+      text = r.meta?.text || r.text;
+      ukazMd($("vystup"), text, true);
+      vykresliZnamky(r.meta?.hodnoceni);
+      $("akce").style.display = "flex"; $("znovu").hidden = false;
 
-      const reader = r.body.getReader();
-      const dec = new TextDecoder();
-      let cekaVykres = false;
-      for (;;) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        text += dec.decode(value, { stream: true });
-        if (!cekaVykres) { cekaVykres = true; requestAnimationFrame(() => { cekaVykres = false; vykresli(false); }); }
-      }
-      vykresli(true);
-      $("akce").style.display = "flex";
-      $("znovu").hidden = false;
       const chyba = text.trim().length < 300 || /^\s*⚠️/.test(text.trim());
-      if (!chyba) {
-        // záloha v prohlížeči vždycky; server si rozbor ukládá sám
-        const lk = match + "|" + hrac + "|" + hrdina.toLowerCase();
-        const h = nactiLokal().filter((z) => z.klic !== lk);
-        h.unshift({ klic: lk, match, hrac, hrdinaZadany: hrdina, hrdina: hrdinaJm,
-                    vysledek: vys, datum: new Date().toISOString(), text });
-        ulozLokal(h);
-        await nactiHistorii();
-        stav("Rozbor uložen do „Moje rozbory“.");
-        return "hotovo";
-      }
-      stav("");
-      return "chyba";
+      if (chyba) { stav(""); return "chyba"; }
+      // záloha v prohlížeči
+      const zaz = { match, hrac, hrdinaZadany: hrdina, hrdina: hrdinaJm, vysledek: vys, datum: new Date().toISOString(),
+                    text, hodnoceni: r.meta?.hodnoceni || null };
+      ulozLokal([zaz, ...nactiLokal().filter((z) => !stejny(z, match, hrac))]);
+      aktualni = zaz;
+      await nactiHistorii();
+      const casti = ["Rozbor uložen do „Moje rozbory“."];
+      if (r.meta?.opravy) casti.push(`Kontrola faktů opravila ${r.meta.opravy} ${r.meta.opravy === 1 ? "údaj" : "údaje"}.`);
+      else if (r.meta && !r.meta.chybaKontroly) casti.push("Kontrola faktů bez chyb.");
+      if (r.meta?.chybaKontroly) casti.push("Kontrola faktů selhala: " + r.meta.chybaKontroly);
+      if (r.meta?.chybaUlozeni) casti.push("Na server se nepodařilo uložit: " + r.meta.chybaUlozeni);
+      stav(casti.join(" "));
+      return "hotovo";
     }
   } catch (e) {
     stav("Spojení selhalo: " + (e.message || e), { chyba: true });
@@ -449,171 +736,499 @@ async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
     $("go").disabled = false;
   }
 }
-
 $("f").addEventListener("submit", (e) => { e.preventDefault(); zastavit = false; rozbor(false); });
 $("bez").addEventListener("click", () => rozbor(true, true));
-$("znovu").addEventListener("click", () => {
-  if (confirm("Udělat nový rozbor? Stojí to kredit a přepíše uložený.")) rozbor(false, true);
-});
+$("znovu").addEventListener("click", () => { if (confirm("Udělat nový rozbor? Stojí to kredit a přepíše uložený.")) rozbor(false, true); });
 $("kopir").addEventListener("click", async () => {
   try { await navigator.clipboard.writeText(text); $("kopir").textContent = "Zkopírováno ✓"; }
   catch { $("kopir").textContent = "Kopírování nejde"; }
   setTimeout(() => ($("kopir").textContent = "Kopírovat rozbor"), 2000);
 });
-// --- starší zápasy (až 2 měsíce zpátky)
-const OD = "https://api.opendota.com/api";
-let heroJm = null, starsi = [], frontaBezi = false;
-const vybrane = new Set();
 
-async function jmenaHrdinu() {
-  if (!heroJm) {
-    const j = await (await fetch(OD + "/constants/heroes")).json();
-    heroJm = {};
-    for (const h of Object.values(j)) heroJm[h.id] = h.localized_name;
+// ---------------------------------------------------------------- statistiky
+function prumer(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }
+function vykresliStatistiky() {
+  const el = $("stat");
+  const s = historie.filter((z) => z.hodnoceni?.celkem).sort((a, b) => (b.hrano || 0) - (a.hrano || 0));
+  if (s.length < 2) { el.innerHTML = '<p class="prazdno">Zatím málo hodnocených rozborů (potřeba aspoň 2). Statistiky se naplní s každým dalším rozborem.</p>'; return; }
+  const posl = s.slice(0, 10), pred = s.slice(10, 20);
+  let html = '<div class="karty">';
+
+  // známky: posledních 10 vs. předchozích 10
+  html += '<div class="karta"><h3>Průměrné známky</h3>';
+  for (const [k, n] of KAT) {
+    const a = prumer(posl.map((z) => z.hodnoceni[k]).filter(Boolean));
+    const b = prumer(pred.map((z) => z.hodnoceni[k]).filter(Boolean));
+    if (a == null) continue;
+    const zm = b == null ? "" : a - b > 0.3 ? ` <span class="trend-down">▲ ${(a - b).toFixed(1)}</span>` : a - b < -0.3 ? ` <span class="trend-up">▼ ${(b - a).toFixed(1)}</span>` : ' <span class="trend-same">●</span>';
+    html += `<div class="bar"><span>${n}</span><span class="stopa"><i class="${a >= 7 ? "good" : ""}" style="width:${a * 10}%"></i></span><span><b>${a.toFixed(1)}</b>${zm}</span></div>`;
   }
-  return heroJm;
+  html += `<p class="info-text">Posledních ${posl.length} rozborů${pred.length ? `, šipka = změna proti ${pred.length} předchozím` : ""}.</p></div>`;
+
+  // nejčastější chyby
+  const pocty = (list) => { const p = {}; for (const z of list) for (const t of z.hodnoceni.stitky_chyb || []) p[t.stitek] = (p[t.stitek] || 0) + 1; return p; };
+  const pp = pocty(s.slice(0, 20)), pq = pocty(s.slice(20, 40));
+  const top = Object.entries(pp).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const maxN = top.length ? top[0][1] : 1;
+  html += '<div class="karta"><h3>Nejčastější chyby</h3>';
+  if (!top.length) html += '<p class="prazdno">Žádné štítky chyb.</p>';
+  for (const [t, n] of top) {
+    const b = pq[t] || 0;
+    const zm = !s[20] ? "" : n > b ? ' <span class="trend-up">▲</span>' : n < b ? ' <span class="trend-down">▼</span>' : "";
+    html += `<div class="bar"><span>${esc(t)}</span><span class="stopa"><i style="width:${(n / maxN) * 100}%"></i></span><span><b>${n}×</b>${zm}</span></div>`;
+  }
+  html += `<p class="info-text">Z posledních ${Math.min(20, s.length)} rozborů.</p></div></div>`;
+
+  // graf celkové známky v čase
+  const body = s.slice(0, 30).reverse();
+  const W = 600, Hh = 140, pad = 24;
+  const x = (i) => pad + (i * (W - 2 * pad)) / Math.max(1, body.length - 1);
+  const y = (g) => Hh - pad - ((g - 1) * (Hh - 2 * pad)) / 9;
+  const cesta = body.map((z, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(z.hodnoceni.celkem).toFixed(1)}`).join(" ");
+  html += '<div class="karta"><h3>Celková známka v čase</h3><svg class="graf" viewBox="0 0 600 140" preserveAspectRatio="none">';
+  for (const g of [1, 5, 10]) html += `<line x1="${pad}" x2="${W - pad}" y1="${y(g)}" y2="${y(g)}" stroke="#2a2f38"/><text x="2" y="${y(g) + 4}" fill="#8d8f94" font-size="11">${g}</text>`;
+  html += `<path d="${cesta}" fill="none" stroke="#e8a33d" stroke-width="2"/>`;
+  body.forEach((z, i) => { html += `<circle cx="${x(i)}" cy="${y(z.hodnoceni.celkem)}" r="4" fill="${String(z.vysledek).startsWith("VÝHRA") ? "#5fb36a" : "#d4553f"}"><title>${esc(z.hrdina)} · ${z.hodnoceni.celkem}</title></circle>`; });
+  html += '</svg><p class="info-text">Body: zelená = výhra, červená = prohra. Najetím myší uvidíš hrdinu.</p></div>';
+
+  // podle hrdinů
+  const ph = {};
+  for (const z of s) (ph[z.hrdina] = ph[z.hrdina] || []).push(z.hodnoceni.celkem);
+  const hr = Object.entries(ph).filter(([, a]) => a.length >= 2).sort((a, b) => prumer(b[1]) - prumer(a[1]));
+  if (hr.length) {
+    html += '<div class="karta"><h3>Známka podle hrdinů</h3>';
+    for (const [n, a] of hr.slice(0, 10)) html += `<div class="bar"><span>${esc(n)} <small>(${a.length}×)</small></span><span class="stopa"><i class="${prumer(a) >= 7 ? "good" : ""}" style="width:${prumer(a) * 10}%"></i></span><span><b>${prumer(a).toFixed(1)}</b></span></div>`;
+    html += "</div>";
+  }
+  el.innerHTML = html;
 }
+
+// ---------------------------------------------------------------- historie zápasů
+let starsi = [], frontaBezi = false, histOffset = 0, histKonec = false, histNacitam = false;
+const vybrane = new Set();
+const RIM = ["", "I", "II", "III", "IV", "V"];
+const RANKY = ["", "Herald", "Guardian", "Crusader", "Archon", "Legend", "Ancient", "Divine", "Immortal"];
+const rankText = (t) => { if (!t) return ""; const a = Math.floor(t / 10), b = t % 10; return a >= 8 ? "Immortal" : `${RANKY[a] || ""} ${RIM[b] || ""}`.trim(); };
+const MODY = { 1: "All Pick", 2: "Captains Mode", 3: "Random Draft", 4: "Single Draft", 5: "All Random", 12: "Least Played", 16: "Captains Draft", 18: "Ability Draft", 22: "All Pick", 23: "Turbo" };
+const typZapasu = (z) => (z.game_mode === 23 ? "Turbo" : z.lobby_type === 7 ? "Ranked" : z.lobby_type === 0 ? "Unranked" : "Ostatní");
+function pred(ts) {
+  const d = (Date.now() / 1000 - ts) / 86400;
+  if (d < 1) { const h = Math.max(1, Math.round(d * 24)); return `před ${h} h`; }
+  if (d < 30) { const n = Math.round(d); return `před ${n} ${n === 1 ? "dnem" : "dny"}`; }
+  const m = Math.round(d / 30); return m < 12 ? `před ${m} ${m === 1 ? "měsícem" : "měsíci"}` : `před ${Math.round(d / 365)} r.`;
+}
+const delka = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 function starsiInfo(msg, spin) {
   $("starsiInfo").innerHTML = (spin ? '<span class="spin"></span> ' : "") + "<span></span>";
   $("starsiInfo").lastChild.textContent = msg;
 }
-const hracId = () => $("hrac").value.trim().replace(/\D/g, "");
-const jeRozebrany = (z) => historie.some((h) => String(h.match) === String(z.match_id) && (h.hrac || "") === hracId());
+const rozborZapasu = (z) => historie.find((h) => String(h.match) === String(z.match_id) && (h.hrac || "") === hracId());
+const jeRozebrany = (z) => Boolean(rozborZapasu(z));
 const staryNeparsovany = (z) => z.version == null && Date.now() / 1000 - z.start_time > 14 * 86400;
 
-async function nactiStarsi() {
-  const hrac = hracId();
-  if (!hrac) return starsiInfo("Nahoře vyplň své ID hráče.");
+function histUrl(offset) {
+  const p = new URLSearchParams({ limit: "50", offset: String(offset), significant: "0" });
+  if ($("hHrdina").value) p.set("hero_id", $("hHrdina").value);
+  if ($("hVysledek").value) p.set("win", $("hVysledek").value);
+  if ($("hTyp").value === "ranked") p.set("lobby_type", "7");
+  if ($("hTyp").value === "unranked") p.set("lobby_type", "0");
+  if ($("hTyp").value === "turbo") p.set("game_mode", "23");
+  if ($("hObdobi").value) p.set("date", $("hObdobi").value);
+  return `${OD}/players/${hracId()}/matches?${p}`;
+}
+async function nactiStarsi(dalsi = false) {
+  if (!hracId()) return starsiInfo("Nahoře vyplň své ID hráče.");
+  if (histNacitam) return;
+  histNacitam = true;
+  if (!dalsi) { starsi = []; histOffset = 0; histKonec = false; vybrane.clear(); }
   starsiInfo("Načítám zápasy z OpenDoty…", true);
   try {
-    const [hj, r] = await Promise.all([jmenaHrdinu(), fetch(`${OD}/players/${hrac}/matches?date=${$("obdobi").value}`)]);
+    const [hj, r] = await Promise.all([hrdinove(), fetch(histUrl(histOffset))]);
+    if (!$("hHrdina").options[1]) {
+      $("hHrdina").innerHTML = '<option value="">Všichni hrdinové</option>' +
+        Object.entries(hj).sort((a, b) => a[1].localeCompare(b[1])).map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join("");
+    }
     const list = await r.json();
     if (!Array.isArray(list)) throw new Error(list.error || "OpenDota nevrátila seznam");
-    starsi = list.filter((z) => (z.duration || 0) >= 600).map((z) => ({
-      ...z, hrdina: hj[z.hero_id] || "?", vyhra: (z.player_slot < 128) === z.radiant_win, stav: null,
-    }));
-    vybrane.clear();
+    starsi = starsi.concat(list.map((z) => ({ ...z, hrdina: hj[z.hero_id] || "?", vyhra: (z.player_slot < 128) === z.radiant_win, stav: null })));
+    histOffset += list.length;
+    histKonec = list.length < 50;
+    $("dalsi").hidden = histKonec;
     $("starsiOvl").hidden = !starsi.length;
-    const hotove = starsi.filter(jeRozebrany).length;
-    starsiInfo(starsi.length ? `${starsi.length} zápasů, z toho ${hotove} už rozebraných.` : "V tomhle období žádné zápasy (nebo máš skrytou historii).");
+    const v = starsi.filter((z) => z.vyhra).length;
+    starsiInfo(starsi.length
+      ? `Zobrazeno ${starsi.length} zápasů${histKonec ? "" : " (další načteš dole)"} · ${v} výher, ${starsi.length - v} proher (${Math.round((100 * v) / starsi.length)} %) · ${starsi.filter(jeRozebrany).length} rozebraných.`
+      : "Žádné zápasy (zkus jiný filtr, nebo máš skrytou historii).");
     vykresliStarsi();
-  } catch (e) {
-    starsiInfo("Nepodařilo se načíst: " + (e.message || e));
-  }
+  } catch (e) { starsiInfo("Nepodařilo se načíst: " + (e.message || e)); }
+  finally { histNacitam = false; }
 }
+for (const id of ["hHrdina", "hVysledek", "hTyp", "hObdobi"]) $(id).addEventListener("change", () => nactiStarsi(false));
+$("dalsi").addEventListener("click", () => nactiStarsi(true));
 
-function stitek(z) {
-  if (z.stav) return [z.stav, z.stav.startsWith("Rozebírám") ? "prace" : "parse"];
-  if (jeRozebrany(z)) return ["✓ rozebráno", "ok"];
-  if (z.version != null) return ["plný rozbor", "parse"];
-  if (staryNeparsovany(z)) return ["jen statistiky", ""];
-  return ["plný rozbor (po zpracování)", ""];
-}
-
+function vyplnit(z) { $("match").value = z.match_id; $("hrdina").value = ""; }
 function vykresliStarsi() {
   const el = $("starsiSeznam");
   el.innerHTML = "";
+  const maxDelka = Math.max(1, ...starsi.map((z) => z.duration || 0));
   for (const z of starsi) {
     const row = document.createElement("div");
-    row.className = "zapas " + (z.vyhra ? "win" : "loss");
-    row.innerHTML = '<input type="checkbox"><span class="hr"></span><span class="info"></span><span class="prava"><span class="stitek"></span></span>';
+    row.className = "hz " + (z.vyhra ? "win" : "loss");
+    const k = z.kills || 0, d = z.deaths || 0, a = z.assists || 0, sum = Math.max(1, k + d + a);
+    const roz = rozborZapasu(z);
+    row.innerHTML = `
+      <input type="checkbox">
+      <div class="hero"><img alt="" loading="lazy"><div><b></b><span class="male rank"></span></div></div>
+      <div><span class="${z.vyhra ? "vyhra" : "prohra"}">${z.vyhra ? "Výhra" : "Prohra"}</span><span class="male">${pred(z.start_time)}</span></div>
+      <div>${typZapasu(z)}${(z.party_size || 1) > 1 ? ` <span title="party ${z.party_size}">👥</span>` : ""}<span class="male">${MODY[z.game_mode] || ""}</span></div>
+      <div>${delka(z.duration || 0)}<div class="tyc"><i style="width:${((z.duration || 0) / maxDelka) * 100}%"></i></div></div>
+      <div>${k}/${d}/${a}<div class="kda-tyc"><i style="width:${(k / sum) * 100}%"></i><i style="width:${(d / sum) * 100}%"></i><i style="width:${(a / sum) * 100}%"></i></div>
+        <span class="odkazy"><a href="https://www.opendota.com/matches/${z.match_id}" target="_blank" rel="noopener">OD</a><a href="https://www.dotabuff.com/matches/${z.match_id}" target="_blank" rel="noopener">DB</a><a href="https://stratz.com/matches/${z.match_id}" target="_blank" rel="noopener">ST</a></span></div>
+      <div class="ai"></div>`;
+    const img = row.querySelector("img");
+    if (heroImg[z.hero_id]) img.src = heroImg[z.hero_id]; else img.remove();
+    row.querySelector(".hero b").textContent = z.hrdina;
+    row.querySelector(".rank").textContent = rankText(z.average_rank);
     const cb = row.querySelector("input");
-    cb.checked = vybrane.has(z.match_id);
-    cb.disabled = frontaBezi;
+    cb.checked = vybrane.has(z.match_id); cb.disabled = frontaBezi || Boolean(roz);
     cb.addEventListener("change", () => { cb.checked ? vybrane.add(z.match_id) : vybrane.delete(z.match_id); pocetVybranych(); });
-    row.querySelector(".hr").textContent = z.hrdina;
-    row.querySelector(".info").textContent =
-      `${z.vyhra ? "Výhra" : "Prohra"} · ${z.kills}/${z.deaths}/${z.assists} · ${datum(z.start_time * 1000)} · ${z.match_id}`;
-    const [t, c] = stitek(z);
-    const st = row.querySelector(".stitek");
-    st.textContent = t; if (c) st.classList.add(c);
-    row.style.cursor = "pointer";
-    if (jeRozebrany(z)) {
-      row.title = "Otevřít rozbor";
-      row.addEventListener("click", (e) => {
-        if (e.target === cb) return;
-        const h = historie.find((h) => String(h.match) === String(z.match_id));
-        if (h) ukazUlozeny(h);
-      });
+    for (const odk of row.querySelectorAll(".odkazy a")) odk.addEventListener("click", (e) => e.stopPropagation());
+
+    const ai = row.querySelector(".ai");
+    if (z.stav) {
+      const t = document.createElement("span"); t.className = "stitek " + (z.stav.startsWith("Rozebírám") ? "prace" : "parse"); t.textContent = z.stav; ai.appendChild(t);
+    } else if (roz) {
+      const g = roz.hodnoceni?.celkem;
+      const t = document.createElement("span"); t.className = "znb " + (g ? tridaZnamky(g) : ""); t.title = "Otevřít rozbor";
+      t.textContent = g || "✓"; ai.appendChild(t);
+      if (roz.hodnoceni?.stitky_chyb?.[0]) { const s2 = document.createElement("span"); s2.className = "male"; s2.textContent = roz.hodnoceni.stitky_chyb[0].stitek; ai.appendChild(s2); }
     } else {
-      row.title = "Vyplnit do formuláře";
+      const t = document.createElement("span");
+      t.className = "stitek " + (z.version != null ? "parse" : "");
+      t.textContent = z.version != null ? "plný rozbor" : staryNeparsovany(z) ? "jen statistiky" : "po zpracování";
+      ai.appendChild(t);
       const btn = document.createElement("button");
-      btn.type = "button"; btn.className = "mini"; btn.textContent = "Rozebrat";
-      btn.disabled = frontaBezi || bezi;
+      btn.type = "button"; btn.className = "mini"; btn.textContent = "Rozebrat"; btn.disabled = frontaBezi || bezi;
       btn.addEventListener("click", (e) => { e.stopPropagation(); rozebratJeden(z); });
-      row.querySelector(".prava").appendChild(btn);
-      row.addEventListener("click", (e) => {
-        if (e.target === cb) return;
-        vyplnit(z);
-        $("f").scrollIntoView({ behavior: "smooth", block: "start" });
-        stav(`Vyplněno: ${z.hrdina}, zápas ${z.match_id}. Klikni na „Rozebrat zápas“.`);
-      });
+      ai.appendChild(btn);
     }
+    row.title = roz ? "Otevřít rozbor" : "Vyplnit do formuláře";
+    row.addEventListener("click", (e) => {
+      if (e.target === cb) return;
+      if (roz) { ukazUlozeny(roz); prepni("rozbor"); return; }
+      vyplnit(z); prepni("rozbor");
+      stav(`Vyplněno: ${z.hrdina}, zápas ${z.match_id}. Klikni na „Rozebrat zápas“.`);
+    });
     el.appendChild(row);
   }
   pocetVybranych();
 }
-
 function pocetVybranych() {
   $("rozebratVybrane").textContent = `Rozebrat vybrané (${vybrane.size})`;
   $("rozebratVybrane").disabled = !vybrane.size || frontaBezi;
 }
-
-function vyplnit(z) {
-  $("match").value = z.match_id;
-  $("hrdina").value = "";
-  if (!$("hrac").value.trim()) $("hrac").value = hracId();
-}
-
 async function rozebratJeden(z) {
   if (!$("heslo").value) return starsiInfo("Nahoře vyplň heslo.");
-  zastavit = false;
-  vyplnit(z);
-  $("f").scrollIntoView({ behavior: "smooth", block: "start" });
+  zastavit = false; vyplnit(z); prepni("rozbor");
   let st = await rozbor(staryNeparsovany(z), false);
   if (st === "neparsovano") st = await rozbor(true, false);
   vykresliStarsi();
 }
-
 async function rozebratVybrane() {
   const fronta = starsi.filter((z) => vybrane.has(z.match_id) && !jeRozebrany(z));
   if (!fronta.length) return starsiInfo("Vybrané zápasy už jsou rozebrané.");
   if (!$("heslo").value) return starsiInfo("Nahoře vyplň heslo.");
   if (!confirm(`Rozebrat ${fronta.length} ${fronta.length === 1 ? "zápas" : fronta.length < 5 ? "zápasy" : "zápasů"}? Každý rozbor stojí kredit.`)) return;
-
   frontaBezi = true; zastavit = false;
-  $("stop").hidden = false; $("nacist").disabled = true;
+  $("stop").hidden = false; $("dalsi").disabled = true;
   let hotovo = 0;
   for (let i = 0; i < fronta.length && !zastavit; i++) {
     const z = fronta[i];
     z.stav = `Rozebírám ${i + 1}/${fronta.length}`; vykresliStarsi();
     starsiInfo(`Rozebírám ${i + 1}/${fronta.length}: ${z.hrdina} (${z.match_id})…`, true);
-    $("match").value = z.match_id;
-    $("hrdina").value = "";
+    vyplnit(z);
     let st;
     if (staryNeparsovany(z)) st = await rozbor(true, false);
-    else {
-      st = await rozbor(false, false, 16);                // ~4 min čekání na zpracování replaye
-      if (st === "neparsovano" && !zastavit) st = await rozbor(true, false);
-    }
+    else { st = await rozbor(false, false, 16); if (st === "neparsovano" && !zastavit) st = await rozbor(true, false); }
     z.stav = st === "hotovo" || st === "ulozeny" ? null : st === "zastaveno" ? "zastaveno" : "chyba";
     if (st === "hotovo") hotovo++;
     vybrane.delete(z.match_id);
     vykresliStarsi();
   }
   frontaBezi = false;
-  $("stop").hidden = true; $("nacist").disabled = false;
+  $("stop").hidden = true; $("dalsi").disabled = false;
   vykresliStarsi();
   starsiInfo(zastavit ? `Zastaveno. Rozebráno ${hotovo}.` : `Hotovo, rozebráno ${hotovo} z ${fronta.length}.`);
 }
-
-$("nacist").addEventListener("click", nactiStarsi);
 $("vybratNe").addEventListener("click", () => { for (const z of starsi) if (!jeRozebrany(z)) vybrane.add(z.match_id); vykresliStarsi(); });
 $("zrusitVyber").addEventListener("click", () => { vybrane.clear(); vykresliStarsi(); });
 $("rozebratVybrane").addEventListener("click", rozebratVybrane);
 $("stop").addEventListener("click", () => { zastavit = true; starsiInfo("Zastavuji po dokončení aktuálního rozboru…", true); });
-nactiHistorii().then(() => { if (hracId()) nactiStarsi(); automatika(); });
-$("heslo").addEventListener("change", () => nactiHistorii().then(automatika));
+
+// ---------------------------------------------------------------- nástroje (proti, pool, patch)
+let nastrojeUlozene = null;
+async function nactiUlozeneNastroje(vynutit) {
+  if (nastrojeUlozene && !vynutit) return vykresliUlozeneNastroje();
+  if (!$("heslo").value) return;
+  const r = await post("/api/nastroje", { akce: "ulozene" }).catch(() => null);
+  if (r?.status === 200) { nastrojeUlozene = r.json; vykresliUlozeneNastroje(); }
+}
+function vykresliUlozeneNastroje() {
+  const u = nastrojeUlozene || {};
+  const el = $("protiUlozene"); el.innerHTML = "";
+  for (const p of u.proti || []) {
+    const b = document.createElement("button"); b.className = "vedl"; b.type = "button";
+    b.textContent = `${p.hrdina} · ${new Date(p.datum).toLocaleDateString("cs-CZ")}`;
+    b.addEventListener("click", () => { $("protiHero").value = p.hrdina; ukazMd($("protiOut"), p.text, true); stavEl($("protiStav"), "Uložený návod. Pro aktualizaci klikni na „Vytvořit návod“."); });
+    el.appendChild(b);
+  }
+  if (u.pool) {
+    $("poolDatum").textContent = `Poslední zhodnocení: ${datum(u.pool.datum)}`;
+    if ($("poolOut").style.display === "none") ukazMd($("poolOut"), u.pool.text, true);
+  }
+  if (u.patch) {
+    $("patchDatum").textContent = `Uloženo: patch ${u.patch.patch} (${datum(u.patch.datum)})`;
+    if ($("patchOut").style.display === "none") ukazMd($("patchOut"), u.patch.text, true);
+  }
+}
+async function spustNastroj(body, stavElm, outElm, potvrzeni) {
+  if (!$("heslo").value) return stavEl(stavElm, "Nahoře vyplň heslo.", { chyba: true });
+  if (potvrzeni && !confirm(potvrzeni)) return;
+  stavEl(stavElm, "Sbírám data a hledám aktuální informace… (může trvat i minutu)", { spin: true });
+  outElm.style.display = "none";
+  try {
+    const r = await post("/api/nastroje", body, { onText: (t) => { if (t.trim()) { ukazMd(outElm, t, false); stavEl(stavElm, "AI píše…", { spin: true }); } } });
+    if (r.json) return stavEl(stavElm, r.json.error || `Chyba ${r.status}`, { chyba: true });
+    ukazMd(outElm, r.text, true);
+    stavEl(stavElm, "Hotovo, uloženo.");
+    nactiUlozeneNastroje(true);
+  } catch (e) { stavEl(stavElm, "Spojení selhalo: " + (e.message || e), { chyba: true }); }
+}
+$("protiGo").addEventListener("click", async () => {
+  await hrdinove();
+  const id = heroIdZJmena($("protiHero").value);
+  if (!id) return stavEl($("protiStav"), "Vyber hrdinu ze seznamu.", { chyba: true });
+  spustNastroj({ akce: "proti", hero: id }, $("protiStav"), $("protiOut"), `Vytvořit návod proti hrdinovi ${heroJm[id]}? Stojí to kredit.`);
+});
+$("poolGo").addEventListener("click", () => spustNastroj({ akce: "pool" }, $("poolStav"), $("poolOut"), "Zhodnotit hero pool? Stojí to kredit."));
+$("patchGo").addEventListener("click", () => spustNastroj({ akce: "patch" }, $("patchStav"), $("patchOut")));
+$("patchZnovu").addEventListener("click", () => spustNastroj({ akce: "patch", znovu: true }, $("patchStav"), $("patchOut"), "Vytvořit shrnutí patche znovu? Stojí to kredit."));
+
+// ---------------------------------------------------------------- znalosti
+let znHeroId = null;
+async function nactiNastaveni() {
+  if (!$("heslo").value) return;
+  const r = await post("/api/nastroje", { akce: "nastaveni" }).catch(() => null);
+  if (r?.status === 200) $("autoGuide").checked = !!r.json.autoGuide;
+  hrdinove();
+}
+$("autoGuide").addEventListener("change", async () => {
+  const r = await post("/api/nastroje", { akce: "nastaveni_ulozit", autoGuide: $("autoGuide").checked }).catch(() => null);
+  stavEl($("znStav"), r?.status === 200 ? "Nastavení uloženo." : "Nastavení se nepodařilo uložit" + (r?.json?.error ? ": " + r.json.error : "."), { chyba: r?.status !== 200 });
+});
+async function otevriZnalosti() {
+  await hrdinove();
+  const id = heroIdZJmena($("znHero").value);
+  if (!id) return stavEl($("znStav"), "Vyber hrdinu ze seznamu.", { chyba: true });
+  znHeroId = id;
+  stavEl($("znStav"), "Načítám…", { spin: true });
+  const r = await post("/api/nastroje", { akce: "znalosti", hero: id });
+  if (r.status !== 200) return stavEl($("znStav"), r.json?.error || "Chyba", { chyba: true });
+  $("znObsah").hidden = false;
+  $("znPoznamky").value = r.json.poznamky || "";
+  $("znGuideDatum").textContent = r.json.guide_datum ? `Guide z ${datum(r.json.guide_datum)}` : "Guide zatím není.";
+  if (r.json.guide) ukazMd($("znOut"), r.json.guide, true); else $("znOut").style.display = "none";
+  stavEl($("znStav"), "");
+}
+$("znNacist").addEventListener("click", otevriZnalosti);
+
+$("znUlozit").addEventListener("click", async () => {
+  if (!znHeroId) return;
+  const r = await post("/api/nastroje", { akce: "znalosti_ulozit", hero: znHeroId, poznamky: $("znPoznamky").value });
+  stavEl($("znStav"), r.status === 200 ? "Poznámky uloženy. Trenér je použije u dalších rozborů." : (r.json?.error || "Chyba"), { chyba: r.status !== 200 });
+});
+$("znGuide").addEventListener("click", async () => {
+  if (!znHeroId) return;
+  await spustNastroj({ akce: "guide", hero: znHeroId }, $("znStav"), $("znOut"), `Najít aktuální guide pro ${heroJm[znHeroId]}? Stojí to kredit.`);
+  $("znGuideDatum").textContent = `Guide z ${datum(new Date().toISOString())}`;
+});
+
+// ---------------------------------------------------------------- rozbalovací výběr (zápasy, hrdinové)
+function rozbalovacka(input, { nacti, vykresli, vyber }) {
+  const obal = input.parentElement;
+  let el = null, polozky = [], akt = -1, psal = false; // filtrovat až po psaní, ne podle staré hodnoty
+  const zavri = () => { if (el) { el.remove(); el = null; } };
+  async function otevri() {
+    psal = false;
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "vyber";
+      el.addEventListener("mousedown", (e) => e.preventDefault()); // ať input neztratí fokus
+      el.addEventListener("click", (e) => e.preventDefault());     // ať label znovu nefokusuje input
+      obal.appendChild(el);
+    }
+    el.innerHTML = '<div class="nic"><span class="spin"></span> Načítám…</div>';
+    try { await nacti(); } catch (e) { if (el) el.innerHTML = `<div class="nic">Nepodařilo se načíst: ${esc(e.message || String(e))}</div>`; return; }
+    obnov();
+  }
+  function obnov() {
+    if (!el) return;
+    polozky = vykresli(el, psal ? input.value.trim().toLowerCase() : "", (hodnota) => { vyber(hodnota); zavri(); input.blur(); });
+    akt = -1;
+  }
+  input.addEventListener("focus", otevri);
+  input.addEventListener("click", () => { if (!el) otevri(); });
+  input.addEventListener("input", async () => { if (!el) await otevri(); psal = true; obnov(); });
+  input.addEventListener("blur", () => setTimeout(zavri, 120));
+  input.addEventListener("keydown", (e) => {
+    if (!el || !polozky.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      akt = Math.max(0, Math.min(polozky.length - 1, akt + (e.key === "ArrowDown" ? 1 : -1)));
+      polozky.forEach((p, i) => p.classList.toggle("akt", i === akt));
+      polozky[akt].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter" && (akt >= 0 || polozky.length === 1)) {
+      e.preventDefault();
+      polozky[Math.max(0, akt)].click();
+    } else if (e.key === "Escape") zavri();
+  });
+}
+
+// zápasy pro výběr
+let rychleZapasy = null;
+async function nactiRychleZapasy() {
+  if (rychleZapasy) return;
+  if (!hracId()) throw new Error("nahoře vyplň své ID hráče");
+  const [hj, r] = await Promise.all([hrdinove(), fetch(`${OD}/players/${hracId()}/matches?limit=100&significant=0`)]);
+  const list = await r.json();
+  if (!Array.isArray(list)) throw new Error(list.error || "OpenDota nevrátila seznam");
+  rychleZapasy = list.map((z) => ({ ...z, hrdina: hj[z.hero_id] || "?", vyhra: (z.player_slot < 128) === z.radiant_win }));
+}
+$("hrac").addEventListener("change", () => { rychleZapasy = null; });
+// seznam zápasů pod formulářem rozboru
+let zobrazeno = 30, rychleKonec = false;
+function vybranyMatch() { return matchId($("match").value); }
+function vykresliZapasyRozbor() {
+  const el = $("zapasySeznam");
+  if (!rychleZapasy) { el.innerHTML = `<div class="nic" style="padding:12px;color:var(--muted)">${hracId() ? "Načítám…" : "Nahoře vyplň své ID hráče a zobrazí se tvoje zápasy."}</div>`; return; }
+  const t = $("match").value.trim().toLowerCase();
+  const filtr = /[a-zá-ž]/i.test(t) && !/opendota|dotabuff|stratz|http/.test(t) ? t : "";
+  const list = rychleZapasy.filter((z) => !filtr || z.hrdina.toLowerCase().includes(filtr));
+  el.innerHTML = "";
+  const vyb = vybranyMatch();
+  for (const z of list.slice(0, filtr ? list.length : zobrazeno)) {
+    const roz = rozborZapasu(z);
+    const g = roz?.hodnoceni?.celkem;
+    const d = document.createElement("div");
+    d.className = "vz " + (z.vyhra ? "win" : "loss") + (String(z.match_id) === vyb ? " vybrany" : "");
+    d.innerHTML = '<img alt="" loading="lazy"><div><b></b><span class="male"></span></div><div class="vpravo"></div>';
+    const img = d.querySelector("img");
+    if (heroImg[z.hero_id]) img.src = heroImg[z.hero_id]; else img.style.visibility = "hidden";
+    d.querySelector("b").textContent = z.hrdina;
+    d.querySelector(".male").textContent = `${z.vyhra ? "Výhra" : "Prohra"} · ${pred(z.start_time)} · ${z.kills}/${z.deaths}/${z.assists} · ${typZapasu(z)} · ${delka(z.duration || 0)}`;
+    const v = d.querySelector(".vpravo");
+    if (roz) v.innerHTML = `<span class="male">rozebráno</span><span class="znb ${g ? tridaZnamky(g) : ""}">${g || "✓"}</span>`;
+    else v.innerHTML = `<span class="stitek ${z.version != null ? "parse" : ""}">${z.version != null ? "plný rozbor" : staryNeparsovany(z) ? "jen statistiky" : "po zpracování"}</span>`;
+    d.addEventListener("click", () => {
+      vyplnit(z);
+      if (roz) { ukazUlozeny(roz, "Uložený rozbor. Pro nový klikni na „Rozebrat znovu“."); return; }
+      stav(`Vybráno: ${z.hrdina}, zápas ${z.match_id}. Klikni na „Rozebrat zápas“ nahoře.`);
+      vykresliZapasyRozbor();
+    });
+    el.appendChild(d);
+  }
+  if (!list.length) el.innerHTML = '<div style="padding:12px;color:var(--muted)">Nic nenalezeno.</div>';
+  $("zapasyInfo").textContent = filtr ? `${list.length} nalezeno` : `${Math.min(zobrazeno, list.length)} z ${rychleKonec ? list.length : list.length + "+"}`;
+  $("zapasyDalsi").hidden = Boolean(filtr) || (zobrazeno >= list.length && rychleKonec);
+}
+async function nactiZapasyRozbor() {
+  rychleZapasy = null; zobrazeno = 30; rychleKonec = false;
+  vykresliZapasyRozbor();
+  if (!hracId()) return;
+  try { await nactiRychleZapasy(); rychleKonec = rychleZapasy.length < 100; }
+  catch (e) { $("zapasySeznam").innerHTML = `<div style="padding:12px;color:var(--muted)">Nepodařilo se načíst: ${esc(e.message || String(e))}</div>`; return; }
+  vykresliZapasyRozbor();
+}
+$("zapasyDalsi").addEventListener("click", async () => {
+  zobrazeno += 30;
+  if (zobrazeno > rychleZapasy.length && !rychleKonec) {
+    $("zapasyDalsi").disabled = true;
+    try {
+      const r = await fetch(`${OD}/players/${hracId()}/matches?limit=100&offset=${rychleZapasy.length}&significant=0`);
+      const list = await r.json();
+      if (Array.isArray(list)) {
+        rychleZapasy = rychleZapasy.concat(list.map((z) => ({ ...z, hrdina: heroJm[z.hero_id] || "?", vyhra: (z.player_slot < 128) === z.radiant_win })));
+        rychleKonec = list.length < 100;
+      }
+    } finally { $("zapasyDalsi").disabled = false; }
+  }
+  vykresliZapasyRozbor();
+});
+$("match").addEventListener("input", vykresliZapasyRozbor);
+// když je zobrazený rozbor, seznam sbalit; tlačítkem se dá znovu rozbalit
+function seznamZapasu(ukazat) {
+  $("zapasyBox").hidden = !ukazat;
+  $("prepnoutSeznam").hidden = ukazat;
+  if (ukazat) vykresliZapasyRozbor();
+}
+$("prepnoutSeznam").addEventListener("click", () => {
+  seznamZapasu(true);
+  $("hlava").style.display = "none"; $("znamky").style.display = "none"; $("vystup").style.display = "none"; $("akce").style.display = "none";
+  stav("");
+  $("zapasyBox").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("hrac").addEventListener("change", nactiZapasyRozbor);
+
+// mřížka hrdinů
+function hrdinoveMrizka(el, filtr, vyber, nahore) {
+  const vse = Object.entries(heroJm).sort((a, b) => a[1].localeCompare(b[1]));
+  const list = vse.filter(([, n]) => !filtr || n.toLowerCase().includes(filtr));
+  el.innerHTML = "";
+  const out = [];
+  const pridej = (nadpis, polozky) => {
+    if (!polozky.length) return;
+    const h = document.createElement("div"); h.className = "hlavicka-vyberu"; h.textContent = nadpis; el.appendChild(h);
+    const m = document.createElement("div"); m.className = "mrizka"; el.appendChild(m);
+    for (const [id, n] of polozky) {
+      const d = document.createElement("div");
+      d.className = "vh"; d.title = n;
+      d.innerHTML = '<img alt="" loading="lazy"><span></span>';
+      const img = d.querySelector("img");
+      if (heroImg[id]) img.src = heroImg[id]; else img.style.visibility = "hidden";
+      d.querySelector("span").textContent = n;
+      d.addEventListener("click", () => vyber(Number(id)));
+      m.appendChild(d); out.push(d);
+    }
+  };
+  if (!filtr && nahore && nahore.list.length) pridej(nahore.nadpis, nahore.list);
+  pridej(filtr ? "Nalezení hrdinové" : "Všichni hrdinové", list);
+  if (!out.length) el.innerHTML = '<div class="nic">Žádný hrdina neodpovídá.</div>';
+  return out;
+}
+const nejcastejsi = (jmena) => {
+  const p = {};
+  for (const n of jmena) if (n) p[n] = (p[n] || 0) + 1;
+  return Object.entries(p).sort((a, b) => b[1] - a[1]).slice(0, 10)
+    .map(([n]) => [heroIdZJmena(n), n]).filter(([id]) => id);
+};
+rozbalovacka($("protiHero"), {
+  nacti: hrdinove,
+  vykresli: (el, f, v) => hrdinoveMrizka(el, f, v,
+    { nadpis: "Tvoji nejčastější soupeři v rozborech", list: nejcastejsi(historie.flatMap((z) => z.souperi || [])) }),
+  vyber: (id) => { $("protiHero").value = heroJm[id]; },
+});
+rozbalovacka($("znHero"), {
+  nacti: hrdinove,
+  vykresli: (el, f, v) => hrdinoveMrizka(el, f, v,
+    { nadpis: "Tvoji hrdinové z rozborů", list: nejcastejsi(historie.map((z) => z.hrdina)) }),
+  vyber: (id) => { $("znHero").value = heroJm[id]; otevriZnalosti(); },
+});
+
+// ---------------------------------------------------------------- start
+$("heslo").addEventListener("change", () => { store.set("trener_heslo", $("heslo").value); nastrojeUlozene = null; nactiHistorii().then(automatika); });
+prepni(location.hash.slice(1) || "rozbor");
+nactiHistorii().then(() => automatika());
+hrdinove().then(nactiZapasyRozbor);
 </script>
 </body>
 </html>
