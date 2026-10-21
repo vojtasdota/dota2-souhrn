@@ -137,6 +137,12 @@
   .seznam-zapasu .vpravo { display: flex; gap: 8px; align-items: center; justify-content: flex-end; }
   .seznam-zapasu .znb { font: 800 18px/1 var(--display); padding: 2px 7px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel2); }
   .vyber-obal { position: relative; display: block; }
+  .hrac-cip { display: flex; gap: 8px; align-items: center; min-height: 22px; font: 500 13px var(--body); text-transform: none; letter-spacing: 0; color: var(--text); }
+  .hrac-cip img { width: 20px; height: 20px; border-radius: 3px; }
+  .vyber .vp { display: grid; grid-template-columns: 36px 1fr auto; gap: 10px; align-items: center; padding: 6px 10px; cursor: pointer; }
+  .vyber .vp:hover, .vyber .vp.akt { background: #262b34; }
+  .vyber .vp img { width: 36px; height: 36px; border-radius: 3px; background: var(--panel); }
+  .vyber .vp b { font: 600 15px/1.2 var(--body); }
   .vyber { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 50; max-height: 380px; overflow-y: auto;
            background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 12px 30px rgba(0,0,0,.5);
            text-transform: none; letter-spacing: 0; font: 400 14px var(--body); color: var(--text); }
@@ -215,7 +221,10 @@
   <p class="sub">Rozbory zápasů, hodnocení picku, srovnání s tvým průměrem i s profíky, návody proti hrdinům a dopad patchů.</p>
 
   <div class="ucet">
-    <label>Tvoje ID hráče <input id="hrac" inputmode="numeric" placeholder="Friend ID z OpenDoty"></label>
+    <label>Hráč (jméno ve Steamu nebo ID)
+      <span class="vyber-obal"><input id="hrac" autocomplete="off" placeholder="Napiš své jméno ve Steamu…"></span>
+      <span class="hrac-cip" id="hracCip"></span>
+    </label>
     <label>Heslo <input id="heslo" type="password" autocomplete="current-password" placeholder="heslo k AI trenérovi"></label>
   </div>
 
@@ -386,8 +395,8 @@ $("match").value = q.get("match") || "";
 $("hrac").value = q.get("hrac") || store.get("trener_hrac");
 $("hrdina").value = q.get("hrdina") || "";
 $("heslo").value = store.get("trener_heslo");
-$("hrac").addEventListener("change", () => store.set("trener_hrac", $("hrac").value.trim()));
-const hracId = () => $("hrac").value.trim().replace(/\D/g, "");
+$("hrac").addEventListener("change", () => { if (hracId()) store.set("trener_hrac", hracId()); });
+const hracId = () => { const v = $("hrac").value.trim(); return /^\d+$/.test(v) ? v : ""; }; // jméno se nejdřív musí vybrat ze seznamu
 
 // ---------------------------------------------------------------- záložky
 function prepni(tab) {
@@ -464,7 +473,7 @@ function ukazMd(el, text, konec) {
 async function post(url, body, { onStav, onText, onStart } = {}) {
   const r = await fetch(url, {
     method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ heslo: $("heslo").value, hrac: $("hrac").value.trim(), ...body }),
+    body: JSON.stringify({ heslo: $("heslo").value, hrac: hracId(), ...body }),
   });
   const typ = r.headers.get("content-type") || "";
   if (typ.includes("application/json") || !r.body) {
@@ -673,7 +682,7 @@ async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
   const match = matchId($("match").value);
   const hrac = hracId(), hrdina = $("hrdina").value.trim(), heslo = $("heslo").value;
   if (!match) { stav("Zadej číslo zápasu.", { chyba: true }); return "chyba"; }
-  if (!hrac && !hrdina) { stav("Nahoře vyplň svoje ID hráče, nebo tady hrdinu.", { chyba: true }); return "chyba"; }
+  if (!hrac && !hrdina) { stav("Nahoře vyhledej své jméno (nebo zadej ID), případně tady hrdinu.", { chyba: true }); return "chyba"; }
   if (!heslo) { stav("Nahoře vyplň heslo.", { chyba: true }); return "chyba"; }
   store.set("trener_hrac", hrac); store.set("trener_heslo", heslo);
 
@@ -837,7 +846,7 @@ function histUrl(offset) {
   return `${OD}/players/${hracId()}/matches?${p}`;
 }
 async function nactiStarsi(dalsi = false) {
-  if (!hracId()) return starsiInfo("Nahoře vyplň své ID hráče.");
+  if (!hracId()) return starsiInfo("Nahoře vyhledej své jméno ve Steamu nebo zadej ID.");
   if (histNacitam) return;
   histNacitam = true;
   if (!dalsi) { starsi = []; histOffset = 0; histKonec = false; vybrane.clear(); }
@@ -1098,7 +1107,7 @@ function rozbalovacka(input, { nacti, vykresli, vyber }) {
 let rychleZapasy = null;
 async function nactiRychleZapasy() {
   if (rychleZapasy) return;
-  if (!hracId()) throw new Error("nahoře vyplň své ID hráče");
+  if (!hracId()) throw new Error("nahoře vyhledej své jméno nebo zadej ID");
   const [hj, r] = await Promise.all([hrdinove(), fetch(`${OD}/players/${hracId()}/matches?limit=100&significant=0`)]);
   const list = await r.json();
   if (!Array.isArray(list)) throw new Error(list.error || "OpenDota nevrátila seznam");
@@ -1110,7 +1119,7 @@ let zobrazeno = 30, rychleKonec = false;
 function vybranyMatch() { return matchId($("match").value); }
 function vykresliZapasyRozbor() {
   const el = $("zapasySeznam");
-  if (!rychleZapasy) { el.innerHTML = `<div class="nic" style="padding:12px;color:var(--muted)">${hracId() ? "Načítám…" : "Nahoře vyplň své ID hráče a zobrazí se tvoje zápasy."}</div>`; return; }
+  if (!rychleZapasy) { el.innerHTML = `<div class="nic" style="padding:12px;color:var(--muted)">${hracId() ? "Načítám…" : "Nahoře vyhledej své jméno ve Steamu (nebo zadej ID) a zobrazí se tvoje zápasy."}</div>`; return; }
   const t = $("match").value.trim().toLowerCase();
   const filtr = /[a-zá-ž]/i.test(t) && !/opendota|dotabuff|stratz|http/.test(t) ? t : "";
   const list = rychleZapasy.filter((z) => !filtr || z.hrdina.toLowerCase().includes(filtr));
@@ -1224,11 +1233,86 @@ rozbalovacka($("znHero"), {
   vyber: (id) => { $("znHero").value = heroJm[id]; otevriZnalosti(); },
 });
 
+// ---------------------------------------------------------------- hledání hráče podle jména
+async function ukazCip() {
+  const id = hracId(), cip = $("hracCip");
+  if (!id || !/^\d+$/.test($("hrac").value.trim())) { cip.textContent = ""; return; }
+  try {
+    const p = await (await fetch(`${OD}/players/${id}`)).json();
+    const prof = p.profile;
+    if (!prof) { cip.textContent = "Profil nenalezen nebo je skrytý."; return; }
+    cip.innerHTML = '<img alt=""><span></span>';
+    cip.querySelector("img").src = prof.avatar || prof.avatarmedium || "";
+    const rank = p.rank_tier ? " · " + rankText(p.rank_tier) : "";
+    cip.querySelector("span").textContent = `${prof.personaname || "?"} (ID ${id})${rank}`;
+  } catch { cip.textContent = ""; }
+}
+(function hledaniHrace() {
+  const input = $("hrac"), obal = input.parentElement;
+  let el = null, casovac = null, polozky = [], akt = -1, posledni = "";
+  const zavri = () => { if (el) { el.remove(); el = null; } };
+  const otevri = () => {
+    if (!el) {
+      el = document.createElement("div"); el.className = "vyber";
+      el.addEventListener("mousedown", (e) => e.preventDefault());
+      el.addEventListener("click", (e) => e.preventDefault());
+      obal.appendChild(el);
+    }
+  };
+  function vyber(p) {
+    input.value = String(p.account_id);
+    zavri(); input.blur();
+    store.set("trener_hrac", input.value);
+    input.dispatchEvent(new Event("change"));
+  }
+  async function hledej(qq) {
+    otevri();
+    el.innerHTML = '<div class="nic"><span class="spin"></span> Hledám hráče…</div>';
+    try {
+      const list = await (await fetch(`${OD}/search?q=${encodeURIComponent(qq)}`)).json();
+      if (qq !== posledni || !el) return;
+      const top = (Array.isArray(list) ? list : []).sort((a, b) => new Date(b.last_match_time || 0) - new Date(a.last_match_time || 0)).slice(0, 25);
+      el.innerHTML = top.length ? '<div class="hlavicka-vyberu">Nalezení hráči (nejaktivnější nahoře)</div>' : '<div class="nic">Nikdo nenalezen. Zkus přesnější jméno, nebo zadej ID.</div>';
+      polozky = []; akt = -1;
+      for (const p of top) {
+        const d = document.createElement("div"); d.className = "vp";
+        d.innerHTML = '<img alt="" loading="lazy"><div><b></b><span class="male"></span></div><span class="male"></span>';
+        d.querySelector("img").src = p.avatarfull || "";
+        d.querySelector("b").textContent = p.personaname || "?";
+        d.querySelectorAll(".male")[0].textContent = p.last_match_time ? `naposledy hrál ${pred(new Date(p.last_match_time).getTime() / 1000)}` : "bez zápasů";
+        d.querySelectorAll(".male")[1].textContent = `ID ${p.account_id}`;
+        d.addEventListener("click", () => vyber(p));
+        el.appendChild(d); polozky.push(d);
+      }
+    } catch (e) { if (el) el.innerHTML = `<div class="nic">Hledání selhalo: ${esc(e.message || String(e))}</div>`; }
+  }
+  input.addEventListener("input", () => {
+    const v = input.value.trim();
+    clearTimeout(casovac);
+    if (/^\d+$/.test(v) || v.length < 3) { zavri(); return; } // ID nebo moc krátké jméno
+    posledni = v;
+    casovac = setTimeout(() => hledej(v), 400);
+  });
+  input.addEventListener("blur", () => setTimeout(zavri, 150));
+  input.addEventListener("keydown", (e) => {
+    if (!el || !polozky.length) return;
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      akt = Math.max(0, Math.min(polozky.length - 1, akt + (e.key === "ArrowDown" ? 1 : -1)));
+      polozky.forEach((p, i) => p.classList.toggle("akt", i === akt));
+      polozky[akt].scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter" && (akt >= 0 || polozky.length === 1)) { e.preventDefault(); polozky[Math.max(0, akt)].click(); }
+    else if (e.key === "Escape") zavri();
+  });
+  input.addEventListener("change", ukazCip);
+})();
+
 // ---------------------------------------------------------------- start
 $("heslo").addEventListener("change", () => { store.set("trener_heslo", $("heslo").value); nastrojeUlozene = null; nactiHistorii().then(automatika); });
 prepni(location.hash.slice(1) || "rozbor");
-nactiHistorii().then(() => automatika());
+nactiHistorii().then(() => { ukazCip(); automatika(); });
 hrdinove().then(nactiZapasyRozbor);
+ukazCip();
 </script>
 </body>
 </html>
