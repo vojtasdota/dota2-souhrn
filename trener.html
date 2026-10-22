@@ -208,7 +208,10 @@
   .mapa-grid .mapa-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 0 20px; }
   .mapa-grid .mapa-panel h4:first-child { grid-column: 1 / -1; }
   .mapa-box.velka { position: fixed; inset: 1vh 1vw; z-index: 200; overflow: auto; border: 1px solid var(--line); box-shadow: 0 0 0 100vmax rgba(0,0,0,.75); }
-  .mapa-box.velka .mapa-grid { grid-template-columns: auto minmax(220px, 1fr); align-items: start; }
+  .mapa-box.velka .mapa-grid { grid-template-columns: auto minmax(260px, 1fr); align-items: start; }
+  .mapa-box.velka .mapa-levy { grid-row: span 2; position: sticky; top: 0; }
+  .mapa-box.velka .mapa-tymy { grid-template-columns: 1fr; }
+  .mapa-levy { min-width: 0; }
   .mapa-box.velka .mapa-grid .mapa-panel { display: block; }
   .mapa-box.velka #mapaSvg { width: min(calc(98vw - 300px), calc(98vh - 230px)); }
   .kalibrace { margin-top: 10px; font-size: 13px; }
@@ -224,16 +227,17 @@
   .mapa-udalosti { max-height: 220px; overflow-y: auto; }
   .mapa-udalosti div { padding: 3px 0; border-bottom: 1px solid var(--line); }
   .mapa-udalosti .cas { color: var(--accent2); font-weight: 600; margin-right: 6px; }
-  .mapa-cas { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; margin-top: 10px; }
+  .mapa-cas { display: grid; grid-template-columns: auto auto 1fr auto; gap: 10px; align-items: center; margin-top: 10px; }
+  .mapa-cas select { width: auto; padding: 5px 8px; font-size: 13px; }
   .mapa-cas input[type=range] { padding: 0; accent-color: var(--accent2); }
   .mapa-cas b { font: 700 18px var(--display); min-width: 52px; text-align: right; }
-  .mapa-osa { position: relative; height: 16px; margin: 2px 0 0 52px; margin-right: 62px; }
+  .mapa-osa { position: relative; height: 16px; margin: 2px 62px 0 160px; }
   .mapa-osa i { position: absolute; top: 2px; width: 4px; height: 12px; margin-left: -2px; border-radius: 1px; cursor: pointer; }
   .mapa-osa i.smrt { background: var(--bad); } .mapa-osa i.tf { background: var(--accent2); opacity: .6; height: 8px; top: 4px; }
   .mapa-osa i.bud { background: #9aa0a6; height: 6px; top: 5px; } .mapa-osa i.rosh { background: #b07cff; }
   .legenda-mapy span { display: inline-flex; gap: 5px; align-items: center; margin: 2px 10px 2px 0; }
   .legenda-mapy i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
-  @media (max-width: 760px) { .mapa-osa { margin-left: 46px; margin-right: 56px; } }
+  @media (max-width: 760px) { .mapa-osa { margin-left: 150px; margin-right: 56px; } }
   .hist-filtry { grid-template-columns: repeat(4, 1fr); }
   .hist-tab { background: var(--panel); border: 1px solid var(--line); }
   .hist-hlava, .hz { display: grid; grid-template-columns: 26px minmax(170px, 2fr) 1.2fr 1fr 1fr 1.3fr 150px; gap: 10px; align-items: center; padding: 6px 12px; }
@@ -344,7 +348,20 @@
       </div>
       <div class="mapa-hud" id="mapaHud"></div>
       <div class="mapa-grid" id="mapaObsah">
-        <svg id="mapaSvg" viewBox="0 0 1000 1000" role="img" aria-label="Schematická mapa zápasu"></svg>
+        <div class="mapa-levy">
+          <svg id="mapaSvg" viewBox="0 0 1000 1000" role="img" aria-label="Schematická mapa zápasu"></svg>
+        <div class="mapa-cas">
+          <button class="vedl mini" id="mapaPlay" type="button" title="Přehrát / pauza (mezerník)">▶</button>
+          <select id="mapaRychlost" title="Rychlost přehrávání">
+            <option value="1">1× (reálný čas)</option><option value="2">2×</option><option value="5">5×</option>
+            <option value="10">10×</option><option value="20">20×</option><option value="40">40×</option><option value="80">80×</option>
+          </select>
+          <input type="range" id="mapaSlider" min="0" max="2400" step="1" value="0">
+          <b id="mapaCas">0:00</b>
+        </div>
+        <div class="mapa-osa" id="mapaOsa"></div>
+        <div class="chipy" id="mapaMomenty"></div>
+        </div>
         <div class="mapa-tymy" id="mapaTymy"></div>
         <div class="mapa-panel">
           <h4>Vrstvy</h4>
@@ -361,13 +378,6 @@
           <div class="mapa-udalosti" id="mapaUdalosti"></div>
         </div>
       </div>
-      <div class="mapa-cas">
-        <button class="vedl mini" id="mapaPlay" type="button">▶</button>
-        <input type="range" id="mapaSlider" min="0" max="2400" step="5" value="0">
-        <b id="mapaCas">0:00</b>
-      </div>
-      <div class="mapa-osa" id="mapaOsa"></div>
-      <div class="chipy" id="mapaMomenty"></div>
       <details class="kalibrace">
         <summary>Podklad mapy a kalibrace</summary>
         <p class="info-text" id="mapaPodkladInfo"></p>
@@ -1674,15 +1684,33 @@ function kresliMapu() {
 
 function nastavCas(t) { $("mapaSlider").value = String(Math.max(0, Math.min(Number($("mapaSlider").max), t))); kresliMapu(); }
 function zastavPrehravani() { clearInterval(mapaHraje); mapaHraje = null; $("mapaPlay").textContent = "▶"; }
+// rychlost přehrávání (herních sekund za sekundu), pamatuje se
+$("mapaRychlost").value = store.get("mapa_rychlost") || "20";
+$("mapaRychlost").addEventListener("change", () => store.set("mapa_rychlost", $("mapaRychlost").value));
+let mapaCasPresny = 0;
 $("mapaPlay").addEventListener("click", () => {
   if (mapaHraje) return zastavPrehravani();
   $("mapaPlay").textContent = "⏸";
+  mapaCasPresny = Number($("mapaSlider").value);
+  let posledni = performance.now();
   mapaHraje = setInterval(() => {
-    const t = Number($("mapaSlider").value) + 5;
-    if (t > Number($("mapaSlider").max)) return zastavPrehravani();
-    nastavCas(t);
-  }, 120);
+    const ted = performance.now();
+    mapaCasPresny += ((ted - posledni) / 1000) * Number($("mapaRychlost").value);
+    posledni = ted;
+    if (mapaCasPresny > Number($("mapaSlider").max)) return zastavPrehravani();
+    nastavCas(Math.floor(mapaCasPresny));
+  }, 100);
 });
+// mezerník = přehrát/pauza, šipky = ±5 s (když se nepíše do pole)
+document.addEventListener("keydown", (e) => {
+  if ($("mapaBox").hidden || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName || "") && document.activeElement.type !== "range") return;
+  if (e.code === "Space") { if (document.activeElement?.tagName === "BUTTON") return; e.preventDefault(); $("mapaPlay").click(); }
+  else if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    if (document.activeElement === $("mapaSlider")) return; // posuvník si šipky řeší sám
+    e.preventDefault(); nastavCas(Number($("mapaSlider").value) + (e.key === "ArrowRight" ? 5 : -5)); mapaCasPresny = Number($("mapaSlider").value);
+  }
+});
+$("mapaSlider").addEventListener("input", () => { mapaCasPresny = Number($("mapaSlider").value); });
 $("mapaSlider").addEventListener("input", kresliMapu);
 for (const id of ["vWardy", "vSmrti", "vLajna", "vBudovy", "vRuny"]) $(id).addEventListener("change", kresliMapu);
 
