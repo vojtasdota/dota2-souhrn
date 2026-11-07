@@ -1174,7 +1174,7 @@ async function nactiNastaveni() {
   if (!$("heslo").value) return;
   const r = await post("/api/nastroje", { akce: "nastaveni" }).catch(() => null);
   if (r?.status === 200) $("autoGuide").checked = !!r.json.autoGuide;
-  hrdinove();
+  hrdinove().catch(() => {});
 }
 $("autoGuide").addEventListener("change", async () => {
   const r = await post("/api/nastroje", { akce: "nastaveni_ulozit", autoGuide: $("autoGuide").checked }).catch(() => null);
@@ -1863,7 +1863,7 @@ function kresliHud(t) {
 $("heslo").addEventListener("change", () => { store.set("trener_heslo", $("heslo").value); nastrojeUlozene = null; nactiHistorii().then(automatika); });
 prepni(location.hash.slice(1) || "rozbor");
 nactiHistorii().then(() => { ukazCip(); automatika(); });
-hrdinove().then(nactiZapasyRozbor);
+hrdinove().catch(() => {}).then(nactiZapasyRozbor);
 ukazCip();
 </script>
 </body>

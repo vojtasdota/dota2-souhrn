@@ -25,6 +25,8 @@
     --text:#e7e2d4;
     --muted:#8a8676;
     --muted-dim:#5f5d54;
+    --dire:var(--loss-glow);
+    --text-dim:#b9b4a6;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{-webkit-text-size-adjust:100%}
@@ -124,7 +126,7 @@
   .tabs::-webkit-scrollbar{height:5px}
   .tabs::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
   .tab{
-    flex:1 1 0;min-width:0;background:var(--bg2);border:1px solid var(--border-soft);
+    flex:1 0 auto;background:var(--bg2);border:1px solid var(--border-soft);
     border-bottom:none;color:var(--muted);font-family:'Rajdhani',sans-serif;
     font-weight:600;font-size:.8rem;letter-spacing:.03em;text-transform:uppercase;
     padding:10px 8px;border-radius:9px 9px 0 0;cursor:pointer;
@@ -766,9 +768,6 @@ function renderQuickBar(){
   const qs=$("#quickSave"); if(qs) qs.onclick=()=> saveAccount(state.curAccount);
 }
 loadSavedAccounts();
-loadLiveHistory();
-loadSearchCache();
-loadKnown();
 
 // Skóre 1–100 -> známka
 function gradeInfo(s){
@@ -844,7 +843,11 @@ async function getJSON(url){
     for(let a=0;a<5;a++){
       const r=await fetch(url);
       if(r.status===429){ await _sleep(1200*(a+1)); continue; } // limit OpenDoty – počkej a zkus znovu
-      if(!r.ok) throw new Error("HTTP "+r.status);
+      if(!r.ok){
+        let msg="HTTP "+r.status;
+        try{ const j=await r.json(); if(j && j.error) msg=j.error+(j.detail&&typeof j.detail==="string"?" – "+j.detail.slice(0,200):""); }catch(e){}
+        throw new Error(msg);
+      }
       return await r.json();
     }
     throw new Error("HTTP 429");
@@ -971,6 +974,8 @@ async function searchPlayers(q){
 }
 
 async function loadProfile(id){
+  state.searchSeq=(state.searchSeq||0)+1; clearTimeout(_searchT);
+  const seq=(state.profileSeq=(state.profileSeq||0)+1);
   $("#loadBtn").disabled = true;
   content.innerHTML = '<div class="status"><div class="spinner"></div>Načítám zápasy hráče…</div>';
 
@@ -988,6 +993,7 @@ async function loadProfile(id){
       getJSON(`https://api.opendota.com/api/players/${id}/wl`),
       getJSON(`https://api.opendota.com/api/players/${id}/heroes`),
     ]);
+    if(seq!==state.profileSeq) return;
 
     if(!profile || !profile.profile){
       content.innerHTML = '<div class="status error">Hráč nenalezen, nebo má soukromou historii zápasů.<br>Zkontroluj ID a v Dota 2 zapni „Expose Public Match Data“.</div>';
@@ -1023,7 +1029,7 @@ async function loadProfile(id){
 
     render(profile, wl);
   }catch(e){
-    content.innerHTML = '<div class="status error">Nepodařilo se načíst data ('+e.message+').<br>Zkontroluj ID a připojení. OpenDota má limit ~60 dotazů/min.</div>';
+    content.innerHTML = '<div class="status error">Nepodařilo se načíst data ('+escapeHtml(e.message)+').<br>Zkontroluj ID a připojení. OpenDota má limit ~60 dotazů/min.</div>';
   }finally{
     $("#loadBtn").disabled = false;
   }
@@ -1080,7 +1086,8 @@ function render(profile, wl){
 
   document.querySelectorAll(".tab").forEach(t=>{
     t.onclick = ()=>{
-      if(state.tab===t.dataset.tab) return;
+      if(state.tab===t.dataset.tab && !state.matchDetailId) return;
+      state.matchDetailId = null;
       state.tab = t.dataset.tab;
       state.sortKey = "g"; state.sortDir = -1;
       setActiveTab(); renderPanel();
@@ -1213,15 +1220,18 @@ function renderHeroTable(){
 
 /* ---------- Farm / benchmarks ---------- */
 async function loadRecords(){
+  const acc=state.accId;
   state.recLoading = true;
   try{
     const fields = ["match_id","start_time","hero_id","player_slot","radiant_win","duration","kills","deaths","assists","gold_per_min","xp_per_min","last_hits","hero_damage","tower_damage"];
     const url = `https://api.opendota.com/api/players/${state.accId}/matches?` + fields.map(f=>"project="+f).join("&");
     const matches = await getJSON(url);
+    if(acc!==state.accId) return;
     state.recMatches = (matches||[]).filter(m=> m && m.match_id);
     state.recLoaded = true; state.recLoading = false;
     if(state.tab==="records") renderRecords();
   }catch(e){
+    if(acc!==state.accId) return;
     state.recLoading = false;
     if(state.tab==="records" && $("#panel")) $("#panel").innerHTML = '<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst zápasy pro rekordy ('+escapeHtml(e.message)+').</div>';
   }
@@ -1271,6 +1281,7 @@ function recCardHTML(r){
   </button>`;
 }
 function renderRecords(){
+  if(state.matchDetailId) return;
   if(!state.recLoaded){
     $("#panel").innerHTML = '<div class="status"><div class="spinner"></div>Počítám tvoje rekordy ze všech zápasů…</div>';
     if(!state.recLoading) loadRecords();
@@ -1312,6 +1323,7 @@ function pctOf(curve, val){
   return arr[arr.length-1].percentile*100;
 }
 async function loadAnalysis(){
+  const acc=state.accId;
   state.anaLoading=true; state.anaProg="Stahuju tvoje zápasy…"; renderAnalysis();
   try{
     const fields=["hero_id","duration","kills","deaths","assists","gold_per_min","xp_per_min","last_hits","hero_damage","tower_damage","hero_healing"];
@@ -1323,17 +1335,19 @@ async function loadAnalysis(){
       getJSON(`https://api.opendota.com/api/players/${state.accId}/peers`).catch(()=>null),
       getJSON(`https://api.opendota.com/api/players/${state.accId}/rankings`).catch(()=>null),
     ]);
+    if(acc!==state.accId) return;
     const matches=(ms||[]).filter(m=>m && m.duration>0);
     // top hrdinové podle počtu her (kvůli limitu dotazů)
     const byHero={};
     matches.forEach(m=>{ (byHero[m.hero_id]=byHero[m.hero_id]||[]).push(m); });
     const topHeroes=Object.keys(byHero).map(Number)
       .sort((a,b)=> byHero[b].length-byHero[a].length).slice(0,8);
-    state.anaProg=`Stahuju benchmarky pro ${topHeroes.length} nejhranějších hrdinů…`; renderAnalysis();
+    state.anaProg=`Stahuju benchmarky pro ${topHeroes.length} nejhranějších hrdinů…`; if(state.tab==="analysis" && !state.matchDetailId) renderAnalysis();
     const benches={};
     await Promise.all(topHeroes.map(async hid=>{
       try{ const b=await getJSON(`https://api.opendota.com/api/benchmarks?hero_id=${hid}`); benches[hid]=b&&b.result?b.result:null; }catch(e){}
     }));
+    if(acc!==state.accId) return;
     // percentily vážené počtem her
     const rows=ANA_METRICS.map(met=>{
       let wSum=0, pSum=0, games=0, valSum=0, valN=0;
@@ -1467,6 +1481,7 @@ function rankingsHTML(rankings){
     </div>`;
 }
 function renderAnalysis(){
+  if(state.matchDetailId) return;
   if(!state.anaLoaded){
     $("#panel").innerHTML = `<div class="status"><div class="spinner"></div>${escapeHtml(state.anaProg||"Analyzuji tvoje zápasy…")}</div>`;
     if(!state.anaLoading) loadAnalysis();
@@ -1543,7 +1558,7 @@ function renderFarm(){
         <td style="color:${gpmColor(r.gpm)};font-weight:700">${r.gpm}</td>
         <td class="cg">${r.xpm}</td>
         <td class="cg">${r.lh}</td>
-        <td style="color:${kdaColor(r.kda)};font-weight:700">${r.kda.toFixed(2)} <span class="kda-sub">${r.k.toFixed(1)}/${r.d.toFixed(1)}/${r.as.toFixed(1)}</span></td>
+        <td style="color:${kdaColorFarm(r.kda)};font-weight:700">${r.kda.toFixed(2)} <span class="kda-sub">${r.k.toFixed(1)}/${r.d.toFixed(1)}/${r.as.toFixed(1)}</span></td>
       </tr>`;
     });
     html += `</tbody></table>`;
@@ -1561,11 +1576,13 @@ function renderFarm(){
 }
 
 async function loadFarm(){
+  const acc=state.accId;
   state.farmLoading = true;
   try{
     const fields = ["hero_id","player_slot","radiant_win","duration","kills","deaths","assists","gold_per_min","xp_per_min","last_hits"];
     const url = `https://api.opendota.com/api/players/${state.accId}/matches?` + fields.map(f=>"project="+f).join("&");
     const matches = await getJSON(url);
+    if(acc!==state.accId) return;
     const agg = {};
     (matches||[]).forEach(m=>{
       const hid = m.hero_id; if(!hid) return;
@@ -1592,15 +1609,16 @@ async function loadFarm(){
     state.farmLoaded = true; state.farmLoading = false;
     if(state.tab==="farm") renderTable();
   }catch(e){
+    if(acc!==state.accId) return;
     state.farmLoading = false;
     if(state.tab==="farm" && $("#tbl")){
-      $("#tbl").innerHTML = '<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst zápasy pro benchmarky ('+e.message+').</div>';
+      $("#tbl").innerHTML = '<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst zápasy pro benchmarky ('+escapeHtml(e.message)+').</div>';
     }
   }
 }
 
 function gpmColor(v){ if(v>=600) return 'var(--win-glow)'; if(v>=480) return 'var(--gold)'; if(v>=380) return 'var(--text)'; return 'var(--muted)'; }
-function kdaColor(v){ if(v>=4) return 'var(--win-glow)'; if(v>=2.5) return 'var(--gold)'; if(v>=1.5) return 'var(--text)'; return 'var(--loss-glow)'; }
+function kdaColorFarm(v){ if(v>=4) return 'var(--win-glow)'; if(v>=2.5) return 'var(--gold)'; if(v>=1.5) return 'var(--text)'; return 'var(--loss-glow)'; }
 
 /* ---------- Draft / counter-pick ---------- */
 function heroIcon(short,size){
@@ -1766,7 +1784,7 @@ function renderDraftPanel(){
   computeDraft();
   if(state.buildHero){
     if(state.buildCache[state.buildHero]) renderBuildResult(state.buildHero);
-    else loadBuild(state.buildHero);
+    else if(state.buildLoading!==state.buildHero) loadBuild(state.buildHero);
   }
 }
 
@@ -1786,7 +1804,7 @@ async function computeDraft(){
         saveMatchup(id,map);
       }));
     }catch(e){
-      out.innerHTML='<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst matchup data ('+e.message+'). OpenDota má limit ~60 dotazů/min.</div>';
+      out.innerHTML='<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst matchup data ('+escapeHtml(e.message)+'). OpenDota má limit ~60 dotazů/min.</div>';
       return;
     }
   }
@@ -1800,12 +1818,12 @@ function ensureBaseWR(cb){
   state.baseWRLoading=true;
   (async()=>{
     try{
-      const data = state.metaStats || await getJSON("https://api.opendota.com/api/heroStats");
-      if(!state.metaStats) state.metaStats=data;
+      const data = (state.metaStats && state.metaStats.length ? state.metaStats : null) || await getJSON("https://api.opendota.com/api/heroStats");
+      if(!state.metaStats || !state.metaStats.length) state.metaStats=data;
       const map={};
       (data||[]).forEach(h=>{ let p=0,w=0; for(let i=1;i<=8;i++){ p+=h[i+"_pick"]||0; w+=h[i+"_win"]||0; } if(p>0) map[h.id]=w/p; });
       state.baseWR=map;
-    }catch(e){}
+    }catch(e){ state.baseWR = {}; }
     state.baseWRLoading=false;
     const ws=state._bwrWaiters||[]; state._bwrWaiters=[];
     ws.forEach(f=>{ try{ f(); }catch(e){} });
@@ -1959,7 +1977,7 @@ function computeTimings(rows, ic){
 }
 
 async function loadBuild(id){
-  state.buildLoading=true;
+  state.buildLoading=id;
   const out=$("#buildOut");
   if(out) out.innerHTML='<div class="status" style="padding:34px 10px"><div class="spinner"></div>Načítám build a timingy…</div>';
   try{
@@ -1996,11 +2014,11 @@ async function loadBuild(id){
       state.buildCache[id].hard=sorted.slice(0,8).map(dec);
       state.buildCache[id].easy=sorted.slice(-8).reverse().map(dec);
     }
-    state.buildLoading=false;
+    if(state.buildLoading===id) state.buildLoading=false;
     if(state.buildHero===id) renderBuildResult(id);
   }catch(e){
-    state.buildLoading=false;
-    if($("#buildOut")) $("#buildOut").innerHTML='<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst build ('+e.message+'). OpenDota má limit ~60 dotazů/min.</div>';
+    if(state.buildLoading===id) state.buildLoading=false;
+    if(state.buildHero===id && $("#buildOut")) $("#buildOut").innerHTML='<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst build ('+escapeHtml(e.message)+'). OpenDota má limit ~60 dotazů/min.</div>';
   }
 }
 
@@ -2077,7 +2095,7 @@ function renderBuildPanel(){
   wireBuildGrid();
   if(state.buildHero){
     if(state.buildCache[state.buildHero]) renderBuildResult(state.buildHero);
-    else loadBuild(state.buildHero);
+    else if(state.buildLoading!==state.buildHero) loadBuild(state.buildHero);
   }
 }
 
@@ -2173,8 +2191,9 @@ async function prewarmCounters(){
   hcPrewarmRefresh();
   await Promise.all(ids.map(async id=>{
     try{
-      const mu=await getJSON(counterUrl(id));
-      if(!(mu && mu.error)) state.hcData[hcKey(id)]=parseMatchups(mu);
+      const key=hcKey(id), url=counterUrl(id);
+      const mu=await getJSON(url);
+      if(!(mu && mu.error)) state.hcData[key]=parseMatchups(mu);
     }catch(e){}
     state.hcPrewarm.done++; hcPrewarmRefresh();
   }));
@@ -2192,7 +2211,7 @@ function renderCounterResults(){
   }
   const data=state.hcData[hcKey(id)];
   if(!data){
-    if(state.hcErr){ o.innerHTML='<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst data ('+escapeHtml(state.hcErr)+').<br>'+(state.counterBracket==="all"?'OpenDota má limit ~60 dotazů/min — zkus za chvíli.':'Rank-filtr jede přes tvůj STRATZ backend — funguje až po nasazení na server (na file:// ne).')+'</div>'; return; }
+    if(state.hcErr){ const hcMsg=state.hcErr; state.hcErr=null; o.innerHTML='<div class="empty" style="color:var(--loss-glow)">Nepodařilo se načíst data ('+escapeHtml(hcMsg)+').<br>'+(state.counterBracket==="all"?'OpenDota má limit ~60 dotazů/min — zkus za chvíli.':'Rank-filtr jede přes tvůj STRATZ backend — funguje až po nasazení na server (na file:// ne).')+'</div>'; return; }
     o.innerHTML='<div class="status" style="padding:30px 10px"><div class="spinner"></div>Načítám countery…</div>';
     loadCounter(id); return;
   }
@@ -2265,18 +2284,21 @@ function matchImpact(m){
 function impColor(v){ if(v>=72) return 'var(--win-glow)'; if(v>=56) return 'var(--gold)'; if(v>=42) return 'var(--text)'; return 'var(--loss-glow)'; }
 
 async function loadMatches(){
+  const acc=state.accId;
   state.matchHistLoading=true;
   try{
     const ic=await ensureItemConst();
     const fields=["match_id","hero_id","player_slot","radiant_win","duration","game_mode","lobby_type","start_time","kills","deaths","assists","gold_per_min","xp_per_min","last_hits","item_0","item_1","item_2","item_3","item_4","item_5"];
     const url=`https://api.opendota.com/api/players/${state.accId}/matches?limit=100&`+fields.map(f=>"project="+f).join("&");
     const data=await getJSON(url);
+    if(acc!==state.accId) return;
     state.matchHist=data||[];
     state.matchHistLoaded=true; state.matchHistLoading=false;
     if(state.tab==="matches") renderMatchesPanel();
   }catch(e){
+    if(acc!==state.accId) return;
     state.matchHistLoading=false;
-    if(state.tab==="matches" && $("#panel")) $("#panel").innerHTML='<div class="status error">Nepodařilo se načíst historii zápasů ('+e.message+').</div>';
+    if(state.tab==="matches" && $("#panel")) $("#panel").innerHTML='<div class="status error">Nepodařilo se načíst historii zápasů ('+escapeHtml(e.message)+').</div>';
   }
 }
 
@@ -2370,6 +2392,7 @@ function laneOutcome(md){
 }
 async function runLaneAnalysis(){
   if(state.laneLoading) return;
+  const acc=state.accId;
   state.laneLoading=true; state.laneProg=0; renderMatchesPanel();
   const ids=(state.matchHist||[]).slice(0,25).map(m=>m.match_id);
   let won=0,lost=0,tie=0,nodata=0;
@@ -2381,6 +2404,7 @@ async function runLaneAnalysis(){
       state.laneByMatch[id] = r || "nodata";
       if(r==="won") won++; else if(r==="lost") lost++; else if(r==="tie") tie++; else nodata++;
     }catch(e){ state.laneByMatch[id]="nodata"; nodata++; }
+    if(acc!==state.accId) return;
     state.laneProg++; if(state.tab==="matches") renderMatchesPanel();
   }
   state.laneStats={won,lost,tie,nodata,checked:ids.length};
@@ -2393,6 +2417,7 @@ async function runParseMissing(){
   const ids=(state.matchHist||[]).slice(0,25).map(m=>m.match_id).filter(id=> state.laneByMatch[id]==="nodata");
   const todo=ids.slice(0,10);
   if(!todo.length) return;
+  const acc=state.accId;
   state.parseRunning=true; state.parseMsg="Žádám OpenDotu o parsování "+todo.length+" zápasů…";
   if(state.tab==="matches") renderMatchesPanel();
   await Promise.all(todo.map(async id=>{ try{ await fetch("https://api.opendota.com/api/request/"+id,{method:"POST"}); }catch(e){} }));
@@ -2401,6 +2426,7 @@ async function runParseMissing(){
     state.parseMsg="Parsuji… kolo "+(round+1)+"/6, zbývá "+pending.length+" (může to chvíli trvat).";
     if(state.tab==="matches") renderMatchesPanel();
     await _sleep(13000);
+    if(acc!==state.accId) return;
     const still=[];
     for(const id of pending){
       try{
@@ -2416,6 +2442,7 @@ async function runParseMissing(){
         } else still.push(id);
       }catch(e){ still.push(id); }
     }
+    if(acc!==state.accId) return;
     pending=still;
     if(state.tab==="matches") renderMatchesPanel();
   }
@@ -2427,6 +2454,7 @@ async function runParseMissing(){
 }
 
 function renderMatchesPanel(){
+  if(state.matchDetailId) return;
   if(!state.matchHistLoaded){
     $("#panel").innerHTML='<div class="status" style="padding:42px 10px"><div class="spinner"></div>Načítám historii zápasů…</div>';
     if(!state.matchHistLoading) loadMatches();
@@ -2492,17 +2520,18 @@ function wireCopyIds(){
 }
 
 async function loadMatchDetail(id){
-  state.matchDetailLoading=true;
+  state.matchDetailLoading=id;
   try{
     await ensureItemConst();
     const data=await getJSON(`https://api.opendota.com/api/matches/${id}`);
     state.matchDetailCache[id]=data;
-    state.matchDetailLoading=false;
+    if(state.matchDetailLoading===id) state.matchDetailLoading=false;
     if(state.matchDetailId===id) renderMatchDetail();
   }catch(e){
-    state.matchDetailLoading=false;
-    if($("#panel")) $("#panel").innerHTML='<div class="status error">Nepodařilo se načíst detail zápasu ('+e.message+').</div><div style="text-align:center;margin-top:12px"><button class="md-back" id="mdBack">← Zpět na zápasy</button></div>';
-    const bb=$("#mdBack"); if(bb) bb.onclick=()=>{ state.matchDetailId=null; renderMatchesPanel(); };
+    if(state.matchDetailLoading===id) state.matchDetailLoading=false;
+    if(state.matchDetailId!==id) return;
+    if($("#panel")) $("#panel").innerHTML='<div class="status error">Nepodařilo se načíst detail zápasu ('+escapeHtml(e.message)+').</div><div style="text-align:center;margin-top:12px"><button class="md-back" id="mdBack">← Zpět na zápasy</button></div>';
+    const bb=$("#mdBack"); if(bb) bb.onclick=()=>{ state.matchDetailId=null; state.tab=state.matchDetailReturn||"matches"; setActiveTab(); renderPanel(); };
   }
 }
 
@@ -2527,6 +2556,7 @@ function pickCell(heroId, oppIds){
 
 async function ensureMatchDetailMatchups(id){
   const md=state.matchDetailCache[id]; if(!md) return;
+  state._muTried=state._muTried||{}; if(state._muTried[id]) return; state._muTried[id]=true;
   const ids=[...new Set((md.players||[]).map(p=>p.hero_id))].filter(Boolean);
   const missing=ids.filter(h=> !state.matchupCache[h]);
   if(!missing.length) return;
@@ -2635,7 +2665,7 @@ function renderMatchDetail(){
   const md=state.matchDetailCache[id];
   if(!md){
     $("#panel").innerHTML='<div class="status" style="padding:42px 10px"><div class="spinner"></div>Načítám detail zápasu…</div>';
-    if(!state.matchDetailLoading) loadMatchDetail(id);
+    if(state.matchDetailLoading!==id) loadMatchDetail(id);
     return;
   }
   const players=md.players||[];
@@ -2692,6 +2722,7 @@ function normalizePublic(m){
   return {...m, rad:toArr(m.radiant_team), dire:toArr(m.dire_team)};
 }
 async function loadWorldPublic(append){
+  const seq=(state.worldSeq=(state.worldSeq||0)+1);
   state.worldPublicLoading=true; renderWorldPanel();
   const toIds=v=> Array.isArray(v) ? v.filter(Boolean)
     : (typeof v==="string" ? v.replace(/[{}]/g,"").split(",").map(Number).filter(Boolean) : []);
@@ -2712,9 +2743,11 @@ async function loadWorldPublic(append){
       collected=collected.concat(batch);
       before=Math.min(...batch.map(x=>x.match_id));
     }
+    if(seq!==state.worldSeq) return;
     state.worldErr=null;
     state.worldPublic = (append && state.worldPublic) ? state.worldPublic.concat(collected) : collected;
   }catch(e){
+    if(seq!==state.worldSeq) return;
     state.worldErr=(e && e.message) ? e.message : "neznámá chyba";
     if(!append) state.worldPublic=[];
   }
@@ -2730,7 +2763,7 @@ async function loadWorldPro(append){
     state.worldPro = (append && state.worldPro) ? state.worldPro.concat(data||[]) : (data||[]);
     state.worldProLoading=false;
     if(state.tab==="world" && state.worldMode==="pro") renderWorldPanel();
-  }catch(e){ state.worldProLoading=false; if(state.tab==="world") renderWorldPanel(); }
+  }catch(e){ state.worldProLoading=false; if(!append && state.worldPro===null) state.worldPro=[]; if(state.tab==="world") renderWorldPanel(); }
 }
 function filterWorldPublic(){
   let list=state.worldPublic||[];
@@ -2765,6 +2798,7 @@ function heroSelectOptions(sel){
 }
 
 function renderWorldPanel(){
+  if(state.matchDetailId) return;
   const m=state.worldMode;
   const sub=`<div class="seg md-vtoggle">
       <button class="sgb ${m==='public'?'on':''}" data-wm="public">Veřejné hry</button>
@@ -2851,6 +2885,11 @@ function renderMetaPanel(){
   if(state.metaStats===null){
     $("#panel").innerHTML='<div class="status" style="padding:40px 10px"><div class="spinner"></div>Načítám statistiky hrdinů…</div>';
     if(!state.metaLoading) loadMetaStats();
+    return;
+  }
+  if(state.metaErr && !state.metaStats.length){
+    $("#panel").innerHTML='<div class="status error">Nepodařilo se načíst statistiky hrdinů ('+escapeHtml(state.metaErr)+'). OpenDota má limit ~60 dotazů/min — otevři záložku znovu za chvíli.</div>';
+    state.metaStats=null; state.metaErr=null;
     return;
   }
   const rankOpts=[[0,"Všechny ranky"]].concat(Object.keys(RANKS).map(k=>[+k, (+k===8 ? "Immortal (= Divine+)" : RANKS[k])]));
@@ -2991,6 +3030,9 @@ $("#accId").addEventListener("input",()=>{
   if(v.length<2 || parseId(v)) return;   // krátké / číslo / odkaz → čekej na Enter nebo Načíst
   _searchT=setTimeout(()=> searchPlayers(v), 220);
 });
+loadLiveHistory();
+loadSearchCache();
+loadKnown();
 init();
 </script>
 </body>
