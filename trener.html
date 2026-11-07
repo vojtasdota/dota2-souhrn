@@ -495,10 +495,9 @@
   <section class="tab" id="tab-kdyhrat">
     <div class="panel">
       <h2 class="sek">Kdy hrát a kdy ne</h2>
-      <p class="info-text" style="margin-top:0">Z tvých zápasů za poslední rok (bez Turba a her kratších než 10 min): jak hraješ po sérii výher a proher,
+      <p class="info-text" style="margin-top:0">Ze všech tvých ranked zápasů na účtu (bez her kratších než 10 min): jak hraješ po sérii výher a proher,
         kolikátá hra v kuse ti jde, v kolik hodin a které dny. Počítá se zdarma; doporučení od AI je zvlášť.</p>
       <div class="radek">
-        <label class="prepinac" style="margin:0"><input type="checkbox" id="khRanked"> Jen ranked</label>
         <button id="khAi" type="button" class="vedl">Doporučení od trenéra (AI)</button>
         <span class="info-text" id="khDatum"></span>
       </div>
@@ -2228,10 +2227,10 @@ async function nactiKdyHrat(vynutit) {
   const id = hracId();
   if (!id) { $("khOut").innerHTML = '<p class="prazdno">Nahoře vyhledej své jméno nebo zadej ID.</p>'; return; }
   if (!khZapasy || khHrac !== id || vynutit) {
-    stavEl($("khStav"), "Stahuji tvoje zápasy za poslední rok…", { spin: true });
+    stavEl($("khStav"), "Stahuji všechny tvoje ranked zápasy…", { spin: true });
     try {
       const pole = ["start_time", "duration", "radiant_win", "player_slot", "lobby_type", "game_mode"].map((x) => "project=" + x).join("&");
-      const r = await fetch(`${OD}/players/${id}/matches?date=365&significant=0&${pole}`);
+      const r = await fetch(`${OD}/players/${id}/matches?lobby_type=7&significant=0&${pole}`);
       if (!r.ok) throw new Error("OpenDota vrátila " + r.status);
       const list = await r.json();
       if (!Array.isArray(list)) throw new Error("OpenDota nevrátila seznam");
@@ -2241,10 +2240,9 @@ async function nactiKdyHrat(vynutit) {
   }
   vykresliKdyHrat();
 }
-$("khRanked").addEventListener("change", vykresliKdyHrat);
 
 function spocitejKdyHrat(zapasy, jenRanked) {
-  const hry = zapasy.filter((z) => z.duration >= 600 && z.game_mode !== 23 && (jenRanked ? z.lobby_type === 7 : [0, 7].includes(z.lobby_type)))
+  const hry = zapasy.filter((z) => z.duration >= 600 && z.lobby_type === 7)
     .map((z) => ({ t: z.start_time, d: z.duration, w: (z.player_slot < 128) === z.radiant_win }))
     .sort((a, b) => a.t - b.t);
   const N = hry.length;
@@ -2289,7 +2287,8 @@ function spocitejKdyHrat(zapasy, jenRanked) {
   const dnes = hry.filter((h) => ted - h.t < 12 * 3600 && new Date(h.t * 1000).toDateString() === new Date().toDateString());
   const nejcastejsi = (o) => { const e = Object.entries(o).sort((a, b) => b[1] - a[1])[0]; return e ? Number(e[0]) : null; };
   return {
-    celkem_her: N, winrate_celkem: Math.round(base * 1000) / 10, jen_ranked: !!jenRanked,
+    celkem_her: N, winrate_celkem: Math.round(base * 1000) / 10, jen_ranked: true,
+    od: new Date(hry[0].t * 1000).toLocaleDateString("cs-CZ"),
     po_serii_vyher: tabulka(po.vyhry, ["1", "2", "3", "4", "5"]).map((r) => ({ ...r, co: r.co === "1" ? "po 1 výhře" : `po ${r.co}${r.co === "5" ? "+" : ""} výhrách v řadě` })),
     po_serii_proher: tabulka(po.prohry, ["1", "2", "3", "4", "5"]).map((r) => ({ ...r, co: r.co === "1" ? "po 1 prohře" : `po ${r.co}${r.co === "5" ? "+" : ""} prohrách v řadě` })),
     serie_vyher_nejcasteji_konci_po: nejcastejsi(serieV), serie_proher_nejcasteji_konci_po: nejcastejsi(serieP),
@@ -2312,10 +2311,10 @@ function spocitejKdyHrat(zapasy, jenRanked) {
 
 function vykresliKdyHrat() {
   if (!khZapasy) return;
-  const st = spocitejKdyHrat(khZapasy, $("khRanked").checked);
+  const st = spocitejKdyHrat(khZapasy, true);
   khStat = st;
   const el = $("khOut");
-  if (!st) { el.innerHTML = '<p class="prazdno">Málo zápasů za poslední rok (potřeba aspoň 20).</p>'; return; }
+  if (!st) { el.innerHTML = '<p class="prazdno">Málo ranked zápasů (potřeba aspoň 20).</p>'; return; }
   const B = st.winrate_celkem;
   const bunka = (r) => {
     if (r.wr == null) return "–";
@@ -2353,7 +2352,7 @@ function vykresliKdyHrat() {
     <div class="radek-i">Od poslední hry: ${a.od_posledni_hry_h == null ? "–" : a.od_posledni_hry_h > 48 ? Math.round(a.od_posledni_hry_h / 24) + " dní" : a.od_posledni_hry_h + " h"}</div>
     <p class="${tiltNyni ? "horsi" : "lepsi"}" style="margin:8px 0 0"><b>${tiltNyni ? "⚠️ Pozor – možný tilt, dej si pauzu." : "✅ V pohodě, žádné známky tiltu."}</b></p></div>
     <div class="karta"><h3>Shrnutí z dat</h3>${tipy.length ? tipy.map((t) => `<div class="radek-i">• ${t}</div>`).join("") : '<p class="prazdno">Žádné výrazné rozdíly – hraješ podobně bez ohledu na podmínky.</p>'}
-    <p class="info-text">Celkem ${st.celkem_her} her, winrate ${B} %. Zeleně/červeně = aspoň o 4 body nad/pod průměrem (jen při 15+ hrách).</p></div></div>`;
+    <p class="info-text">Celkem ${st.celkem_her} ranked her${st.od ? ` (od ${st.od})` : ""}, winrate ${B} %. Zeleně/červeně = aspoň o 4 body nad/pod průměrem (jen při 15+ hrách).</p></div></div>`;
   html += '<div class="karty">'
     + tab("Po sérii výher", st.po_serii_vyher, "Winrate hry, která následuje po dané sérii výher.", "Winrate další hry")
     + tab("Po sérii proher", st.po_serii_proher, "Winrate hry, která následuje po dané sérii proher.", "Winrate další hry")
