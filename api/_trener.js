@@ -1328,11 +1328,17 @@ function teloPozadavku(req) {
   try { return JSON.parse(req.body || "{}"); } catch { return {}; }
 }
 
+// klíč v úložišti pro daného hráče (hráč z TRENER_HRAC má původní klíče bez přípony)
+const proHrace = (klic, hrac) => {
+  const h = String(hrac || "").replace(/\D/g, "");
+  return !h || h === String(process.env.TRENER_HRAC || "").replace(/\D/g, "") ? klic : `${klic}:${h}`;
+};
+
 const jeChybnyText = (t) => !t || t.trim().length < 300 || /^\s*⚠️/.test(t.trim());
 
 module.exports = {
   OD, ROLE, odGet, nactiKonstanty, heroStats, stratz, pozice, smrtiCena, draftTymu, spoluhraci, metriky, detailZaznamu, srovnaniDivine, znamkyZDat, zkombinujHodnoceni, najdiHrace, shrnuti, pripravData, cas, cached, matchupy, hracInfo, dnes,
   streamText, textOnce, stavRadek, rozebrat, guideBody, MODEL, MODEL_LEVNY, webTool,
   znalosti, ulozZnalosti, nastaveni, ulozNastaveni, guideJeStary, STITKY, KATEGORIE, normalizujHodnoceni,
-  maUloziste, redis, klicRozboru, teloPozadavku, ulozRozbor, zaznam, seznamRozboru, smazRozbor, smazane, jeChybnyText,
+  maUloziste, redis, klicRozboru, teloPozadavku, proHrace, ulozRozbor, zaznam, seznamRozboru, smazRozbor, smazane, jeChybnyText,
 };

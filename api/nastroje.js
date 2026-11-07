@@ -17,7 +17,8 @@ const T = require("./_trener.js");
 const N = require("./_nastroje.js");
 
 function hracZ(body) {
-  return process.env.TRENER_HRAC || String(body.hrac || "").replace(/\D/g, "");
+  // vybraný hráč na stránce má přednost; TRENER_HRAC je jen záloha (automatika)
+  return String(body.hrac || "").replace(/\D/g, "") || String(process.env.TRENER_HRAC || "").replace(/\D/g, "");
 }
 
 // streamuje odpověď AI a po dokončení ji uloží
@@ -54,6 +55,7 @@ module.exports = async (req, res) => {
       res.status(400).json({ error: "Vyber hrdinu." }); return;
     }
     const hrac = hracZ(body);
+    const K = (klic) => T.proHrace(klic, hrac);
     if (["proti", "pool", "patch", "plan", "profil"].includes(akce) && !hrac) { res.status(400).json({ error: "Chybí ID hráče." }); return; }
     if (["plan", "profil"].includes(akce) && !T.maUloziste()) { res.status(501).json({ error: "Úložiště není nastavené – plán i profil se počítají z uložených rozborů." }); return; }
 
@@ -61,19 +63,19 @@ module.exports = async (req, res) => {
       case "proti": {
         const data = await N.protiData(hrac, heroId, k);
         return streamAUloz(res, N.protiBody(data), async (text) => {
-          await T.redis("SET", `proti:${heroId}`, JSON.stringify({ hero: heroId, hrdina: heroJm, datum: new Date().toISOString(), text }));
-          await T.redis("SADD", "proti:seznam", String(heroId));
+          await T.redis("SET", K(`proti:${heroId}`), JSON.stringify({ hero: heroId, hrdina: heroJm, datum: new Date().toISOString(), text }));
+          await T.redis("SADD", K("proti:seznam"), String(heroId));
         });
       }
       case "pool": {
         const data = await N.poolData(hrac, k);
         return streamAUloz(res, N.poolBody(data), (text) =>
-          T.redis("SET", "pool:posledni", JSON.stringify({ datum: new Date().toISOString(), text })));
+          T.redis("SET", K("pool:posledni"), JSON.stringify({ datum: new Date().toISOString(), text })));
       }
       case "patch": {
         const p = await N.posledniPatch();
         if (!body.znovu && T.maUloziste() && p) {
-          const ulozeny = await T.redis("GET", `patch:${p.nazev}`);
+          const ulozeny = await T.redis("GET", K(`patch:${p.nazev}`));
           if (ulozeny) {
             res.statusCode = 200;
             res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -84,8 +86,8 @@ module.exports = async (req, res) => {
         const data = await N.patchData(hrac, k);
         return streamAUloz(res, N.patchBody(data), async (text) => {
           const zaznam = JSON.stringify({ patch: p?.nazev || "?", datum: new Date().toISOString(), text });
-          if (p) await T.redis("SET", `patch:${p.nazev}`, zaznam);
-          await T.redis("SET", "patch:posledni", zaznam);
+          if (p) await T.redis("SET", K(`patch:${p.nazev}`), zaznam);
+          await T.redis("SET", K("patch:posledni"), zaznam);
         });
       }
       case "guide": {
@@ -117,7 +119,7 @@ module.exports = async (req, res) => {
         const plan = N.normalizujPlan(j);
         if (!plan) { res.status(502).json({ error: "AI nevrátila použitelný plán, zkus to znovu." }); return; }
         const zaznam = { ...plan, datum: new Date().toISOString(), od: Math.floor(Date.now() / 1000), hrac };
-        await T.redis("SET", "plan:aktualni", JSON.stringify(zaznam));
+        await T.redis("SET", K("plan:aktualni"), JSON.stringify(zaznam));
         res.status(200).json(zaznam);
         return;
       }
@@ -130,7 +132,7 @@ module.exports = async (req, res) => {
         const data = await N.profilData(hrac);
         if (data.pocet_rozboru < 3) { res.status(400).json({ error: "Na profil potřebuju aspoň 3 rozbory s hodnocením." }); return; }
         return streamAUloz(res, N.profilBody(data), (text) =>
-          T.redis("SET", "profil:posledni", JSON.stringify({ datum: new Date().toISOString(), pocet: data.pocet_rozboru, text })));
+          T.redis("SET", K("profil:posledni"), JSON.stringify({ datum: new Date().toISOString(), pocet: data.pocet_rozboru, text })));
       }
       case "otazka": {
         const matchId = String(body.match || "").replace(/\D/g, "");
@@ -150,7 +152,7 @@ module.exports = async (req, res) => {
         const stat = body.statistiky;
         if (!stat || typeof stat !== "object" || !stat.celkem_her) { res.status(400).json({ error: "Chybí statistiky." }); return; }
         return streamAUloz(res, N.kdyhratBody(stat), (text) =>
-          T.redis("SET", "kdyhrat:posledni", JSON.stringify({ datum: new Date().toISOString(), text })));
+          T.redis("SET", K("kdyhrat:posledni"), JSON.stringify({ datum: new Date().toISOString(), hrac, text })));
       }
       case "znalosti": {
         res.status(200).json({ hrdina: heroJm, ...((await T.znalosti(heroId).catch(() => null)) || {}) });
@@ -173,9 +175,9 @@ module.exports = async (req, res) => {
       }
       case "ulozene": {
         if (!T.maUloziste()) { res.status(200).json({ proti: [], pool: null, patch: null, plan: null, profil: null }); return; }
-        const ids = (await T.redis("SMEMBERS", "proti:seznam")) || [];
-        const proti = ids.length ? (await T.redis("MGET", ...ids.map((i) => `proti:${i}`))) : [];
-        const [pool, patch, plan, profil, kdyhrat] = await Promise.all(["pool:posledni", "patch:posledni", "plan:aktualni", "profil:posledni", "kdyhrat:posledni"].map((x) => T.redis("GET", x)));
+        const ids = (await T.redis("SMEMBERS", K("proti:seznam"))) || [];
+        const proti = ids.length ? (await T.redis("MGET", ...ids.map((i) => K(`proti:${i}`)))) : [];
+        const [pool, patch, plan, profil, kdyhrat] = await Promise.all(["pool:posledni", "patch:posledni", "plan:aktualni", "profil:posledni", "kdyhrat:posledni"].map((x) => T.redis("GET", K(x))));
         const parse = (v) => { try { return JSON.parse(v); } catch { return null; } };
         res.status(200).json({
           proti: proti.map(parse).filter(Boolean).sort((a, b) => b.datum.localeCompare(a.datum)),

@@ -14,13 +14,13 @@ const NAJEDNOU = 2; // kolik rozborů max. v jednom běhu (časový limit funkce
 async function zkontrolujPatch(hrac, out) {
   try {
     const p = await N.posledniPatch();
-    if (!p || (await T.redis("GET", `patch:${p.nazev}`))) return;
+    if (!p || (await T.redis("GET", T.proHrace(`patch:${p.nazev}`, hrac)))) return;
     const k = await T.nactiKonstanty();
     const { text } = await T.textOnce(N.patchBody(await N.patchData(hrac, k)));
     if (T.jeChybnyText(text)) return;
     const zaznam = JSON.stringify({ patch: p.nazev, datum: new Date().toISOString(), text });
-    await T.redis("SET", `patch:${p.nazev}`, zaznam);
-    await T.redis("SET", "patch:posledni", zaznam);
+    await T.redis("SET", T.proHrace(`patch:${p.nazev}`, hrac), zaznam);
+    await T.redis("SET", T.proHrace("patch:posledni", hrac), zaznam);
     out.patch = p.nazev;
   } catch (e) { out.chyby.push("patch: " + e.message); }
 }
@@ -31,11 +31,11 @@ async function aktualizujProfil(hrac, out, start) {
   try {
     const data = await N.profilData(hrac);
     if (data.pocet_rozboru < 5) return;
-    const ulozeny = JSON.parse((await T.redis("GET", "profil:posledni")) || "null");
+    const ulozeny = JSON.parse((await T.redis("GET", T.proHrace("profil:posledni", hrac))) || "null");
     if (ulozeny && data.pocet_rozboru - (ulozeny.pocet || 0) < 10) return;
     const { text } = await T.textOnce(N.profilBody(data));
     if (T.jeChybnyText(text)) return;
-    await T.redis("SET", "profil:posledni", JSON.stringify({ datum: new Date().toISOString(), pocet: data.pocet_rozboru, text }));
+    await T.redis("SET", T.proHrace("profil:posledni", hrac), JSON.stringify({ datum: new Date().toISOString(), pocet: data.pocet_rozboru, text }));
     out.profil = true;
   } catch (e) { out.chyby.push("profil: " + e.message); }
 }

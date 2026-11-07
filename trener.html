@@ -805,16 +805,21 @@ async function automatika() {
 }
 
 // ---------------------------------------------------------------- filtry a seznam
+// rozbory vybraného hráče (bez vybraného hráče všechny; rozbory bez ID hráče – jen podle hrdiny – vždy)
+function mojeHistorie() {
+  const id = hracId();
+  return id ? historie.filter((z) => !z.hrac || String(z.hrac) === id) : historie;
+}
 function naplnFiltrHrdinu() {
   const akt = $("fHrdina").value;
-  const jm = [...new Set(historie.map((z) => z.hrdina).filter(Boolean))].sort();
+  const jm = [...new Set(mojeHistorie().map((z) => z.hrdina).filter(Boolean))].sort();
   $("fHrdina").innerHTML = '<option value="">Všichni hrdinové</option>' + jm.map((n) => `<option>${esc(n)}</option>`).join("");
   $("fHrdina").value = jm.includes(akt) ? akt : "";
 }
 function filtrovane() {
   const t = $("fHledat").value.trim().toLowerCase();
   const h = $("fHrdina").value, v = $("fVysledek").value, typ = $("fTyp").value, zn = $("fZnamka").value;
-  return historie.filter((z) => {
+  return mojeHistorie().filter((z) => {
     if (h && z.hrdina !== h) return false;
     const vyhra = String(z.vysledek).startsWith("VÝHRA");
     if (v === "w" && !vyhra) return false;
@@ -1021,7 +1026,7 @@ $("kopir").addEventListener("click", async () => {
 function prumer(a) { return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }
 function vykresliStatistiky() {
   const el = $("stat");
-  const s = historie.filter((z) => z.hodnoceni?.celkem).sort((a, b) => (b.hrano || 0) - (a.hrano || 0));
+  const s = mojeHistorie().filter((z) => z.hodnoceni?.celkem).sort((a, b) => (b.hrano || 0) - (a.hrano || 0));
   if (s.length < 2) { el.innerHTML = '<p class="prazdno">Zatím málo hodnocených rozborů (potřeba aspoň 2). Statistiky se naplní s každým dalším rozborem.</p>'; return; }
   const posl = s.slice(0, 10), pred = s.slice(10, 20);
   let html = '<div class="karty">';
@@ -1078,6 +1083,7 @@ function vykresliStatistiky() {
 }
 
 // ---------------------------------------------------------------- historie zápasů
+let histZnovu = false;
 let starsi = [], frontaBezi = false, histOffset = 0, histKonec = false, histNacitam = false;
 const vybrane = new Set();
 const RIM = ["", "I", "II", "III", "IV", "V"];
@@ -1112,8 +1118,9 @@ function histUrl(offset) {
 }
 async function nactiStarsi(dalsi = false) {
   if (!hracId()) return starsiInfo("Nahoře vyhledej své jméno ve Steamu nebo zadej ID.");
-  if (histNacitam) return;
+  if (histNacitam) { histZnovu = !dalsi; return; }
   histNacitam = true;
+  const proHrace = hracId();
   if (!dalsi) { starsi = []; histOffset = 0; histKonec = false; vybrane.clear(); }
   starsiInfo("Načítám zápasy z OpenDoty…", true);
   try {
@@ -1123,6 +1130,7 @@ async function nactiStarsi(dalsi = false) {
         Object.entries(hj).sort((a, b) => a[1].localeCompare(b[1])).map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join("");
     }
     const list = await r.json();
+    if (proHrace !== hracId()) return;
     if (!Array.isArray(list)) throw new Error(list.error || "OpenDota nevrátila seznam");
     starsi = starsi.concat(list.map((z) => ({ ...z, hrdina: hj[z.hero_id] || "?", vyhra: (z.player_slot < 128) === z.radiant_win, stav: null })));
     histOffset += list.length;
@@ -1134,8 +1142,11 @@ async function nactiStarsi(dalsi = false) {
       ? `Zobrazeno ${starsi.length} zápasů${histKonec ? "" : " (další načteš dole)"} · ${v} výher, ${starsi.length - v} proher (${Math.round((100 * v) / starsi.length)} %) · ${starsi.filter(jeRozebrany).length} rozebraných.`
       : "Žádné zápasy (zkus jiný filtr, nebo máš skrytou historii).");
     vykresliStarsi();
-  } catch (e) { starsiInfo("Nepodařilo se načíst: " + (e.message || e)); }
-  finally { histNacitam = false; }
+  } catch (e) { if (proHrace === hracId()) starsiInfo("Nepodařilo se načíst: " + (e.message || e)); }
+  finally {
+    histNacitam = false;
+    if (histZnovu || proHrace !== hracId()) { histZnovu = false; if ($("tab-starsi").classList.contains("akt")) nactiStarsi(false); }
+  }
 }
 for (const id of ["hHrdina", "hVysledek", "hTyp", "hObdobi"]) $(id).addEventListener("change", () => nactiStarsi(false));
 $("dalsi").addEventListener("click", () => nactiStarsi(true));
@@ -1521,7 +1532,7 @@ rozbalovacka($("protiHero"), {
 rozbalovacka($("znHero"), {
   nacti: hrdinove,
   vykresli: (el, f, v) => hrdinoveMrizka(el, f, v,
-    { nadpis: "Tvoji hrdinové z rozborů", list: nejcastejsi(historie.map((z) => z.hrdina)) }),
+    { nadpis: "Tvoji hrdinové z rozborů", list: nejcastejsi(mojeHistorie().map((z) => z.hrdina)) }),
   vyber: (id) => { $("znHero").value = heroJm[id]; otevriZnalosti(); },
 });
 
@@ -2108,7 +2119,7 @@ function vykresliPlan(plan) {
   const el = $("planOut");
   if (!plan || !plan.cviceni?.length) { el.innerHTML = '<p class="prazdno">Zatím žádný plán. Potřebuje aspoň 3 rozbory s hodnocením.</p>'; $("planDatum").textContent = ""; return; }
   $("planDatum").textContent = `Plán z ${datum(plan.datum)}`;
-  const hry = historie.filter((z) => (z.hrano || 0) >= (plan.od || 0) && z.detail?.metriky).sort((a, b) => (a.hrano || 0) - (b.hrano || 0));
+  const hry = mojeHistorie().filter((z) => (z.hrano || 0) >= (plan.od || 0) && z.detail?.metriky).sort((a, b) => (a.hrano || 0) - (b.hrano || 0));
   let html = plan.shrnuti ? `<p class="info-text">${esc(plan.shrnuti)}</p>` : "";
   for (const c of plan.cviceni) {
     const vals = hry.map((z) => z.detail.metriky[c.metrika]).filter((v) => v != null).slice(0, c.her);
@@ -2210,7 +2221,7 @@ function kontrolaTiltu() {
     if (z.vyhra) break;
     prohry++;
   }
-  const hod = historie.filter((z) => z.hodnoceni?.celkem && z.hrano).sort((a, b) => b.hrano - a.hrano);
+  const hod = mojeHistorie().filter((z) => z.hodnoceni?.celkem && z.hrano).sort((a, b) => b.hrano - a.hrano);
   const tri = hod.slice(0, 3), predtim = hod.slice(3, 13);
   const padaji = tri.length === 3 && predtim.length >= 5 && ted - tri[0].hrano < 24 * 3600
     && prumer(tri.map((z) => z.hodnoceni.celkem)) <= prumer(predtim.map((z) => z.hodnoceni.celkem)) - 1.5;
@@ -2235,6 +2246,7 @@ async function nactiKdyHrat(vynutit) {
       const r = await fetch(`${OD}/players/${id}/matches?lobby_type=7&significant=0&${pole}`);
       if (!r.ok) throw new Error("OpenDota vrátila " + r.status);
       const list = await r.json();
+      if (id !== hracId()) return; // mezitím se změnil hráč
       if (!Array.isArray(list)) throw new Error("OpenDota nevrátila seznam");
       khZapasy = list; khHrac = id;
     } catch (e) { return stavEl($("khStav"), "Nepodařilo se načíst zápasy: " + (e.message || e), { chyba: true }); }
@@ -2398,6 +2410,26 @@ $("khAi").addEventListener("click", async () => {
   if (await spustNastroj({ akce: "kdyhrat", statistiky: khStat }, $("khStav"), $("khAiOut"), "Nechat AI napsat doporučení, kdy hrát a kdy ne? Stojí to kredit (málo).")) {
     $("khDatum").textContent = `Poslední doporučení: ${datum(new Date().toISOString())}`;
   }
+});
+
+// ---------------------------------------------------------------- změna hráče: vyčistit vše, co patří k předchozímu hráči
+let posledniHrac = hracId();
+$("hrac").addEventListener("change", () => {
+  const id = hracId();
+  if (id === posledniHrac) return;
+  posledniHrac = id;
+  nastrojeUlozene = null;
+  khZapasy = null; khHrac = null; khStat = null;
+  $("khOut").innerHTML = ""; $("khAiOut").style.display = "none"; $("khAiNadpis").hidden = true; $("khDatum").textContent = "";
+  for (const x of ["protiOut", "poolOut", "patchOut", "profilOut"]) $(x).style.display = "none";
+  for (const x of ["protiUlozene", "planOut"]) $(x).innerHTML = "";
+  for (const x of ["poolDatum", "patchDatum", "planDatum", "profilDatum"]) $(x).textContent = "";
+  for (const x of ["khStav", "protiStav", "poolStav", "patchStav", "planStav", "profilStav"]) stavEl($(x), "");
+  starsi = []; histOffset = 0; histKonec = false; vybrane.clear(); $("starsiSeznam").innerHTML = "";
+  $("tilt").hidden = true;
+  poNacteni();
+  const akt = document.querySelector("#zalozky button.akt")?.dataset.tab;
+  if (akt && akt !== "rozbor") prepni(akt);
 });
 
 hrdinove().catch(() => {}).then(nactiZapasyRozbor);
