@@ -366,6 +366,7 @@ const otazkaBody = (data, rozbor, historie, otazka) => {
 
 const KDYHRAT_SYSTEM = `Jsi trenér Doty 2 a mentální kouč. Dostaneš statistiky hráče z jeho historie zápasů (série výher a proher,
 pořadí hry v session, denní doba, den v týdnu, pauza mezi hrami, aktuální stav). Napiš česky v Markdownu:
+## Dny a časy (VŽDY konkrétně: nejlepší a nejhorší dny v týdnu, hodiny a kombinace den + čas z "den_a_cas" a "hodiny_po_2h", s winrate a počtem her)
 ## Kdy hrát (nejlepší podmínky – s čísly)
 ## Kdy nehrát / kdy přestat (konkrétní pravidla typu „po 2 prohrách v řadě konec“, „max. 4 hry v kuse“ – s čísly)
 ## Série (po kolika výhrách v řadě nejčastěji prohráváš, po kolika prohrách nejčastěji vyhraješ a co z toho plyne)

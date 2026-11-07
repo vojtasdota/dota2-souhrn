@@ -305,6 +305,10 @@
   .cviceni h3 { margin: 0 0 4px; font: 700 18px var(--display); }
   .cviceni .stopa { display: block; height: 8px; background: var(--panel2); border: 1px solid var(--line); margin: 8px 0 4px; }
   .cviceni .stopa i { display: block; height: 100%; background: var(--good); }
+  .hm { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .hm th { font: 600 11px var(--display); text-transform: uppercase; color: var(--muted); padding: 4px; text-align: center; }
+  .hm td { text-align: center; padding: 6px 2px; border: 1px solid var(--bg, #111); }
+  .hm td small { display: block; font-size: 10px; opacity: .75; }
   .odznaky { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
   .odznak { padding: 4px 10px; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; color: var(--muted); }
   .odznak.ma { color: var(--accent2); border-color: var(--accent2); }
@@ -2247,7 +2251,8 @@ function spocitejKdyHrat(zapasy, jenRanked) {
   if (N < 20) return null;
   const base = hry.filter((h) => h.w).length / N;
   const pocitadlo = () => ({ n: 0, w: 0 });
-  const po = { vyhry: {}, prohry: {} }, serieV = {}, serieP = {}, vSession = {}, hodiny = {}, dny = {}, pauzy = {};
+  const po = { vyhry: {}, prohry: {} }, serieV = {}, serieP = {}, vSession = {}, hodiny = {}, dny = {}, pauzy = {}, hod2 = {}, denCas = {};
+  const HOD2 = Array.from({ length: 12 }, (_, i) => [i * 2, i * 2 + 2, `${i * 2}–${i * 2 + 2} h`]);
   const HOD = [[0, 6, "0–6 h (noc)"], [6, 12, "6–12 h"], [12, 16, "12–16 h"], [16, 20, "16–20 h"], [20, 24, "20–24 h"]];
   const PAUZY = [[0, 600, "hned další (do 10 min)"], [600, 3600, "10–60 min"], [3600, 6 * 3600, "1–6 h"], [6 * 3600, 86400, "6–24 h"], [86400, 1e12, "víc než den"]];
   let typ = null, delka = 0, idxSession = 0;
@@ -2268,8 +2273,12 @@ function spocitejKdyHrat(zapasy, jenRanked) {
     const dt = new Date(h.t * 1000);
     const hb = HOD.find(([a, b]) => dt.getHours() >= a && dt.getHours() < b)[2];
     (hodiny[hb] = hodiny[hb] || pocitadlo()).n++; if (h.w) hodiny[hb].w++;
+    const h2 = HOD2[Math.floor(dt.getHours() / 2)][2];
+    (hod2[h2] = hod2[h2] || pocitadlo()).n++; if (h.w) hod2[h2].w++;
     const den = DNY[dt.getDay()];
     (dny[den] = dny[den] || pocitadlo()).n++; if (h.w) dny[den].w++;
+    const dc = `${den}|${hb}`;
+    (denCas[dc] = denCas[dc] || pocitadlo()).n++; if (h.w) denCas[dc].w++;
     // aktualizace série
     if (typ === h.w) delka++;
     else { if (typ !== null) { const t2 = typ ? serieV : serieP; t2[Math.min(delka, 8)] = (t2[Math.min(delka, 8)] || 0) + 1; } typ = h.w; delka = 1; }
@@ -2287,6 +2296,9 @@ function spocitejKdyHrat(zapasy, jenRanked) {
     delky_serii_vyher: serieV, delky_serii_proher: serieP,
     kolikata_hra_v_session: tabulka(vSession, ["1", "2", "3", "4", "5", "6"]).map((r) => ({ ...r, co: `${r.co}${r.co === "6" ? "+" : ""}. hra v kuse` })),
     denni_doba: tabulka(hodiny, HOD.map((x) => x[2])),
+    hodiny_po_2h: tabulka(hod2, HOD2.map((x) => x[2])),
+    den_a_cas: Object.entries(denCas).map(([k, c]) => { const [d, t2] = k.split("|"); return { den: d, cas: t2, co: `${d} ${t2}`, her: c.n, wr: wr(c) }; }),
+    bloky_dne: HOD.map((x) => x[2]),
     den_v_tydnu: tabulka(dny, ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]),
     pauza_pred_hrou: tabulka(pauzy, PAUZY.map((x) => x[2])),
     aktualni_stav: {
@@ -2324,8 +2336,13 @@ function vykresliKdyHrat() {
   const ses = sp(st.kolikata_hra_v_session);
   const pad = ses.find((r, i) => i > 0 && r.wr <= B - 4);
   if (pad) tipy.push(`Od <b>${parseInt(pad.co, 10)}. hry v kuse</b> ti winrate padá na ${pad.wr} % → hraj max. ${parseInt(pad.co, 10) - 1} ${parseInt(pad.co, 10) - 1 === 1 ? "hru" : "hry"} v kuse.`);
-  const dob = sp(st.denni_doba).sort((a, b) => b.wr - a.wr);
-  if (dob.length >= 2 && dob[0].wr - dob[dob.length - 1].wr >= 6) tipy.push(`Nejlépe ti to jde <b>${esc(dob[0].co)}</b> (${dob[0].wr} %), nejhůř ${esc(dob[dob.length - 1].co)} (${dob[dob.length - 1].wr} %).`);
+  const nejNej = (rows, min) => { const a = rows.filter((r) => r.her >= min).sort((x, y) => y.wr - x.wr); return a.length >= 2 ? [a[0], a[a.length - 1]] : null; };
+  const hod = nejNej(st.hodiny_po_2h, 15);
+  if (hod) tipy.push(`Hodiny: nejlépe <b>${esc(hod[0].co)}</b> (${hod[0].wr} %, ${hod[0].her} her), nejhůř <b>${esc(hod[1].co)}</b> (${hod[1].wr} %, ${hod[1].her} her).`);
+  const dn = nejNej(st.den_v_tydnu, 15);
+  if (dn) tipy.push(`Dny: nejlépe <b>${esc(dn[0].co)}</b> (${dn[0].wr} %), nejhůř <b>${esc(dn[1].co)}</b> (${dn[1].wr} %).`);
+  const kombi = nejNej(st.den_a_cas, 10);
+  if (kombi) tipy.push(`Den a čas: nejlépe <b>${esc(kombi[0].co)}</b> (${kombi[0].wr} %, ${kombi[0].her} her), nejhůř <b>${esc(kombi[1].co)}</b> (${kombi[1].wr} %, ${kombi[1].her} her).`);
   // stav teď (tilt)
   const a = st.aktualni_stav;
   const tiltNyni = !$("tilt").hidden;
@@ -2341,11 +2358,33 @@ function vykresliKdyHrat() {
     + tab("Po sérii výher", st.po_serii_vyher, "Winrate hry, která následuje po dané sérii výher.", "Winrate další hry")
     + tab("Po sérii proher", st.po_serii_proher, "Winrate hry, která následuje po dané sérii proher.", "Winrate další hry")
     + tab("Kolikátá hra v kuse", st.kolikata_hra_v_session, "Hry s pauzou do 45 min se počítají do jedné session.")
-    + tab("Denní doba", st.denni_doba, "Podle času v tvém prohlížeči.")
+    + tab("Hodina (po 2 h)", st.hodiny_po_2h, "Podle času v tvém prohlížeči.")
     + tab("Den v týdnu", st.den_v_tydnu)
+    + tab("Denní doba", st.denni_doba)
     + tab("Pauza před hrou", st.pauza_pred_hrou)
-    + "</div>";
+    + "</div>" + heatmapaDenCas(st);
   el.innerHTML = html;
+}
+function heatmapaDenCas(st) {
+  const B = st.winrate_celkem;
+  const mapa = Object.fromEntries(st.den_a_cas.map((x) => [`${x.den}|${x.cas}`, x]));
+  const barva = (c) => {
+    if (!c || c.her < 5) return "transparent";
+    const d = Math.max(-15, Math.min(15, c.wr - B)) / 15;
+    const sila = Math.min(1, c.her / 20) * Math.abs(d) * 0.75;
+    return d >= 0 ? `rgba(95,179,106,${sila})` : `rgba(212,85,63,${sila})`;
+  };
+  let h = '<div class="karta" style="margin-top:12px"><h3>Den × denní doba (winrate)</h3><div style="overflow-x:auto"><table class="hm"><tr><th></th>'
+    + st.bloky_dne.map((b) => `<th>${esc(b.replace(" (noc)", ""))}</th>`).join("") + "</tr>";
+  for (const d of ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]) {
+    h += `<tr><th>${d}</th>`;
+    for (const b of st.bloky_dne) {
+      const c = mapa[`${d}|${b}`];
+      h += `<td style="background:${barva(c)}">${c ? `${Math.round(c.wr)} %<small>${c.her} her</small>` : "–"}</td>`;
+    }
+    h += "</tr>";
+  }
+  return h + '</table></div><p class="info-text">Zelená = lepší než tvůj průměr, červená = horší; čím víc her, tím sytější barva. Pole s méně než 5 hrami jsou bez barvy.</p></div>';
 }
 $("khAi").addEventListener("click", async () => {
   if (!khStat) await nactiKdyHrat();
