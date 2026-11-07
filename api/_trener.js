@@ -142,7 +142,17 @@ function shrnuti(zapas, ja, { heroes, items, itemById }) {
         smrti.push([k.time, jm(p), vTf]);
       }
   smrti.sort((a, b) => a[0] - b[0]);
-  d.smrti = smrti.map(([t, kdo, tf]) => `${cas(t)} zabil ${kdo}` + (tf ? " (během teamfightu)" : " (MIMO teamfight – pick-off)"));
+  // co náš tým ztratil do 90 s po smrti (budovy, Roshan) – pro odhad dopadu chyby
+  const nasStr = radiant ? "goodguys" : "badguys", mujTymId = radiant ? 2 : 3;
+  const ztraty = (t) => (zapas.objectives || []).filter((o) => o.time > t && o.time <= t + 90).map((o) => {
+    if (o.type === "building_kill" && (o.key || "").includes(nasStr)) return `padla naše ${(o.key || "").replace(/npc_dota_(goodguys|badguys)_/, "")}`;
+    if (o.type === "CHAT_MESSAGE_ROSHAN_KILL" && o.team && o.team !== mujTymId) return "soupeř vzal Roshana";
+    return null;
+  }).filter(Boolean);
+  d.smrti = smrti.map(([t, kdo, tf]) => {
+    const z = ztraty(t);
+    return `${cas(t)} zabil ${kdo}` + (tf ? " (během teamfightu)" : " (MIMO teamfight – pick-off)") + (z.length ? ` → do 90 s: ${z.join(", ")}` : "");
+  });
   if (rozparsovany && ja.deaths - smrti.length > 0) d.smrti_ostatni = `${ja.deaths - smrti.length}× smrt od creepů/věží/neutrálů`;
   d.moje_killy_casy = (ja.kills_log || []).map((k) => cas(k.time));
 
@@ -263,6 +273,30 @@ const omez = (x, a, b) => Math.min(b, Math.max(a, x));
 // body skóre → známka 1–10 (0 bodů = průměrný, rozumný pick = 6)
 const znamkaZeSkore = (sk) => omez(Math.round(6 + sk / 2.5), 1, 10);
 
+// kolik procent her hraje hrdina na které lajně (OpenDota scenarios/laneRoles, posl. týdny)
+const LAJNA_JMENO = { 1: "safe lane (carry)", 2: "mid", 3: "offlane" };
+async function podilLajn() {
+  return cached("cache:laneroles", 86400, async () => {
+    const out = {};
+    for (const lane of [1, 2, 3]) {
+      const rows = await odGet(`/scenarios/laneRoles?lane_role=${lane}`);
+      for (const r of Array.isArray(rows) ? rows : []) {
+        const h = (out[r.hero_id] = out[r.hero_id] || { 1: 0, 2: 0, 3: 0 });
+        h[lane] += Number(r.games) || 0;
+      }
+    }
+    return out;
+  });
+}
+// sedí hrdina na lajnu? podle podílu her (≥ 20 %), bez dat podle rolí hrdiny
+function sediNaLajnu(id, lane, podil, heroes) {
+  if (!lane || lane > 3) return true;
+  const p = podil && podil[id];
+  if (p) { const sum = p[1] + p[2] + p[3]; if (sum >= 200) return p[lane] / sum >= 0.2; }
+  const r = heroes[id]?.roles || [];
+  return lane === 1 ? r.includes("Carry") : lane === 2 ? r.includes("Nuker") || r.includes("Carry") : r.includes("Initiator") || r.includes("Durable");
+}
+
 async function draft(zapas, ja, { heroes }) {
   const jm = (id) => heroes[id]?.localized_name || "?";
   const radiant = ja.player_slot < 128;
@@ -310,7 +344,7 @@ async function draft(zapas, ja, { heroes }) {
     if (lane && !(pool || []).some((h) => h.games >= 8)) {
       // na téhle lajně skoro nehraje → vzít pool ze všech lajn (role core/support se filtruje níž)
       pool = await cached(`cache:pool:${ja.account_id}:0`, 43200, () => odGet(`/players/${ja.account_id}/heroes?date=365`)).catch(() => []);
-      d.poznamka_k_poolu = "na téhle lajně hráč skoro nehraje, alternativy jsou z celého jeho poolu";
+      d.poznamka_k_poolu = `na téhle lajně (${LAJNA_JMENO[ja.lane_role] || "?"}) hráč skoro nehraje – alternativy jsou z celého poolu, ale jen hrdinové, kteří se na tuhle lajnu běžně hrají`;
     }
     pool = Array.isArray(pool) ? pool : [];
     muj_zaznam = pool.find((h) => Number(h.hero_id) === ja.hero_id);
@@ -337,14 +371,34 @@ async function draft(zapas, ja, { heroes }) {
   const tym = zapas.players.filter((p) => (p.player_slot < 128) === radiant)
     .sort((a, b) => (b.net_worth || 0) - (a.net_worth || 0));
   const jeSupport = tym.indexOf(ja) >= 3;
+  const podil = await podilLajn().catch(() => null);
+  // support: hrdina se hraje jako support; core: hrdina se běžně hraje na mojí lajně
   const sedi = (id) => {
     const r = heroes[id]?.roles || [];
-    return jeSupport ? r.includes("Support") : r[0] !== "Support";
+    return jeSupport ? r.includes("Support") : r[0] !== "Support" && sediNaLajnu(id, ja.lane_role, podil, heroes);
   };
+  const rolePopis = jeSupport ? "support" : LAJNA_JMENO[ja.lane_role] || "core";
+  d.moje_role_v_zapase = rolePopis;
   const obsazeno = new Set(zapas.players.map((p) => p.hero_id));
   const kandidati = pool
     .filter((h) => h.games >= 8 && Number(h.hero_id) !== ja.hero_id && !obsazeno.has(Number(h.hero_id)) && sedi(Number(h.hero_id)))
     .sort((a, b) => b.games - a.games).slice(0, 14);
+
+  // v poolu nic pro tuhle roli → nabídnout silné hrdiny pro roli z mety Divine+ (k naučení)
+  if (kandidati.length < 2) {
+    d.poznamka_k_poolu = `v hero poolu nemáš (skoro) žádné hrdiny pro roli ${rolePopis} – alternativy z poolu nedávají smysl`;
+    const maxPick = Math.max(1, ...Object.values(meta).map((m) => m.pick));
+    const kNauceni = Object.entries(meta)
+      .map(([id, m]) => ({ id: Number(id), m }))
+      .filter(({ id, m }) => m.pick > maxPick * 0.15 && id !== ja.hero_id && !obsazeno.has(id) && sedi(id))
+      .sort((a, b) => b.m.wr - a.m.wr).slice(0, 10);
+    const hodK = await Promise.all(kNauceni.map(async ({ id }) => {
+      const v = vyhoda(await matchupyPick(id), enemyVidet, jm);
+      const sk = v.soucet + metaBody(id);
+      return { hrdina: jm(id), meta_wr: metaText(id), vyhoda_proti_soupericum: v.soucet, skore: Math.round(sk * 10) / 10, znamka: znamkaZeSkore(sk) };
+    }));
+    d.k_nauceni_pro_tuhle_roli = hodK.sort((a, b) => b.skore - a.skore).slice(0, 4);
+  }
 
   const hodnoceni = await Promise.all(kandidati.map(async (h) => {
     const id = Number(h.hero_id);
@@ -625,6 +679,10 @@ function zkombinujHodnoceni(h, zd, draftData) {
       counterpick: draftData.counterpick_po_mne || null,
       alternativy: (Array.isArray(draftData.alternativy_z_meho_poolu) ? draftData.alternativy_z_meho_poolu : [])
         .slice(0, 3).map((a) => ({ hrdina: a.hrdina, znamka: a.znamka, moje_wr: a.moje_wr, moje_hry: a.moje_hry, meta_wr: a.meta_wr })),
+      role: draftData.moje_role_v_zapase || null,
+      pool_poznamka: draftData.poznamka_k_poolu || null,
+      k_nauceni: (Array.isArray(draftData.k_nauceni_pro_tuhle_roli) ? draftData.k_nauceni_pro_tuhle_roli : [])
+        .slice(0, 4).map((a) => ({ hrdina: a.hrdina, znamka: a.znamka, meta_wr: a.meta_wr })),
     };
   }
   return out;
@@ -667,52 +725,56 @@ const SYSTEM = `Jsi špičkový trenér Doty 2 (úroveň profesionálního analy
 Dostaneš data z jednoho zápasu hráče. Napiš česky konkrétní a upřímný rozbor v Markdownu.
 
 KALIBRACE: Úroveň hráče je v "hrac_uroven" (rank). Rady přizpůsob jí – u Divine/Immortal
-vynech základy (kupuj wardy, last hituj), jdi do detailů: timingy, rozhodování, pozicování,
-čtení mapy, power spiky. U nižších ranků můžeš být základnější.
+vynech základy (kupuj wardy, last hituj, sleduj minimapu), jdi do detailů: timingy, rozhodování,
+pozicování, čtení mapy, power spiky, tempo. U nižších ranků můžeš být základnější.
 
 PODKLADY: Než začneš psát, můžeš použít webové vyhledávání (max. 3 hledání) k ověření
-aktuálního patche, buildů a rad pro hráčů. Pokud je v datech "znalosti_o_hrdinovi", ber
+aktuálního patche, buildů a rad pro hrdinu. Pokud je v datech "znalosti_o_hrdinovi", ber
 hráčovy poznámky a uložený guide jako důležitý kontext (guide může být starší než patch).
 Postup hledání nevypisuj.
 
-Struktura:
-## 1. Celkové hodnocení
-2–3 věty, známka 1–10 za výkon v dané roli. Kotvou jsou "znamky_z_dat" (spočítané z percentilů,
-lajny, účasti ve fightech a pick-offů) – když se od nich výrazně odchýlíš, napiš proč.
-## 2. Pick – hodnocení 1–10 a co jiného picknout
-Vyjdi ze známky picku spočítané z dat ("draft.pick_znamka_z_dat" a "pick_rozpad": matchupy proti
-soupeřům viditelným při picku, winrate hrdiny v Divine+, jeho vlastní výsledky na hrdinovi).
-Od ní se odchyl nejvýš o 1 a jen s jasným důvodem (synergie s týmem, role, stav patche).
-Zohledni, kteří soupeři byli vidět v době picku – za counter-pick, který přišel až po hráči,
-nemůže ("counterpick_po_mne"). Doporuč 2–3 alternativy POUZE z jeho hero poolu
-("alternativy_z_meho_poolu", mají vlastní známku), u každé jednou větou proč.
-## 3. Lajna (0–10 min)
-Z "lajna_detail": kdo lajnu vyhrál, kdy se zlomila (nejvetsi_zvrat), CS a zlato proti soupeři
-po minutách (stačí klíčové minuty), smrti a killy na lajně a co měl hráč udělat jinak.
-## 4. Co šlo dobře – konkrétně, s čísly a časy
-## 5. Největší chyby – 3 až 5 podle dopadu; u každé: co se stalo (s časem), proč je to problém, co dělat příště
-## 6. Build a timingy
-Byl build rozumný vůči soupeřům a patchi? Porovnej timingy klíčových itemů s profíkem
-("srovnani_s_profikem" – uveď jméno a že jde o jeden konkrétní zápas, ne pravidlo).
-Pokud se hodí přehledné srovnání, použij Markdown tabulku.
-## 7. Oproti tvým minulým hrám
-Z "srovnani_s_mym_prumerem": byl tenhle zápas na hrdinovi nadprůměrný, nebo podprůměrný
-(např. „3. nejhorší GPM z posledních 20“). Z "pamet_trenera": opakují se stejné chyby? Splnil
-hráč cíl z minulé hry ("cil_z_minule_hry")? Pokud paměť chybí, tuhle část zkrať.
-## 8. Na co se zaměřit
-1–3 konkrétní návyky a na konec jeden měřitelný **Cíl na další hru**.
-## 9. Momenty k shlédnutí v replayi
-Seznam 5–8 časových úseků seřazených podle času, ve formátu:
-- **MM:SS–MM:SS** – co se tam stalo a na co se dívat (minimapa, pozice, vize, co měl soupeř)
-Zahrň smrti mimo teamfight, teamfighty bez hráče, klíčové fighty, pomalou farmu, věže a Roshana.
-Okno začínej cca 20–30 s před událostí.
+Struktura (drž se jí, nadpisy přesně takhle):
+## Shrnutí
+Přesně 3 odrážky: **Známka X/10** a jednou větou proč (kotvou jsou "znamky_z_dat"; když se od nich
+výrazně odchýlíš, řekni proč) · **Co rozhodlo zápas** (konkrétní moment nebo fáze s časem) ·
+**Hlavní věc na zlepšení** (jedna, nejdražší chyba).
+## Pick
+Vyjdi ze známky picku z dat ("draft.pick_znamka_z_dat", "pick_rozpad": matchupy proti soupeřům
+viditelným při picku, winrate hrdiny v Divine+, hráčovy výsledky na hrdinovi); odchyl se nejvýš o 1
+a jen s jasným důvodem (synergie s týmem, patch). Za counterpick, který přišel až po hráči, nemůže
+("counterpick_po_mne"). Alternativy POUZE z "alternativy_z_meho_poolu" (jsou už vybrané pro hráčovu
+roli "moje_role_v_zapase", mají vlastní známku) – 2–3, každá jednou větou proč. Pokud je v datech
+"poznamka_k_poolu" a "k_nauceni_pro_tuhle_roli", řekni na rovinu, že pro tuhle roli nemá pool, a
+doporuč 2 hrdiny k naučení z "k_nauceni_pro_tuhle_roli". Nikdy nedoporučuj hrdinu z jiné role.
+## Lajna (0–10 min)
+Z "lajna_detail": kdo lajnu vyhrál a kdy se zlomila (nejvetsi_zvrat). Krátká tabulka jen klíčových
+minut (3–5 řádků: minuta, tvoje LH, LH soupeře, rozdíl zlata). Srovnej LH a zlato v 10. minutě
+s profíkem ("srovnani_s_profikem": LH_10min, zlato_10min – jeden konkrétní zápas, ne pravidlo).
+Pak 1–2 konkrétní věci, co měl hráč na lajně udělat jinak (co, kdy, proč).
+## Největší chyby
+3–4 chyby seřazené podle dopadu (nejdražší první). Každá přesně v tomhle tvaru:
+**MM:SS – krátký název** · *Dopad:* co to stálo podle dat (smrt → co náš tým ztratil do 90 s, viz
+"smrti"; ztracené zlato/XP, věž, Roshan, prohraný fight) · *Co se stalo:* 1–2 věty · *Co udělat místo
+toho:* konkrétní alternativní akce v té situaci (kam jít, co koupit, kdy se stáhnout), ne obecná rada.
+## Co šlo dobře
+2–4 odrážky s čísly a časy. Přidej srovnání s hráčovými minulými hrami ("srovnani_s_mym_prumerem",
+např. „3. nejlepší GPM z posledních 20“) a z "pamet_trenera", jestli splnil cíl z minulé hry
+("cil_z_minule_hry") a jestli se opakují stejné chyby.
+## Build a timingy
+Byl build rozumný vůči soupeřům a patchi? Porovnej timingy klíčových itemů s profíkem v malé tabulce.
+## Momenty k shlédnutí v replayi
+4–6 časových úseků seřazených podle času: - **MM:SS–MM:SS** – na co se dívat (minimapa, pozice, vize,
+co měl soupeř). Okno začínej cca 20–30 s před událostí.
+## Cíl na další hru
+Jeden měřitelný cíl (např. „do 10. min max. 1 smrt a 55+ LH“).
 
 Pravidla: Čísla, časy a jména ber jen z dat, nevymýšlej si situace, které z nich nevyplývají.
 Délku zápasu ber výhradně z "zapas.delka". V textu nikdy nezmiňuj technické názvy polí z dat
 (např. alternativy_z_meho_poolu) – piš normální češtinou („z tvého hero poolu“).
 Nemáš pozice na mapě, takže u smrtí mluv o pravděpodobných příčinách. Pokud replay není
 rozparsovaný nebo nějaká data chybí, řekni to a hodnoť jen to, co máš.
-Buď přímý jako dobrý trenér, ne zbytečně pochvalný, ale ani zlý. Max. ~1600 slov.`;
+Žádné obecné fráze typu „hraj opatrněji“ nebo „sleduj minimapu“ bez konkrétní situace a času.
+Buď přímý jako dobrý trenér, ne zbytečně pochvalný, ale ani zlý. Max. ~900 slov, krátké odstavce.`;
 
 function rozborBody(data, stream) {
   return {

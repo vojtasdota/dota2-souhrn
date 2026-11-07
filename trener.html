@@ -804,7 +804,11 @@ function vykresliZnamky(h) {
       + "</div>";
     if ((pd.alternativy || []).length)
       html += '<div class="alt">' + pd.alternativy.map((a) => `<span class="stitek ${a.znamka > pd.znamka ? "ok" : ""}" title="${esc(`${a.moje_hry} her, ${a.moje_wr} WR · meta ${a.meta_wr}`)}">${esc(a.hrdina)} ${a.znamka}/10</span>`).join("") + "</div>";
-    if (pd.poradi) html += `<div class="pozn">${esc(pd.poradi)}</div>`;
+    if ((pd.k_nauceni || []).length)
+      html += '<div class="pozn">K naučení pro roli ' + esc(pd.role || "") + ' (meta Divine+):</div><div class="alt">'
+        + pd.k_nauceni.map((a) => `<span class="stitek" title="${esc(`meta ${a.meta_wr}`)}">${esc(a.hrdina)} ${a.znamka}/10</span>`).join("") + "</div>";
+    if (pd.pool_poznamka) html += `<div class="pozn">${esc(pd.pool_poznamka)}</div>`;
+    else if (pd.poradi) html += `<div class="pozn">${esc(pd.poradi)}</div>`;
     if (pd.counterpick) html += `<div class="pozn">${esc(pd.counterpick)}</div>`;
     html += "</div>";
   }
