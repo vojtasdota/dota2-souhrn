@@ -504,6 +504,7 @@
     </div>
     <div class="stav" id="khStav"></div>
     <div id="khOut"></div>
+    <h2 class="sek" id="khAiNadpis" style="margin-top:22px" hidden>Doporučení od trenéra (AI)</h2>
     <div class="md samostatny" id="khAiOut" style="display:none"></div>
   </section>
 
@@ -1267,6 +1268,7 @@ function vykresliUlozeneNastroje() {
   if (u.kdyhrat) {
     $("khDatum").textContent = `Poslední doporučení: ${datum(u.kdyhrat.datum)}`;
     if ($("khAiOut").style.display === "none") ukazMd($("khAiOut"), u.kdyhrat.text, true);
+    $("khAiNadpis").hidden = false;
   }
   if (u.profil) {
     $("profilDatum").textContent = `Aktualizováno ${datum(u.profil.datum)} (z ${u.profil.pocet} rozborů)`;
@@ -2388,7 +2390,10 @@ function heatmapaDenCas(st) {
 $("khAi").addEventListener("click", async () => {
   if (!khStat) await nactiKdyHrat();
   if (!khStat) return;
-  spustNastroj({ akce: "kdyhrat", statistiky: khStat }, $("khStav"), $("khAiOut"), "Nechat AI napsat doporučení, kdy hrát a kdy ne? Stojí to kredit (málo).");
+  $("khAiNadpis").hidden = false;
+  if (await spustNastroj({ akce: "kdyhrat", statistiky: khStat }, $("khStav"), $("khAiOut"), "Nechat AI napsat doporučení, kdy hrát a kdy ne? Stojí to kredit (málo).")) {
+    $("khDatum").textContent = `Poslední doporučení: ${datum(new Date().toISOString())}`;
+  }
 });
 
 hrdinove().catch(() => {}).then(nactiZapasyRozbor);

@@ -364,16 +364,24 @@ const otazkaBody = (data, rozbor, historie, otazka) => {
 
 // ------------------------------------------------------------ Kdy hrát a kdy ne
 
-const KDYHRAT_SYSTEM = `Jsi trenér Doty 2 a mentální kouč. Dostaneš statistiky hráče z jeho historie zápasů (série výher a proher,
-pořadí hry v session, denní doba, den v týdnu, pauza mezi hrami, aktuální stav). Napiš česky v Markdownu:
-## Dny a časy (VŽDY konkrétně: nejlepší a nejhorší dny v týdnu, hodiny a kombinace den + čas z "den_a_cas" a "hodiny_po_2h", s winrate a počtem her)
-## Kdy hrát (nejlepší podmínky – s čísly)
-## Kdy nehrát / kdy přestat (konkrétní pravidla typu „po 2 prohrách v řadě konec“, „max. 4 hry v kuse“ – s čísly)
-## Série (po kolika výhrách v řadě nejčastěji prohráváš, po kolika prohrách nejčastěji vyhraješ a co z toho plyne)
-## Tvoje osobní pravidla (3–5 krátkých pravidel k vytištění)
-## Teď (podle aktuálního stavu: hrát, nebo pauza?)
-Ber jen rozdíly, které mají dost her (n ≥ 15); u malých vzorků řekni, že jde o náznak. Neber náhodný šum jako pravidlo.
-Max. ~450 slov.`;
+const KDYHRAT_SYSTEM = `Jsi trenér Doty 2 a mentální kouč. Dostaneš statistiky hráče ze všech jeho ranked zápasů (série výher a proher,
+pořadí hry v session, hodiny, dny, kombinace den + čas, pauza mezi hrami, aktuální stav). Napiš česky v Markdownu.
+Piš hlavně TABULKAMI s čísly, text jen jako krátký závěr pod tabulkou (1–2 věty). Struktura:
+## Teď: hrát, nebo pauza?
+1–2 věty podle "aktualni_stav" a pravidel níž.
+## Dny a časy
+Tabulka „Dny“: den | winrate | her | verdikt (✅ hraj / ⚠️ opatrně / ❌ raději ne) – všech 7 dní.
+Tabulka „Hodiny“: blok po 2 h | winrate | her | verdikt – jen bloky s her ≥ 10.
+Tabulka „Nejlepší a nejhorší kombinace den + čas“: 3 nejlepší a 3 nejhorší z "den_a_cas" s her ≥ 8.
+## Série
+Tabulka: situace (po 1, 2, 3… výhrách / prohrách v řadě) | winrate další hry | her | verdikt.
+Pod ní: po kolika výhrách v řadě nejčastěji prohráváš a po kolika prohrách nejčastěji vyhraješ.
+## Session a pauzy
+Tabulka: kolikátá hra v kuse | winrate | her | verdikt. Tabulka: pauza před hrou | winrate | her | verdikt.
+## Tvoje osobní pravidla
+3–5 krátkých číslovaných pravidel (např. „2 prohry v řadě = konec“, „max. 3 hry v kuse“, „ve středu večer nehraj“).
+Verdikt: ✅ když winrate ≥ průměr + 4 a her ≥ 15; ❌ když ≤ průměr − 4 a her ≥ 15; jinak ⚠️ nebo „–“ (málo her).
+U her < 15 napiš „málo dat“. Neber náhodný šum jako pravidlo. Max. ~500 slov mimo tabulky.`;
 
 const kdyhratBody = (stat) => ({
   model: T.MODEL(), max_tokens: 6000, system: KDYHRAT_SYSTEM,
