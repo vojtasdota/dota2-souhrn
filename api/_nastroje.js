@@ -229,7 +229,8 @@ Struktura:
 ## Co jsi dělal ty (damage, schopnosti, itemy – použil BKB/blink/defenzivní item? umřel jsi a kdy?)
 ## Proč se vyhrál / prohrál (2–3 hlavní důvody)
 ## Co příště (2–3 konkrétní věci pro hráče)
-Max. ~400 slov. Čísla jen z dat; pozice na mapě nemáš, mluv o pravděpodobných příčinách. Nezmiňuj názvy polí z dat.`;
+Max. ~400 slov. Čísla jen z dat; pozice na mapě nemáš, mluv o pravděpodobných příčinách. Nezmiňuj názvy polí z dat.
+U každého hrdiny piš do závorky jeho pozici (číslo 1–5 z "pozice"), např. „Rubick (4)“, „Vengeful Spirit (5)“.`;
 
 const fightBody = (data, rank) => ({
   model: T.MODEL(), max_tokens: 8000, system: FIGHT_SYSTEM,
@@ -347,7 +348,8 @@ const profilBody = (data) => ({
 const OTAZKA_SYSTEM = `Jsi trenér Doty 2. Hráč se ptá na svůj zápas. Máš DATA zápasu a ROZBOR, který k němu napsal trenér.
 Odpovídej česky, stručně (max. ~200 slov, pokud otázka nevyžaduje víc), konkrétně a s čísly a časy z dat.
 Když se data k otázce nedají použít, řekni to a odpověz obecně podle znalostí hry (případně ověř přes web).
-Nevymýšlej události, které v datech nejsou. Nezmiňuj technické názvy polí z dat.`;
+Nevymýšlej události, které v datech nejsou. Nezmiňuj technické názvy polí z dat.
+U hrdinů ze zápasu piš do závorky pozici z "pozice_hrdinu", např. „Tusk (4)“.`;
 
 const otazkaBody = (data, rozbor, historie, otazka) => {
   const messages = [{ role: "user", content: `DATA:\n${JSON.stringify(data)}\n\nROZBOR:\n${String(rozbor || "").slice(0, 20000)}\n\nPotvrď, že máš podklady.` },
@@ -360,5 +362,22 @@ const otazkaBody = (data, rozbor, historie, otazka) => {
   return { model: T.MODEL_LEVNY(), max_tokens: 6000, ...T.webTool(2), system: OTAZKA_SYSTEM, messages };
 };
 
-module.exports = { protiData, protiBody, poolData, poolBody, patchData, patchBody, posledniPatch,
+// ------------------------------------------------------------ Kdy hrát a kdy ne
+
+const KDYHRAT_SYSTEM = `Jsi trenér Doty 2 a mentální kouč. Dostaneš statistiky hráče z jeho historie zápasů (série výher a proher,
+pořadí hry v session, denní doba, den v týdnu, pauza mezi hrami, aktuální stav). Napiš česky v Markdownu:
+## Kdy hrát (nejlepší podmínky – s čísly)
+## Kdy nehrát / kdy přestat (konkrétní pravidla typu „po 2 prohrách v řadě konec“, „max. 4 hry v kuse“ – s čísly)
+## Série (po kolika výhrách v řadě nejčastěji prohráváš, po kolika prohrách nejčastěji vyhraješ a co z toho plyne)
+## Tvoje osobní pravidla (3–5 krátkých pravidel k vytištění)
+## Teď (podle aktuálního stavu: hrát, nebo pauza?)
+Ber jen rozdíly, které mají dost her (n ≥ 15); u malých vzorků řekni, že jde o náznak. Neber náhodný šum jako pravidlo.
+Max. ~450 slov.`;
+
+const kdyhratBody = (stat) => ({
+  model: T.MODEL(), max_tokens: 6000, system: KDYHRAT_SYSTEM,
+  messages: [{ role: "user", content: `Dnešní datum: ${T.dnes()}.\nStatistiky:\n${JSON.stringify(stat, null, 2).slice(0, 30000)}` }],
+});
+
+module.exports = { kdyhratBody, protiData, protiBody, poolData, poolBody, patchData, patchBody, posledniPatch,
   fightData, fightBody, METRIKY, planData, planBody, normalizujPlan, tahakBody, profilData, profilBody, otazkaBody };

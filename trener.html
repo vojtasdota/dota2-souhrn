@@ -340,6 +340,7 @@
     <button data-tab="rozbory">Moje rozbory</button>
     <button data-tab="statistiky">Statistiky</button>
     <button data-tab="trenink">Trénink</button>
+    <button data-tab="kdyhrat">Kdy hrát</button>
     <button data-tab="starsi">Historie zápasů</button>
     <button data-tab="proti">Proti hrdinovi</button>
     <button data-tab="pool">Hero pool</button>
@@ -486,6 +487,23 @@
     <div class="md samostatny" id="profilOut" style="display:none"></div>
   </section>
 
+  <!-- ================= KDY HRÁT ================= -->
+  <section class="tab" id="tab-kdyhrat">
+    <div class="panel">
+      <h2 class="sek">Kdy hrát a kdy ne</h2>
+      <p class="info-text" style="margin-top:0">Z tvých zápasů za poslední rok (bez Turba a her kratších než 10 min): jak hraješ po sérii výher a proher,
+        kolikátá hra v kuse ti jde, v kolik hodin a které dny. Počítá se zdarma; doporučení od AI je zvlášť.</p>
+      <div class="radek">
+        <label class="prepinac" style="margin:0"><input type="checkbox" id="khRanked"> Jen ranked</label>
+        <button id="khAi" type="button" class="vedl">Doporučení od trenéra (AI)</button>
+        <span class="info-text" id="khDatum"></span>
+      </div>
+    </div>
+    <div class="stav" id="khStav"></div>
+    <div id="khOut"></div>
+    <div class="md samostatny" id="khAiOut" style="display:none"></div>
+  </section>
+
   <!-- ================= STARŠÍ ZÁPASY ================= -->
   <section class="tab" id="tab-starsi">
     <div class="filtry hist-filtry">
@@ -603,7 +621,8 @@ function prepni(tab) {
   if (location.hash.slice(1) !== tab) history.replaceState(null, "", "#" + tab);
   if (tab === "statistiky") vykresliStatistiky();
   if (tab === "starsi" && !starsi.length && hracId()) nactiStarsi();
-  if (["proti", "pool", "patch", "trenink"].includes(tab)) nactiUlozeneNastroje();
+  if (["proti", "pool", "patch", "trenink", "kdyhrat"].includes(tab)) nactiUlozeneNastroje();
+  if (tab === "kdyhrat") setTimeout(() => nactiKdyHrat(), 0);
   if (tab === "znalosti") nactiNastaveni();
 }
 for (const b of document.querySelectorAll("#zalozky button")) b.addEventListener("click", () => prepni(b.dataset.tab));
@@ -1242,6 +1261,10 @@ function vykresliUlozeneNastroje() {
     if ($("patchOut").style.display === "none") ukazMd($("patchOut"), u.patch.text, true);
   }
   vykresliPlan(u.plan);
+  if (u.kdyhrat) {
+    $("khDatum").textContent = `Poslední doporučení: ${datum(u.kdyhrat.datum)}`;
+    if ($("khAiOut").style.display === "none") ukazMd($("khAiOut"), u.kdyhrat.text, true);
+  }
   if (u.profil) {
     $("profilDatum").textContent = `Aktualizováno ${datum(u.profil.datum)} (z ${u.profil.pocet} rozborů)`;
     if ($("profilOut").style.display === "none") ukazMd($("profilOut"), u.profil.text, true);
@@ -2193,6 +2216,142 @@ function kontrolaTiltu() {
   el.innerHTML = "⚠️ Možný tilt: " + zpravy.join(" ") + " Dej si pauzu aspoň 20–30 minut, projdi si cíl z posledního rozboru a vrať se s čistou hlavou.";
   el.hidden = false;
 }
+
+// ---------------------------------------------------------------- kdy hrát a kdy ne
+let khZapasy = null, khHrac = null, khStat = null;
+const DNY = ["Ne", "Po", "Út", "St", "Čt", "Pá", "So"];
+async function nactiKdyHrat(vynutit) {
+  const id = hracId();
+  if (!id) { $("khOut").innerHTML = '<p class="prazdno">Nahoře vyhledej své jméno nebo zadej ID.</p>'; return; }
+  if (!khZapasy || khHrac !== id || vynutit) {
+    stavEl($("khStav"), "Stahuji tvoje zápasy za poslední rok…", { spin: true });
+    try {
+      const pole = ["start_time", "duration", "radiant_win", "player_slot", "lobby_type", "game_mode"].map((x) => "project=" + x).join("&");
+      const r = await fetch(`${OD}/players/${id}/matches?date=365&significant=0&${pole}`);
+      if (!r.ok) throw new Error("OpenDota vrátila " + r.status);
+      const list = await r.json();
+      if (!Array.isArray(list)) throw new Error("OpenDota nevrátila seznam");
+      khZapasy = list; khHrac = id;
+    } catch (e) { return stavEl($("khStav"), "Nepodařilo se načíst zápasy: " + (e.message || e), { chyba: true }); }
+    stavEl($("khStav"), "");
+  }
+  vykresliKdyHrat();
+}
+$("khRanked").addEventListener("change", vykresliKdyHrat);
+
+function spocitejKdyHrat(zapasy, jenRanked) {
+  const hry = zapasy.filter((z) => z.duration >= 600 && z.game_mode !== 23 && (jenRanked ? z.lobby_type === 7 : [0, 7].includes(z.lobby_type)))
+    .map((z) => ({ t: z.start_time, d: z.duration, w: (z.player_slot < 128) === z.radiant_win }))
+    .sort((a, b) => a.t - b.t);
+  const N = hry.length;
+  if (N < 20) return null;
+  const base = hry.filter((h) => h.w).length / N;
+  const pocitadlo = () => ({ n: 0, w: 0 });
+  const po = { vyhry: {}, prohry: {} }, serieV = {}, serieP = {}, vSession = {}, hodiny = {}, dny = {}, pauzy = {};
+  const HOD = [[0, 6, "0–6 h (noc)"], [6, 12, "6–12 h"], [12, 16, "12–16 h"], [16, 20, "16–20 h"], [20, 24, "20–24 h"]];
+  const PAUZY = [[0, 600, "hned další (do 10 min)"], [600, 3600, "10–60 min"], [3600, 6 * 3600, "1–6 h"], [6 * 3600, 86400, "6–24 h"], [86400, 1e12, "víc než den"]];
+  let typ = null, delka = 0, idxSession = 0;
+  for (let i = 0; i < N; i++) {
+    const h = hry[i];
+    // série před touto hrou
+    if (i > 0) {
+      const kl = String(Math.min(delka, 5));
+      const tab = typ ? po.vyhry : po.prohry;
+      (tab[kl] = tab[kl] || pocitadlo()).n++; if (h.w) tab[kl].w++;
+    }
+    // session: pauza od konce předchozí hry < 45 min
+    const pauza = i ? h.t - (hry[i - 1].t + hry[i - 1].d) : 1e12;
+    idxSession = pauza < 2700 ? idxSession + 1 : 1;
+    const si = String(Math.min(idxSession, 6));
+    (vSession[si] = vSession[si] || pocitadlo()).n++; if (h.w) vSession[si].w++;
+    if (i) { const p = PAUZY.find(([a, b]) => pauza >= a && pauza < b)[2]; (pauzy[p] = pauzy[p] || pocitadlo()).n++; if (h.w) pauzy[p].w++; }
+    const dt = new Date(h.t * 1000);
+    const hb = HOD.find(([a, b]) => dt.getHours() >= a && dt.getHours() < b)[2];
+    (hodiny[hb] = hodiny[hb] || pocitadlo()).n++; if (h.w) hodiny[hb].w++;
+    const den = DNY[dt.getDay()];
+    (dny[den] = dny[den] || pocitadlo()).n++; if (h.w) dny[den].w++;
+    // aktualizace série
+    if (typ === h.w) delka++;
+    else { if (typ !== null) { const t2 = typ ? serieV : serieP; t2[Math.min(delka, 8)] = (t2[Math.min(delka, 8)] || 0) + 1; } typ = h.w; delka = 1; }
+  }
+  const wr = (c) => (c && c.n ? Math.round((1000 * c.w) / c.n) / 10 : null);
+  const tabulka = (o, poradi) => poradi.filter((k) => o[k]).map((k) => ({ co: k, her: o[k].n, wr: wr(o[k]) }));
+  const posl = hry.slice(-12), ted = Date.now() / 1000;
+  const dnes = hry.filter((h) => ted - h.t < 12 * 3600 && new Date(h.t * 1000).toDateString() === new Date().toDateString());
+  const nejcastejsi = (o) => { const e = Object.entries(o).sort((a, b) => b[1] - a[1])[0]; return e ? Number(e[0]) : null; };
+  return {
+    celkem_her: N, winrate_celkem: Math.round(base * 1000) / 10, jen_ranked: !!jenRanked,
+    po_serii_vyher: tabulka(po.vyhry, ["1", "2", "3", "4", "5"]).map((r) => ({ ...r, co: r.co === "1" ? "po 1 výhře" : `po ${r.co}${r.co === "5" ? "+" : ""} výhrách v řadě` })),
+    po_serii_proher: tabulka(po.prohry, ["1", "2", "3", "4", "5"]).map((r) => ({ ...r, co: r.co === "1" ? "po 1 prohře" : `po ${r.co}${r.co === "5" ? "+" : ""} prohrách v řadě` })),
+    serie_vyher_nejcasteji_konci_po: nejcastejsi(serieV), serie_proher_nejcasteji_konci_po: nejcastejsi(serieP),
+    delky_serii_vyher: serieV, delky_serii_proher: serieP,
+    kolikata_hra_v_session: tabulka(vSession, ["1", "2", "3", "4", "5", "6"]).map((r) => ({ ...r, co: `${r.co}${r.co === "6" ? "+" : ""}. hra v kuse` })),
+    denni_doba: tabulka(hodiny, HOD.map((x) => x[2])),
+    den_v_tydnu: tabulka(dny, ["Po", "Út", "St", "Čt", "Pá", "So", "Ne"]),
+    pauza_pred_hrou: tabulka(pauzy, PAUZY.map((x) => x[2])),
+    aktualni_stav: {
+      serie: delka ? `${delka} ${typ ? (delka === 1 ? "výhra" : delka < 5 ? "výhry" : "výher") : (delka === 1 ? "prohra" : delka < 5 ? "prohry" : "proher")} v řadě` : "–",
+      dnes_her: dnes.length, dnes_vyher: dnes.filter((h) => h.w).length,
+      poslednich_12: posl.map((h) => (h.w ? "V" : "P")).join(""),
+      od_posledni_hry_h: hry.length ? Math.round((ted - (hry[N - 1].t + hry[N - 1].d)) / 360) / 10 : null,
+    },
+  };
+}
+
+function vykresliKdyHrat() {
+  if (!khZapasy) return;
+  const st = spocitejKdyHrat(khZapasy, $("khRanked").checked);
+  khStat = st;
+  const el = $("khOut");
+  if (!st) { el.innerHTML = '<p class="prazdno">Málo zápasů za poslední rok (potřeba aspoň 20).</p>'; return; }
+  const B = st.winrate_celkem;
+  const bunka = (r) => {
+    if (r.wr == null) return "–";
+    const cl = r.her >= 15 && r.wr >= B + 4 ? "lepsi" : r.her >= 15 && r.wr <= B - 4 ? "horsi" : "";
+    return `<b class="${cl}">${r.wr.toFixed(1)} %</b> <small>(${r.her}${r.her < 15 ? ", málo" : ""})</small>`;
+  };
+  const tab = (nadpis, rows, pozn, sloupec = "Winrate") => `<div class="karta"><h3>${nadpis}</h3><table class="mini-tab"><tr><th></th><th>${sloupec}</th></tr>`
+    + rows.map((r) => `<tr><td>${esc(r.co)}</td><td>${bunka(r)}</td></tr>`).join("") + `</table>${pozn ? `<p class="info-text">${pozn}</p>` : ""}</div>`;
+  // doporučení z dat
+  const tipy = [];
+  const sp = (rows) => rows.filter((r) => r.her >= 15);
+  const nejhorsiPoV = sp(st.po_serii_vyher).sort((a, b) => a.wr - b.wr)[0];
+  if (nejhorsiPoV && nejhorsiPoV.wr <= B - 3) tipy.push(`Nejčastěji prohráváš <b>${esc(nejhorsiPoV.co)}</b> (${nejhorsiPoV.wr} % výher) – tam zvaž pauzu.`);
+  const nejlepsiPoP = sp(st.po_serii_proher).sort((a, b) => b.wr - a.wr)[0];
+  if (nejlepsiPoP) tipy.push(`Nejčastěji vyhraješ <b>${esc(nejlepsiPoP.co)}</b> (${nejlepsiPoP.wr} %).`);
+  const nejhorsiPoP = sp(st.po_serii_proher).sort((a, b) => a.wr - b.wr)[0];
+  if (nejhorsiPoP && nejhorsiPoP.wr <= B - 4) tipy.push(`Nejhůř hraješ <b>${esc(nejhorsiPoP.co)}</b> (${nejhorsiPoP.wr} %) – tam je čas skončit.`);
+  const ses = sp(st.kolikata_hra_v_session);
+  const pad = ses.find((r, i) => i > 0 && r.wr <= B - 4);
+  if (pad) tipy.push(`Od <b>${parseInt(pad.co, 10)}. hry v kuse</b> ti winrate padá na ${pad.wr} % → hraj max. ${parseInt(pad.co, 10) - 1} ${parseInt(pad.co, 10) - 1 === 1 ? "hru" : "hry"} v kuse.`);
+  const dob = sp(st.denni_doba).sort((a, b) => b.wr - a.wr);
+  if (dob.length >= 2 && dob[0].wr - dob[dob.length - 1].wr >= 6) tipy.push(`Nejlépe ti to jde <b>${esc(dob[0].co)}</b> (${dob[0].wr} %), nejhůř ${esc(dob[dob.length - 1].co)} (${dob[dob.length - 1].wr} %).`);
+  // stav teď (tilt)
+  const a = st.aktualni_stav;
+  const tiltNyni = !$("tilt").hidden;
+  let html = `<div class="karty"><div class="karta"><h3>Teď (tilt)</h3>
+    <div class="radek-i">Aktuální série: <b>${esc(a.serie)}</b></div>
+    <div class="radek-i">Dnes: <b>${a.dnes_her}</b> her, ${a.dnes_vyher} výher</div>
+    <div class="radek-i">Posledních 12: <b>${esc(a.poslednich_12)}</b></div>
+    <div class="radek-i">Od poslední hry: ${a.od_posledni_hry_h == null ? "–" : a.od_posledni_hry_h > 48 ? Math.round(a.od_posledni_hry_h / 24) + " dní" : a.od_posledni_hry_h + " h"}</div>
+    <p class="${tiltNyni ? "horsi" : "lepsi"}" style="margin:8px 0 0"><b>${tiltNyni ? "⚠️ Pozor – možný tilt, dej si pauzu." : "✅ V pohodě, žádné známky tiltu."}</b></p></div>
+    <div class="karta"><h3>Shrnutí z dat</h3>${tipy.length ? tipy.map((t) => `<div class="radek-i">• ${t}</div>`).join("") : '<p class="prazdno">Žádné výrazné rozdíly – hraješ podobně bez ohledu na podmínky.</p>'}
+    <p class="info-text">Celkem ${st.celkem_her} her, winrate ${B} %. Zeleně/červeně = aspoň o 4 body nad/pod průměrem (jen při 15+ hrách).</p></div></div>`;
+  html += '<div class="karty">'
+    + tab("Po sérii výher", st.po_serii_vyher, "Winrate hry, která následuje po dané sérii výher.", "Winrate další hry")
+    + tab("Po sérii proher", st.po_serii_proher, "Winrate hry, která následuje po dané sérii proher.", "Winrate další hry")
+    + tab("Kolikátá hra v kuse", st.kolikata_hra_v_session, "Hry s pauzou do 45 min se počítají do jedné session.")
+    + tab("Denní doba", st.denni_doba, "Podle času v tvém prohlížeči.")
+    + tab("Den v týdnu", st.den_v_tydnu)
+    + tab("Pauza před hrou", st.pauza_pred_hrou)
+    + "</div>";
+  el.innerHTML = html;
+}
+$("khAi").addEventListener("click", async () => {
+  if (!khStat) await nactiKdyHrat();
+  if (!khStat) return;
+  spustNastroj({ akce: "kdyhrat", statistiky: khStat }, $("khStav"), $("khAiOut"), "Nechat AI napsat doporučení, kdy hrát a kdy ne? Stojí to kredit (málo).");
+});
 
 hrdinove().catch(() => {}).then(nactiZapasyRozbor);
 ukazCip();

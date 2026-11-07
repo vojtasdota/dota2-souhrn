@@ -41,7 +41,7 @@ module.exports = async (req, res) => {
     res.status(401).json({ error: "Špatné heslo." }); return;
   }
   const akce = body.akce;
-  const potrebujeAI = ["proti", "pool", "patch", "guide", "fight", "plan", "tahak", "profil", "otazka"].includes(akce);
+  const potrebujeAI = ["proti", "pool", "patch", "guide", "fight", "plan", "tahak", "profil", "otazka", "kdyhrat"].includes(akce);
   if (potrebujeAI && !process.env.ANTHROPIC_API_KEY) { res.status(500).json({ error: "Chybí ANTHROPIC_API_KEY." }); return; }
   const potrebujeDB = ["znalosti_ulozit", "nastaveni_ulozit"].includes(akce);
   if (potrebujeDB && !T.maUloziste()) { res.status(501).json({ error: "Úložiště není nastavené." }); return; }
@@ -96,7 +96,7 @@ module.exports = async (req, res) => {
         const matchId = String(body.match || "").replace(/\D/g, "");
         const idx = Number(body.idx);
         if (!matchId || !Number.isInteger(idx) || idx < 0) { res.status(400).json({ error: "Chybí zápas nebo teamfight." }); return; }
-        const klic = `fight:${matchId}:${idx}:${String(body.hrac || body.hrdina || "").replace(/[^\w-]/g, "")}`;
+        const klic = `fight2:${matchId}:${idx}:${String(body.hrac || body.hrdina || "").replace(/[^\w-]/g, "")}`;
         if (!body.znovu && T.maUloziste()) {
           const ulozeny = await T.redis("GET", klic);
           if (ulozeny) { res.statusCode = 200; res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.end(ulozeny); return; }
@@ -146,6 +146,12 @@ module.exports = async (req, res) => {
         res.end();
         return;
       }
+      case "kdyhrat": {
+        const stat = body.statistiky;
+        if (!stat || typeof stat !== "object" || !stat.celkem_her) { res.status(400).json({ error: "Chybí statistiky." }); return; }
+        return streamAUloz(res, N.kdyhratBody(stat), (text) =>
+          T.redis("SET", "kdyhrat:posledni", JSON.stringify({ datum: new Date().toISOString(), text })));
+      }
       case "znalosti": {
         res.status(200).json({ hrdina: heroJm, ...((await T.znalosti(heroId).catch(() => null)) || {}) });
         return;
@@ -169,11 +175,11 @@ module.exports = async (req, res) => {
         if (!T.maUloziste()) { res.status(200).json({ proti: [], pool: null, patch: null, plan: null, profil: null }); return; }
         const ids = (await T.redis("SMEMBERS", "proti:seznam")) || [];
         const proti = ids.length ? (await T.redis("MGET", ...ids.map((i) => `proti:${i}`))) : [];
-        const [pool, patch, plan, profil] = await Promise.all(["pool:posledni", "patch:posledni", "plan:aktualni", "profil:posledni"].map((x) => T.redis("GET", x)));
+        const [pool, patch, plan, profil, kdyhrat] = await Promise.all(["pool:posledni", "patch:posledni", "plan:aktualni", "profil:posledni", "kdyhrat:posledni"].map((x) => T.redis("GET", x)));
         const parse = (v) => { try { return JSON.parse(v); } catch { return null; } };
         res.status(200).json({
           proti: proti.map(parse).filter(Boolean).sort((a, b) => b.datum.localeCompare(a.datum)),
-          pool: parse(pool), patch: parse(patch), plan: parse(plan), profil: parse(profil),
+          pool: parse(pool), patch: parse(patch), plan: parse(plan), profil: parse(profil), kdyhrat: parse(kdyhrat),
         });
         return;
       }

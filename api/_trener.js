@@ -926,6 +926,8 @@ async function pripravData(zapas, ja, k) {
   data.znamky_z_dat = znamkyZDat(zapas, ja, data);
   try { data.smrti_a_co_staly = smrtiCena(zapas, ja, k); } catch { /* bez rozparsovaného replaye */ }
   try { data.draft_obou_tymu = draftTymu(zapas, ja, k); } catch {}
+  // pozice všech hrdinů v zápase (AI je píše do závorky: „Rubick (4)“)
+  try { data.pozice_hrdinu = Object.fromEntries(zapas.players.map((p) => [k.heroes[p.hero_id]?.localized_name || "?", pozice(zapas, p)])); } catch {}
   try { data.spoluhraci = spoluhraci(zapas, ja, k); } catch {}
   data.srovnani_s_divine_plus = await srovnaniDivine(zapas, ja, k).catch((e) => ({ chyba: e.message }));
   if (!data.srovnani_s_divine_plus) delete data.srovnani_s_divine_plus;
@@ -999,6 +1001,8 @@ co měl soupeř). Okno začínej cca 20–30 s před událostí.
 Jeden měřitelný cíl (např. „do 10. min max. 1 smrt a 55+ LH“).
 
 Pravidla: Čísla, časy a jména ber jen z dat, nevymýšlej si situace, které z nich nevyplývají.
+U KAŽDÉ zmínky hrdiny (tvůj tým i soupeř) napiš do závorky jeho pozici z "pozice_hrdinu", např. „Rubick (4)“,
+„Ogre Magi (5)“ – při první zmínce v každé sekci vždy, dál podle potřeby; u hrdinů z alternativ picku ne.
 Délku zápasu ber výhradně z "zapas.delka". V textu nikdy nezmiňuj technické názvy polí z dat
 (např. alternativy_z_meho_poolu) – piš normální češtinou („z tvého hero poolu“).
 Nemáš pozice na mapě, takže u smrtí mluv o pravděpodobných příčinách. Pokud replay není
