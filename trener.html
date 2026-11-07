@@ -74,6 +74,13 @@
   .zn b { display: block; font: 800 26px/1 var(--display); }
   .zn span { font: 600 11px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
   .zn.velka b { font-size: 36px; }
+  .zn small { display: block; margin-top: 3px; font: 600 10px var(--display); color: var(--muted); letter-spacing: .5px; }
+  .pickkarta { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel2); font-size: 14px; }
+  .pickkarta h4 { margin: 0 0 6px; font: 700 13px var(--display); text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .pickkarta .radek { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+  .pickkarta .radek span b { color: var(--text, inherit); }
+  .pickkarta .alt { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+  .pickkarta .pozn { margin-top: 6px; color: var(--muted); font-size: 13px; }
   .g-good b { color: var(--good); } .g-mid b { color: var(--mid); } .g-bad b { color: var(--bad); }
   .stitky { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
   .stitek { font: 600 12px var(--display); text-transform: uppercase; letter-spacing: .5px; padding: 3px 8px; border-radius: 3px;
@@ -780,8 +787,27 @@ function vykresliZnamky(h) {
   const el = $("znamky");
   if (!h || !h.celkem) { el.style.display = "none"; return; }
   let html = '<div class="rada">';
-  for (const [k, n] of KAT) if (h[k]) html += `<div class="zn ${k === "celkem" ? "velka " : ""}${tridaZnamky(h[k])}"><b>${h[k]}</b><span>${n}</span></div>`;
-  html += "</div><div class=\"stitky\">";
+  const zd = h.z_dat || {}, jak = h.z_dat_jak || {};
+  for (const [k, n] of KAT) if (h[k]) {
+    const tip = jak[k] ? ` title="Z dat: ${zd[k]}/10 – ${esc(jak[k])}"` : zd[k] ? ` title="Z dat: ${zd[k]}/10"` : "";
+    html += `<div class="zn ${k === "celkem" ? "velka " : ""}${tridaZnamky(h[k])}"${tip}><b>${h[k]}</b><span>${n}</span>${zd[k] ? `<small>data: ${zd[k]}</small>` : ""}</div>`;
+  }
+  html += "</div>";
+  const pd = h.pick_detail;
+  if (pd && pd.znamka) {
+    const r = pd.rozpad || {};
+    html += `<div class="pickkarta"><h4>Pick podle dat: <span class="${tridaZnamky(pd.znamka)}"><b>${pd.znamka}/10</b></span></h4><div class="radek">`
+      + (r.proti_videnym_souperum ? `<span>Proti soupeřům: <b>${esc(r.proti_videnym_souperum)}</b></span>` : "")
+      + (r.meta_v_mem_ranku ? `<span>Meta: <b>${esc(r.meta_v_mem_ranku)}</b></span>` : "")
+      + (r.osobni_komfort ? `<span>Tvoje hry: <b>${esc(r.osobni_komfort)}</b></span>` : "")
+      + "</div>";
+    if ((pd.alternativy || []).length)
+      html += '<div class="alt">' + pd.alternativy.map((a) => `<span class="stitek ${a.znamka > pd.znamka ? "ok" : ""}" title="${esc(`${a.moje_hry} her, ${a.moje_wr} WR · meta ${a.meta_wr}`)}">${esc(a.hrdina)} ${a.znamka}/10</span>`).join("") + "</div>";
+    if (pd.poradi) html += `<div class="pozn">${esc(pd.poradi)}</div>`;
+    if (pd.counterpick) html += `<div class="pozn">${esc(pd.counterpick)}</div>`;
+    html += "</div>";
+  }
+  html += "<div class=\"stitky\">";
   for (const s of h.stitky_chyb || []) html += `<span class="stitek chyba-tag" title="${esc(s.popis || "")}">${esc(s.stitek)}${s.cas ? " · " + esc(s.cas) : ""}</span>`;
   for (const s of h.silne_stranky || []) html += `<span class="stitek ok">${esc(s)}</span>`;
   html += "</div>";

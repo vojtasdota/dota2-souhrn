@@ -211,6 +211,27 @@ function vyhoda(mu, enemyIds, jm) {
   return { det, soucet: Math.round(soucet * 10) / 10 };
 }
 
+// statistiky hrdinů z veřejných zápasů (winrate a počet picků podle ranku)
+async function heroStats() {
+  return cached("cache:herostats", 43200, () => odGet("/heroStats"));
+}
+
+// meta v daném ranku: { heroId: {wr, pick} } (bracket 1–8 = Herald…Immortal; bez ranku = všechny)
+function metaVRanku(hs, bracket) {
+  const out = {};
+  for (const h of Array.isArray(hs) ? hs : []) {
+    let p = 0, w = 0;
+    const br = bracket ? [bracket] : [1, 2, 3, 4, 5, 6, 7, 8];
+    for (const b of br) { p += h[`${b}_pick`] || 0; w += h[`${b}_win`] || 0; }
+    if (p) out[h.id] = { wr: w / p, pick: p };
+  }
+  return out;
+}
+
+const omez = (x, a, b) => Math.min(b, Math.max(a, x));
+// body skóre → známka 1–10 (0 bodů = průměrný, rozumný pick = 6)
+const znamkaZeSkore = (sk) => omez(Math.round(6 + sk / 2.5), 1, 10);
+
 async function draft(zapas, ja, { heroes }) {
   const jm = (id) => heroes[id]?.localized_name || "?";
   const radiant = ja.player_slot < 128;
@@ -231,27 +252,53 @@ async function draft(zapas, ja, { heroes }) {
   } else {
     d.poradi_picku = "pořadí picků není k dispozici – hodnoceno proti všem 5 soupeřům";
   }
+  const enemyPozdeji = enemyAll.filter((h) => !enemyVidet.includes(h));
 
-  // můj pick proti soupeřům
-  const muMuj = await matchupy(ja.hero_id);
+  // můj pick proti soupeřům + meta v mém ranku
+  const [muMuj, hs, info] = await Promise.all([
+    matchupy(ja.hero_id), heroStats().catch(() => null), hracInfo(ja.account_id).catch(() => null),
+  ]);
+  const meta = metaVRanku(hs, info?.bracket);
+  const metaBody = (id) => (meta[id] ? (meta[id].wr - 0.5) * 100 : 0);
+  const metaText = (id) => (meta[id] ? `${(meta[id].wr * 100).toFixed(1)} %` : "bez dat");
   const vsVse = vyhoda(muMuj, enemyAll, jm);
   const vsVidet = vyhoda(muMuj, enemyVidet, jm);
+  const vsPozdeji = vyhoda(muMuj, enemyPozdeji, jm);
   d.muj_pick_matchupy = { proti_vsem_soupericum: vsVse.det, soucet_vyhody_vse: vsVse.soucet,
                           soucet_vyhody_proti_videnym: vsVidet.soucet };
+  if (enemyPozdeji.length && vsPozdeji.soucet <= -3)
+    d.counterpick_po_mne = `soupeř mě po picku counteroval (${enemyPozdeji.map(jm).join(", ")}: ${vsPozdeji.soucet} b.) – za to hráč nemůže`;
 
   // můj hero pool (posledních 365 dní, stejná lajna)
-  if (!ja.account_id) { d.alternativy = "hráč má skrytý profil – hero pool není k dispozici"; return d; }
-  const lane = ja.lane_role ? `&lane_role=${ja.lane_role}` : "";
-  let pool = await cached(`cache:pool:${ja.account_id}:${ja.lane_role || 0}`, 43200, () =>
-    odGet(`/players/${ja.account_id}/heroes?date=365${lane}`));
-  if (lane && !(pool || []).some((h) => h.games >= 8)) {
-    // na téhle lajně skoro nehraje → vzít pool ze všech lajn (role core/support se filtruje níž)
-    pool = await cached(`cache:pool:${ja.account_id}:0`, 43200, () => odGet(`/players/${ja.account_id}/heroes?date=365`));
-    d.poznamka_k_poolu = "na téhle lajně hráč skoro nehraje, alternativy jsou z celého jeho poolu";
+  let pool = [], muj_zaznam = null;
+  if (ja.account_id) {
+    const lane = ja.lane_role ? `&lane_role=${ja.lane_role}` : "";
+    pool = await cached(`cache:pool:${ja.account_id}:${ja.lane_role || 0}`, 43200, () =>
+      odGet(`/players/${ja.account_id}/heroes?date=365${lane}`)).catch(() => []);
+    if (lane && !(pool || []).some((h) => h.games >= 8)) {
+      // na téhle lajně skoro nehraje → vzít pool ze všech lajn (role core/support se filtruje níž)
+      pool = await cached(`cache:pool:${ja.account_id}:0`, 43200, () => odGet(`/players/${ja.account_id}/heroes?date=365`)).catch(() => []);
+      d.poznamka_k_poolu = "na téhle lajně hráč skoro nehraje, alternativy jsou z celého jeho poolu";
+    }
+    pool = Array.isArray(pool) ? pool : [];
+    muj_zaznam = pool.find((h) => Number(h.hero_id) === ja.hero_id);
+    d.moje_hry_na_picku = muj_zaznam && muj_zaznam.games
+      ? `${muj_zaznam.games} her, ${Math.round((100 * muj_zaznam.win) / muj_zaznam.games)} % WR (posl. rok, tahle lajna)` : "na téhle lajně skoro nehraný";
   }
-  const muj_zaznam = (pool || []).find((h) => Number(h.hero_id) === ja.hero_id);
-  d.moje_hry_na_picku = muj_zaznam && muj_zaznam.games
-    ? `${muj_zaznam.games} her, ${Math.round((100 * muj_zaznam.win) / muj_zaznam.games)} % WR (posl. rok, tahle lajna)` : "na téhle lajně skoro nehraný";
+  const osobniBody = (z) => (z && z.games ? (z.win / z.games - 0.5) * 100 * (z.games / (z.games + 20)) : 0);
+
+  // skóre = výhoda proti viditelným soupeřům + meta winrate v ranku + polovina osobní výhody
+  const mojeOsobni = osobniBody(muj_zaznam);
+  const mojeSkore = vsVidet.soucet + metaBody(ja.hero_id) + 0.5 * mojeOsobni;
+  d.skore_meho_picku = Math.round(mojeSkore * 10) / 10;
+  d.pick_znamka_z_dat = znamkaZeSkore(mojeSkore);
+  d.pick_rozpad = {
+    proti_videnym_souperum: `${vsVidet.soucet >= 0 ? "+" : ""}${vsVidet.soucet} b.`,
+    meta_v_mem_ranku: `${metaText(ja.hero_id)} WR (${info?.rank || "všechny ranky"})`,
+    osobni_komfort: muj_zaznam ? `${muj_zaznam.games} her, ${Math.round((100 * muj_zaznam.win) / muj_zaznam.games)} % WR` : "bez dat",
+  };
+
+  if (!ja.account_id) { d.alternativy = "hráč má skrytý profil – hero pool není k dispozici"; return d; }
 
   // core vs. support podle pořadí net worthu v týmu
   const tym = zapas.players.filter((p) => (p.player_slot < 128) === radiant)
@@ -262,28 +309,28 @@ async function draft(zapas, ja, { heroes }) {
     return jeSupport ? r.includes("Support") : r[0] !== "Support";
   };
   const obsazeno = new Set(zapas.players.map((p) => p.hero_id));
-  const kandidati = (pool || [])
+  const kandidati = pool
     .filter((h) => h.games >= 8 && Number(h.hero_id) !== ja.hero_id && !obsazeno.has(Number(h.hero_id)) && sedi(Number(h.hero_id)))
     .sort((a, b) => b.games - a.games).slice(0, 14);
 
   const hodnoceni = await Promise.all(kandidati.map(async (h) => {
     const id = Number(h.hero_id);
     const v = vyhoda(await matchupy(id), enemyVidet, jm);
-    const wr = h.win / h.games;
-    const osobni = (wr - 0.5) * 100 * (h.games / (h.games + 20));
+    const sk = v.soucet + metaBody(id) + 0.5 * osobniBody(h);
     return {
       hrdina: jm(id), role: (heroes[id]?.roles || []).slice(0, 3).join("/"),
-      moje_hry: h.games, moje_wr: `${Math.round(wr * 100)} %`,
+      moje_hry: h.games, moje_wr: `${Math.round((100 * h.win) / h.games)} %`, meta_wr: metaText(id),
       vyhoda_proti_soupericum: v.soucet, detail: v.det,
-      skore: Math.round((v.soucet + 0.5 * osobni) * 10) / 10,
+      skore: Math.round(sk * 10) / 10, znamka: znamkaZeSkore(sk),
     };
   }));
   hodnoceni.sort((a, b) => b.skore - a.skore);
-  const mojeWr = muj_zaznam && muj_zaznam.games ? muj_zaznam.win / muj_zaznam.games : 0.5;
-  const mojeOsobni = (mojeWr - 0.5) * 100 * ((muj_zaznam?.games || 0) / ((muj_zaznam?.games || 0) + 20));
-  d.skore_meho_picku = Math.round((vsVidet.soucet + 0.5 * mojeOsobni) * 10) / 10;
   d.alternativy_z_meho_poolu = hodnoceni.slice(0, 6);
-  d.vysvetlivky = "výhoda = o kolik procentních bodů má hrdina proti danému soupeři vyšší winrate než je jeho průměr (matchupy z OpenDoty, malé vzorky tlumené – ber orientačně); skóre = výhoda proti soupeřům viditelným při picku + polovina mé osobní výhody na hrdinovi";
+  const lepsi = hodnoceni.filter((x) => x.skore > mojeSkore + 1).length;
+  d.poradi_picku_v_poolu = hodnoceni.length
+    ? (lepsi ? `${lepsi} z ${hodnoceni.length} hrdinů z poolu by podle dat byli lepší volba` : `lepší volbu z poolu data nenabízí (porovnáno ${hodnoceni.length} hrdinů)`)
+    : "v poolu nejsou alternativy na porovnání";
+  d.vysvetlivky = "výhoda = o kolik procentních bodů má hrdina proti danému soupeři vyšší winrate než je jeho průměr (matchupy z OpenDoty, malé vzorky tlumené); skóre = výhoda proti soupeřům viditelným při picku + (meta winrate v ranku hráče − 50) + polovina osobní výhody; pick_znamka_z_dat = skóre převedené na 1–10 (0 b. = 6)";
   return d;
 }
 
@@ -461,6 +508,95 @@ const guideJeStary = (zn, dni) => !zn?.guide || !zn.guide_datum || Date.now() - 
 
 // ------------------------------------------------------------ příprava dat pro rozbor
 
+// ------------------------------------------------------------ známky z dat (objektivní kotva pro AI)
+
+const prumerZ = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
+
+function znamkyZDat(zapas, ja, data) {
+  const z = {}, proc = {};
+  const radiant = jeRadiant(ja);
+  const minut = Math.max(10, zapas.duration / 60);
+  const tym = zapas.players.filter((p) => jeRadiant(p) === radiant).sort((a, b) => (b.net_worth || 0) - (a.net_worth || 0));
+  const support = tym.indexOf(ja) >= 3;
+  const bm = ja.benchmarks || {};
+  const pct = (key) => (bm[key] && bm[key].pct != null ? bm[key].pct : null);
+  const zPct = (p) => omez(Math.round(1 + 9 * p), 1, 10);
+
+  // farma: percentil proti hráčům na stejném hrdinovi (support se měří víc přes XP)
+  const fk = support ? ["xp_per_min", "gold_per_min"] : ["gold_per_min", "last_hits_per_min"];
+  const fp = fk.map(pct).filter((x) => x != null);
+  if (fp.length) {
+    z.farma = zPct(prumerZ(fp));
+    proc.farma = `${fk.map((key) => `${key.replace(/_/g, " ")} ${pct(key) != null ? Math.round(pct(key) * 100) + ". percentil" : "–"}`).join(", ")} proti stejnému hrdinovi`;
+  }
+
+  // lajna: rozdíl zlata v 10. minutě proti soupeři na lajně (core proti nejbohatšímu, support proti nejchudšímu)
+  const proti = { 1: 3, 3: 1, 2: 2 }[ja.lane_role];
+  const soup = zapas.players.filter((p) => jeRadiant(p) !== radiant && p.lane_role === proti);
+  const g10 = vMin(ja.gold_t, 10);
+  const sg = soup.map((p) => vMin(p.gold_t, 10)).filter((x) => x != null);
+  if (proti && g10 != null && sg.length) {
+    const diff = g10 - (support ? Math.min(...sg) : Math.max(...sg));
+    z.lajna = omez(Math.round(6 + diff / 350), 1, 10);
+    proc.lajna = `zlato v 10. min ${diff >= 0 ? "+" : ""}${diff} proti ${support ? "nejchudšímu" : "nejbohatšímu"} soupeři na lajně`;
+  }
+
+  // teamfighty: účast (30 % → 1, 80 % → 10)
+  if (ja.teamfight_participation != null && (zapas.teamfights || []).length >= 2) {
+    const tp = ja.teamfight_participation;
+    z.teamfighty = omez(Math.round(1 + (9 * (tp - 0.3)) / 0.5), 1, 10);
+    proc.teamfighty = `účast v teamfightech ${Math.round(tp * 100)} %`;
+  }
+
+  // pozicování: smrti mimo teamfight (pick-offy) přepočtené na 30 minut
+  if (zapas.version != null && Array.isArray(data.smrti)) {
+    const pickoffy = data.smrti.filter((t) => t.includes("MIMO teamfight")).length;
+    const na30 = (pickoffy * 30) / minut;
+    z.pozicovani = omez(Math.round(9.5 - 1.6 * na30), 1, 10);
+    proc.pozicovani = `${pickoffy}× smrt mimo teamfight za ${Math.round(minut)} min`;
+  }
+
+  // pick: skóre z draftu (matchupy proti viditelným soupeřům, meta v ranku, osobní komfort)
+  if (data.draft && data.draft.pick_znamka_z_dat) {
+    z.pick = data.draft.pick_znamka_z_dat;
+    proc.pick = `skóre picku ${data.draft.skore_meho_picku} b.`;
+  }
+
+  const ost = ["farma", "lajna", "teamfighty", "pozicovani"].map((key) => z[key]).filter(Boolean);
+  if (ost.length >= 2) z.celkem = omez(Math.round(prumerZ(ost)), 1, 10);
+  return Object.keys(z).length ? { ...z, jak_spocitano: proc, role_podle_net_worthu: support ? "support" : "core" } : null;
+}
+
+// AI známky drž u dat: max. ±2 (pick ±1), chybějící doplň z dat
+function zkombinujHodnoceni(h, zd, draftData) {
+  if (!zd) return h;
+  const out = h ? { ...h } : null;
+  if (!out) {
+    const ost = KATEGORIE.filter((key) => zd[key]);
+    if (!zd.celkem || ost.length < 3) return null;
+    const vysl = { stitky_chyb: [], silne_stranky: [], cil_na_dalsi_hru: null };
+    for (const key of ost) vysl[key] = zd[key];
+    return zkombinujHodnoceni(vysl, zd, draftData);
+  }
+  for (const key of KATEGORIE) {
+    if (!zd[key]) continue;
+    const tol = key === "pick" ? 1 : 2;
+    out[key] = out[key] ? omez(out[key], zd[key] - tol, zd[key] + tol) : zd[key];
+  }
+  out.z_dat = Object.fromEntries(KATEGORIE.filter((key) => zd[key]).map((key) => [key, zd[key]]));
+  out.z_dat_jak = zd.jak_spocitano || {};
+  if (draftData && draftData.pick_znamka_z_dat) {
+    out.pick_detail = {
+      znamka: draftData.pick_znamka_z_dat, skore: draftData.skore_meho_picku,
+      rozpad: draftData.pick_rozpad || null, poradi: draftData.poradi_picku_v_poolu || null,
+      counterpick: draftData.counterpick_po_mne || null,
+      alternativy: (Array.isArray(draftData.alternativy_z_meho_poolu) ? draftData.alternativy_z_meho_poolu : [])
+        .slice(0, 3).map((a) => ({ hrdina: a.hrdina, znamka: a.znamka, moje_wr: a.moje_wr, moje_hry: a.moje_hry, meta_wr: a.meta_wr })),
+    };
+  }
+  return out;
+}
+
 async function pripravData(zapas, ja, k) {
   const data = shrnuti(zapas, ja, k);
   const bezpecne = (p) => p.catch((e) => ({ chyba: e.message }));
@@ -484,6 +620,7 @@ async function pripravData(zapas, ja, k) {
       aktualni_guide: zn.guide ? `(${zn.guide_datum?.slice(0, 10)}) ${zn.guide}` : null,
     };
   }
+  data.znamky_z_dat = znamkyZDat(zapas, ja, data);
   return data;
 }
 
@@ -507,11 +644,15 @@ Postup hledání nevypisuj.
 
 Struktura:
 ## 1. Celkové hodnocení
-2–3 věty, známka 1–10 za výkon v dané roli.
+2–3 věty, známka 1–10 za výkon v dané roli. Kotvou jsou "znamky_z_dat" (spočítané z percentilů,
+lajny, účasti ve fightech a pick-offů) – když se od nich výrazně odchýlíš, napiš proč.
 ## 2. Pick – hodnocení 1–10 a co jiného picknout
-Ohodnoť pick vůči soupeřům (data "draft"). Zohledni, kteří soupeři byli vidět v době picku –
-za counter-pick, který přišel až po hráči, nemůže. Doporuč 2–3 alternativy POUZE z jeho
-hero poolu ("alternativy_z_meho_poolu"), u každé jednou větou proč. Čísla ber orientačně.
+Vyjdi ze známky picku spočítané z dat ("draft.pick_znamka_z_dat" a "pick_rozpad": matchupy proti
+soupeřům viditelným při picku, winrate hrdiny v hráčově ranku, jeho vlastní výsledky na hrdinovi).
+Od ní se odchyl nejvýš o 1 a jen s jasným důvodem (synergie s týmem, role, stav patche).
+Zohledni, kteří soupeři byli vidět v době picku – za counter-pick, který přišel až po hráči,
+nemůže ("counterpick_po_mne"). Doporuč 2–3 alternativy POUZE z jeho hero poolu
+("alternativy_z_meho_poolu", mají vlastní známku), u každé jednou větou proč.
 ## 3. Lajna (0–10 min)
 Z "lajna_detail": kdo lajnu vyhrál, kdy se zlomila (nejvetsi_zvrat), CS a zlato proti soupeři
 po minutách (stačí klíčové minuty), smrti a killy na lajně a co měl hráč udělat jinak.
@@ -688,7 +829,11 @@ Pro každé uveď "puvodni" = DOSLOVNÝ úryvek z rozboru (krátký, přesně zk
 automaticky nahradit) a "nove" = opravené znění. Neopravuj styl ani názory, jen fakta.
 Webové informace o patchi a buildech (nejsou v datech) neopravuj.
 
-Úkol 2 – strukturované hodnocení podle rozboru a dat: známky 1–10 pro kategorie
+Úkol 2 – strukturované hodnocení podle rozboru a dat. V DATECH je "znamky_z_dat" – objektivní
+známky spočítané z čísel; ber je jako kotvu (odchylka max. 2, u picku max. 1, jen s jasným důvodem
+z rozboru). Stupnice: 9–10 výborné na daný rank, 7–8 dobré, 5–6 průměrné, 3–4 slabé, 1–2 velmi špatné.
+Známka "celkem" hodnotí výkon v roli, ne výsledek zápasu (prohra s dobrým výkonem může mít 7+).
+Známky 1–10 pro kategorie
 ${KATEGORIE.join(", ")}; štítky chyb POUZE z tohoto seznamu: ${STITKY.join("; ")};
 krátké silné stránky; jeden konkrétní měřitelný cíl na další hru.
 
@@ -765,6 +910,7 @@ async function kontrola(data, text) {
       hodnoceni = normalizujHodnoceni(j2?.hodnoceni || j2);
     } catch { /* necháme bez hodnocení */ }
   }
+  hodnoceni = zkombinujHodnoceni(hodnoceni, data.znamky_z_dat, data.draft);
   return {
     text: finalni, opravy, hodnoceni,
     chybaKontroly: !j ? "odpověď kontroly se nepodařilo přečíst" : !hodnoceni ? "nepodařilo se vytvořit hodnocení" : null,
@@ -777,7 +923,7 @@ async function rozebrat(data, res) {
   if (jeChybnyText(text)) return { text, hodnoceni: null, opravy: 0 };
   if (res) stavRadek(res, "Kontroluji fakta a ukládám hodnocení…");
   try { return await kontrola(data, text); }
-  catch (e) { return { text, hodnoceni: null, opravy: 0, chybaKontroly: e.message }; }
+  catch (e) { return { text, hodnoceni: zkombinujHodnoceni(null, data.znamky_z_dat, data.draft), opravy: 0, chybaKontroly: e.message }; }
 }
 
 // ------------------------------------------------------------ úložiště (Upstash Redis přes REST)
@@ -845,7 +991,7 @@ function teloPozadavku(req) {
 const jeChybnyText = (t) => !t || t.trim().length < 300 || /^\s*⚠️/.test(t.trim());
 
 module.exports = {
-  OD, ROLE, odGet, nactiKonstanty, najdiHrace, shrnuti, pripravData, cas, cached, matchupy, hracInfo, dnes,
+  OD, ROLE, odGet, nactiKonstanty, heroStats, znamkyZDat, zkombinujHodnoceni, najdiHrace, shrnuti, pripravData, cas, cached, matchupy, hracInfo, dnes,
   streamText, textOnce, stavRadek, rozebrat, guideBody, MODEL, MODEL_LEVNY, webTool,
   znalosti, ulozZnalosti, nastaveni, ulozNastaveni, guideJeStary, STITKY, KATEGORIE, normalizujHodnoceni,
   maUloziste, redis, klicRozboru, teloPozadavku, ulozRozbor, zaznam, seznamRozboru, smazRozbor, smazane, jeChybnyText,

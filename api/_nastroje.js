@@ -5,9 +5,7 @@ const T = require("./_trener.js");
 const pct = (w, g) => (g ? `${Math.round((100 * w) / g)} %` : "–");
 const vyhral = (z) => (z.player_slot < 128) === z.radiant_win;
 
-async function heroStats() {
-  return T.cached("cache:herostats", 43200, () => T.odGet("/heroStats"));
-}
+const heroStats = () => T.heroStats();
 
 async function mujPool(hrac, dni) {
   return T.cached(`cache:poolall:${hrac}:${dni}`, 21600, () => T.odGet(`/players/${hrac}/heroes?date=${dni}`));
