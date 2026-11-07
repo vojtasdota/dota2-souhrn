@@ -553,7 +553,7 @@ const pockej = (ms) => new Promise((r) => setTimeout(r, ms));
 function matchId(v) { const m = String(v).match(/matches\/(\d+)/); return m ? m[1] : String(v).replace(/\D/g, ""); }
 
 // Markdown → HTML (nadpisy, tučné, kurzíva, seznamy, tabulky, odkazy)
-function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function esc(s) { return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;"); }
 function inline(s) {
   return esc(s)
     .replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>')
@@ -602,7 +602,7 @@ async function post(url, body, { onStav, onText, onStart } = {}) {
     body: JSON.stringify({ heslo: $("heslo").value, hrac: hracId(), ...body }),
   });
   const typ = r.headers.get("content-type") || "";
-  if (typ.includes("application/json") || !r.body) {
+  if (typ.includes("application/json") || !r.body || (!r.ok && r.status !== 202)) {
     const j = await r.json().catch(() => ({}));
     return { status: r.status, json: j, headers: r.headers };
   }
@@ -635,13 +635,17 @@ async function post(url, body, { onStav, onText, onStart } = {}) {
 let heroJm = null, heroPodleJmena = {}, heroImg = {}, heroNpc = {};
 async function hrdinove() {
   if (!heroJm) {
-    const j = await (await fetch(OD + "/constants/heroes")).json();
-    heroJm = {};
-    for (const h of Object.values(j)) {
-      heroJm[h.id] = h.localized_name; heroPodleJmena[h.localized_name.toLowerCase()] = h.id;
+    const r = await fetch(OD + "/constants/heroes");
+    if (!r.ok) throw new Error("OpenDota vrátila " + r.status);
+    const j = await r.json();
+    const jm = {};
+    for (const h of Object.values(j || {})) {
+      if (!h || !h.localized_name) continue;
+      jm[h.id] = h.localized_name; heroPodleJmena[h.localized_name.toLowerCase()] = h.id;
       heroImg[h.id] = h.img ? "https://cdn.cloudflare.steamstatic.com" + h.img : "";
       heroNpc[h.id] = h.name;
     }
+    heroJm = jm;
     $("seznamHrdinu").innerHTML = Object.values(heroJm).sort().map((n) => `<option value="${esc(n)}">`).join("");
   }
   return heroJm;
@@ -665,7 +669,7 @@ async function nactiHistorii() {
     const j = await post("/api/auto", { akce: "seznam" });
     if (j.status === 200 && Array.isArray(j.json.rozbory)) {
       serverovy = true;
-      if (j.json.hrac && !$("hrac").value.trim()) { $("hrac").value = j.json.hrac; store.set("trener_hrac", j.json.hrac); }
+      if (j.json.hrac && !$("hrac").value.trim()) { $("hrac").value = j.json.hrac; $("hrac").dispatchEvent(new Event("change")); }
       historie = j.json.rozbory;
       const lok = nactiLokal().filter((z) => !historie.some((y) => stejny(y, z.match, z.hrac)));
       historie = historie.concat(lok.map((z) => ({ ...z, lokalni: true })));
@@ -756,7 +760,10 @@ function vykresliSeznam() {
     row.querySelector(".x").addEventListener("click", async (e) => {
       e.stopPropagation();
       if (!confirm(`Smazat rozbor zápasu ${z.match} (${z.hrdina})?`)) return;
-      if (serverovy && !z.lokalni) await post("/api/auto", { akce: "smazat", klic: z.klic });
+      if (serverovy && !z.lokalni) {
+        const r = await post("/api/auto", { akce: "smazat", klic: z.klic }).catch((e) => ({ json: { error: e.message || String(e) } }));
+        if (r.status !== 200) return alert("Smazání selhalo: " + (r.json?.error || "chyba " + r.status));
+      }
       ulozLokal(nactiLokal().filter((y) => !stejny(y, z.match, z.hrac)));
       historie = historie.filter((y) => y !== z);
       poNacteni();
@@ -851,8 +858,8 @@ async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
       $("akce").style.display = "flex"; $("znovu").hidden = false;
       zobrazMapu(match, hrdinaJm, text);
 
-      const chyba = text.trim().length < 300 || /^\s*⚠️/.test(text.trim());
-      if (chyba) { stav(""); return "chyba"; }
+      const chyba = !r.meta || text.trim().length < 300 || /^\s*⚠️/.test(text.trim());
+      if (chyba) { stav("Rozbor se nedokončil (chyba nebo vypršel čas serveru), nic se neuložilo. Zkus to znovu.", { chyba: true }); return "chyba"; }
       // záloha v prohlížeči
       const zaz = { match, hrac, hrdinaZadany: hrdina, hrdina: hrdinaJm, vysledek: vys, datum: new Date().toISOString(),
                     text, hodnoceni: r.meta?.hodnoceni || null };
@@ -1131,17 +1138,25 @@ function vykresliUlozeneNastroje() {
   }
 }
 async function spustNastroj(body, stavElm, outElm, potvrzeni) {
-  if (!$("heslo").value) return stavEl(stavElm, "Nahoře vyplň heslo.", { chyba: true });
-  if (potvrzeni && !confirm(potvrzeni)) return;
+  if (stavElm.dataset.bezi) return false;
+  if (!$("heslo").value) { stavEl(stavElm, "Nahoře vyplň heslo.", { chyba: true }); return false; }
+  if (potvrzeni && !confirm(potvrzeni)) return false;
+  stavElm.dataset.bezi = "1";
   stavEl(stavElm, "Sbírám data a hledám aktuální informace… (může trvat i minutu)", { spin: true });
   outElm.style.display = "none";
   try {
     const r = await post("/api/nastroje", body, { onText: (t) => { if (t.trim()) { ukazMd(outElm, t, false); stavEl(stavElm, "AI píše…", { spin: true }); } } });
-    if (r.json) return stavEl(stavElm, r.json.error || `Chyba ${r.status}`, { chyba: true });
+    if (r.json) { stavEl(stavElm, r.json.error || `Chyba ${r.status}`, { chyba: true }); return false; }
     ukazMd(outElm, r.text, true);
+    if (r.text.trim().length < 300 || /(^|\n)⚠️/.test(r.text.trim())) {
+      stavEl(stavElm, "AI výstup se nepovedl, nic se neuložilo. Zkus to znovu.", { chyba: true });
+      return false;
+    }
     stavEl(stavElm, "Hotovo, uloženo.");
     nactiUlozeneNastroje(true);
-  } catch (e) { stavEl(stavElm, "Spojení selhalo: " + (e.message || e), { chyba: true }); }
+    return true;
+  } catch (e) { stavEl(stavElm, "Spojení selhalo: " + (e.message || e), { chyba: true }); return false; }
+  finally { delete stavElm.dataset.bezi; }
 }
 $("protiGo").addEventListener("click", async () => {
   await hrdinove();
@@ -1171,7 +1186,9 @@ async function otevriZnalosti() {
   if (!id) return stavEl($("znStav"), "Vyber hrdinu ze seznamu.", { chyba: true });
   znHeroId = id;
   stavEl($("znStav"), "Načítám…", { spin: true });
-  const r = await post("/api/nastroje", { akce: "znalosti", hero: id });
+  let r;
+  try { r = await post("/api/nastroje", { akce: "znalosti", hero: id }); }
+  catch (e) { return stavEl($("znStav"), "Spojení selhalo: " + (e.message || e), { chyba: true }); }
   if (r.status !== 200) return stavEl($("znStav"), r.json?.error || "Chyba", { chyba: true });
   $("znObsah").hidden = false;
   $("znPoznamky").value = r.json.poznamky || "";
@@ -1183,13 +1200,15 @@ $("znNacist").addEventListener("click", otevriZnalosti);
 
 $("znUlozit").addEventListener("click", async () => {
   if (!znHeroId) return;
-  const r = await post("/api/nastroje", { akce: "znalosti_ulozit", hero: znHeroId, poznamky: $("znPoznamky").value });
+  let r;
+  try { r = await post("/api/nastroje", { akce: "znalosti_ulozit", hero: znHeroId, poznamky: $("znPoznamky").value }); }
+  catch (e) { return stavEl($("znStav"), "Spojení selhalo: " + (e.message || e), { chyba: true }); }
   stavEl($("znStav"), r.status === 200 ? "Poznámky uloženy. Trenér je použije u dalších rozborů." : (r.json?.error || "Chyba"), { chyba: r.status !== 200 });
 });
 $("znGuide").addEventListener("click", async () => {
   if (!znHeroId) return;
-  await spustNastroj({ akce: "guide", hero: znHeroId }, $("znStav"), $("znOut"), `Najít aktuální guide pro ${heroJm[znHeroId]}? Stojí to kredit.`);
-  $("znGuideDatum").textContent = `Guide z ${datum(new Date().toISOString())}`;
+  if (await spustNastroj({ akce: "guide", hero: znHeroId }, $("znStav"), $("znOut"), `Najít aktuální guide pro ${heroJm[znHeroId]}? Stojí to kredit.`))
+    $("znGuideDatum").textContent = `Guide z ${datum(new Date().toISOString())}`;
 });
 
 // ---------------------------------------------------------------- rozbalovací výběr (zápasy, hrdinové)
@@ -1289,17 +1308,19 @@ async function nactiZapasyRozbor() {
   vykresliZapasyRozbor();
 }
 $("zapasyDalsi").addEventListener("click", async () => {
+  if (!rychleZapasy) return;
   zobrazeno += 30;
   if (zobrazeno > rychleZapasy.length && !rychleKonec) {
     $("zapasyDalsi").disabled = true;
     try {
       const r = await fetch(`${OD}/players/${hracId()}/matches?limit=100&offset=${rychleZapasy.length}&significant=0`);
       const list = await r.json();
-      if (Array.isArray(list)) {
+      if (Array.isArray(list) && rychleZapasy) {
         rychleZapasy = rychleZapasy.concat(list.map((z) => ({ ...z, hrdina: heroJm[z.hero_id] || "?", vyhra: (z.player_slot < 128) === z.radiant_win })));
         rychleKonec = list.length < 100;
       }
-    } finally { $("zapasyDalsi").disabled = false; }
+    } catch { /* další zápasy se nenačetly – zůstane to, co už je */ }
+    finally { $("zapasyDalsi").disabled = false; }
   }
   vykresliZapasyRozbor();
 });
@@ -1557,6 +1578,7 @@ async function pripravMapu(matchId, hrdinaJm) {
   return d;
 }
 
+let mapaToken = 0;
 let mapa = null, mapaHraje = null, mapaObr = null, ITEMY = null;
 // Volitelný podklad: obrázek minimapy uložený vedle trener.html jako mapa.jpg / mapa.png / mapa.webp
 (function nactiPodklad() {
@@ -1720,9 +1742,13 @@ async function zobrazMapu(matchId, hrdinaJm, textRozboru) {
   box.hidden = false;
   $("mapaObsah").hidden = true; $("mapaOsa").innerHTML = ""; $("mapaMomenty").innerHTML = "";
   $("mapaInfo").innerHTML = '<span class="spin"></span> Načítám data pro mapu…';
+  const tok = ++mapaToken;
+  let d;
   try {
-    mapa = await pripravMapu(matchId, hrdinaJm);
-  } catch (e) { $("mapaInfo").textContent = "Mapu se nepodařilo načíst: " + (e.message || e); return; }
+    d = await pripravMapu(matchId, hrdinaJm);
+  } catch (e) { if (tok === mapaToken) $("mapaInfo").textContent = "Mapu se nepodařilo načíst: " + (e.message || e); return; }
+  if (tok !== mapaToken) return;
+  mapa = d;
   if (mapa.neparsovany) { $("mapaInfo").textContent = "Mapa potřebuje rozparsovaný replay – u tohohle zápasu ho OpenDota nemá."; return; }
   $("mapaObsah").hidden = false;
   const chybiSmrti = (mapa.hraci || []).reduce((a, h) => a + h.chybi, 0);
