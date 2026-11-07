@@ -8,7 +8,7 @@ module.exports = async (req, res) => {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") { res.status(405).json({ error: "Použij POST." }); return; }
 
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+  const body = T.teloPozadavku(req);
   const { match, hrac, hrdina, heslo, bezReplaye } = body;
 
   if (!process.env.ANTHROPIC_API_KEY) {

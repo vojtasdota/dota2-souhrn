@@ -123,7 +123,7 @@ module.exports = async (req, res) => {
 
   // --- stránka trenéra
   if (req.method !== "POST") { res.status(405).json({ error: "Použij POST." }); return; }
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : req.body || {};
+  const body = T.teloPozadavku(req);
   if (process.env.TRENER_HESLO && body.heslo !== process.env.TRENER_HESLO) {
     res.status(401).json({ error: "Špatné heslo." }); return;
   }

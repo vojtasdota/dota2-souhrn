@@ -330,9 +330,10 @@ function lajnaDetail(zapas, ja, heroes) {
     if (diff != null && pred != null && (!zvrat || Math.abs(diff - pred) > Math.abs(zvrat.zmena))) zvrat = { min: m, zmena: diff - pred };
     pred = diff;
   }
-  const smrti = [];
+  const smrtiLajna = [];
   for (const p of zapas.players)
-    for (const k of p.kills_log || []) if (k.key === mujNpc && k.time <= 600) smrti.push(`${cas(k.time)} (zabil ${jm(p)})`);
+    for (const k of p.kills_log || []) if (k.key === mujNpc && k.time <= 600) smrtiLajna.push([k.time, jm(p)]);
+  const smrti = smrtiLajna.sort((a, b) => a[0] - b[0]).map(([t, kdo]) => `${cas(t)} (zabil ${kdo})`);
   const zabil = (ja.kills_log || []).filter((k) => k.time <= 600).map((k) => cas(k.time));
   const konec = minuty[minuty.length - 1];
   return {
@@ -341,7 +342,7 @@ function lajnaDetail(zapas, ja, heroes) {
     vysledek_lajny_10min: konec?.rozdil_zlata_vs_souper == null ? "nelze určit"
       : konec.rozdil_zlata_vs_souper > 400 ? "vyhraná" : konec.rozdil_zlata_vs_souper < -400 ? "prohraná" : "vyrovnaná",
     nejvetsi_zvrat: zvrat ? `${zvrat.min}. minuta: rozdíl zlata se změnil o ${zvrat.zmena > 0 ? "+" : ""}${zvrat.zmena}` : null,
-    smrti_do_10min: smrti.sort(), killy_do_10min: zabil,
+    smrti_do_10min: smrti, killy_do_10min: zabil,
     efektivita_lajny_pct: ja.lane_efficiency_pct ?? null,
   };
 }
@@ -490,7 +491,7 @@ async function pripravData(zapas, ja, k) {
 
 const MODEL = () => process.env.TRENER_MODEL || "claude-opus-5-5";
 const MODEL_LEVNY = () => process.env.TRENER_MODEL_KONTROLA || "claude-sonnet-5-5";
-const webTool = (n) => (process.env.TRENER_WEB === "0" ? {} : { tools: [{ type: "web_search_20250305", name: "web_search", max_uses: n }] });
+const webTool = (n) => (process.env.TRENER_WEB === "0" ? {} : { tools: [{ type: "web_search_20260209", name: "web_search", max_uses: n }] });
 
 const SYSTEM = `Jsi špičkový trenér Doty 2 (úroveň profesionálního analytika a coache).
 Dostaneš data z jednoho zápasu hráče. Napiš česky konkrétní a upřímný rozbor v Markdownu.
@@ -567,40 +568,82 @@ async function claudeFetch(body) {
   return r;
 }
 
-// streamuje text do odpovědi a vrací ho celý
-async function streamText(body, res) {
+// Při webovém vyhledávání může API odpověď přerušit (stop_reason "pause_turn") –
+// pak se pošle znovu i s tím, co už model napsal, a on pokračuje. Max. pár kol.
+const MAX_POKRACOVANI = 4;
+
+// jeden streamovaný požadavek: píše text do res a skládá obsahové bloky (kvůli pokračování)
+async function streamJednou(body, res, pis) {
   const r = await claudeFetch({ ...body, stream: true });
   const reader = r.body.getReader();
   const dec = new TextDecoder();
-  let buf = "", stop = null, text = "";
-  const pis = (t) => { res.write(t); text += t; };
+  let buf = "", stop = null;
+  const bloky = [], jsonVstup = {};
+  const zpracuj = (line) => {
+    line = line.trim();
+    if (!line.startsWith("data:")) return;
+    let ev;
+    try { ev = JSON.parse(line.slice(5)); } catch { return; }
+    if (ev.type === "content_block_start") {
+      const b = { ...ev.content_block };
+      bloky[ev.index] = b;
+      if (b.type === "text") { b.text = b.text || ""; pis("\n\n", true); }
+    } else if (ev.type === "content_block_delta") {
+      const b = bloky[ev.index], d = ev.delta || {};
+      if (!b) return;
+      if (d.type === "text_delta") { b.text += d.text; pis(d.text); }
+      else if (d.type === "input_json_delta") jsonVstup[ev.index] = (jsonVstup[ev.index] || "") + (d.partial_json || "");
+      else if (d.type === "thinking_delta") b.thinking = (b.thinking || "") + d.thinking;
+      else if (d.type === "signature_delta") b.signature = (b.signature || "") + d.signature;
+      else if (d.type === "citations_delta") (b.citations = b.citations || []).push(d.citation);
+    } else if (ev.type === "content_block_stop") {
+      const b = bloky[ev.index];
+      if (b && jsonVstup[ev.index] != null) { try { b.input = JSON.parse(jsonVstup[ev.index] || "{}"); } catch { b.input = {}; } }
+    } else if (ev.type === "message_delta" && ev.delta?.stop_reason) stop = ev.delta.stop_reason;
+    else if (ev.type === "error") throw new Error("Claude API: " + (ev.error?.message || "chyba při generování"));
+  };
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
     buf += dec.decode(value, { stream: true });
     let i;
-    while ((i = buf.indexOf("\n")) >= 0) {
-      const line = buf.slice(0, i).trim();
-      buf = buf.slice(i + 1);
-      if (!line.startsWith("data:")) continue;
-      let ev;
-      try { ev = JSON.parse(line.slice(5)); } catch { continue; }
-      if (ev.type === "content_block_start" && ev.content_block?.type === "text" && text) pis("\n\n");
-      else if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") pis(ev.delta.text);
-      else if (ev.type === "message_delta" && ev.delta?.stop_reason) stop = ev.delta.stop_reason;
-      else if (ev.type === "error") throw new Error("Claude API: " + (ev.error?.message || "chyba při generování"));
-    }
+    while ((i = buf.indexOf("\n")) >= 0) { zpracuj(buf.slice(0, i)); buf = buf.slice(i + 1); }
+  }
+  buf += dec.decode();
+  if (buf) zpracuj(buf);
+  return { bloky: bloky.filter(Boolean), stop };
+}
+
+// streamuje text do odpovědi a vrací ho celý
+async function streamText(body, res) {
+  let text = "", stop = null, messages = body.messages;
+  const pis = (t, oddelovac) => {
+    if (oddelovac) { if (!text) return; }
+    res.write(t); text += t;
+  };
+  for (let kolo = 0; kolo <= MAX_POKRACOVANI; kolo++) {
+    const r = await streamJednou({ ...body, messages }, res, pis);
+    stop = r.stop;
+    if (stop !== "pause_turn") break;
+    messages = [...messages, { role: "assistant", content: r.bloky }];
   }
   if (stop === "max_tokens") res.write("\n\n_(Text byl useknutý kvůli limitu délky.)_");
+  if (stop === "refusal") res.write("\n\n⚠️ AI odpověď odmítla dokončit.");
   if (!text) res.write(`\n\n⚠️ AI nevrátila žádný text (stop_reason: ${stop}).`);
   return { text, stop };
 }
 
 async function textOnce(body) {
-  const r = await claudeFetch({ ...body, stream: false });
-  const j = await r.json();
-  const text = (j.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n\n").trim();
-  return { text, stop: j.stop_reason };
+  let messages = body.messages, j = null;
+  const casti = [];
+  for (let kolo = 0; kolo <= MAX_POKRACOVANI; kolo++) {
+    const r = await claudeFetch({ ...body, messages, stream: false });
+    j = await r.json();
+    casti.push(...(j.content || []).filter((b) => b.type === "text").map((b) => b.text));
+    if (j.stop_reason !== "pause_turn") break;
+    messages = [...messages, { role: "assistant", content: j.content || [] }];
+  }
+  return { text: casti.join("\n\n").trim(), stop: j?.stop_reason };
 }
 
 // stavový řádek pro stránku (stránka ho nezobrazí v textu, jen jako stav)
@@ -622,7 +665,7 @@ Shrň je česky v Markdownu, max. ~450 slov:
 Nevypisuj postup hledání. Pokud si něčím nejsi jistý, napiš to.`;
 
 const guideBody = (heroName) => ({
-  model: MODEL(), max_tokens: 6000, ...webTool(5), system: GUIDE_SYSTEM,
+  model: MODEL(), max_tokens: 16000, ...webTool(5), system: GUIDE_SYSTEM,
   messages: [{ role: "user", content: `Hrdina: ${heroName}. Dnešní datum: ${dnes()}.` }],
 });
 
@@ -793,11 +836,17 @@ async function smazane() {
   return new Set((await redis("SMEMBERS", "trener:smazane")) || []);
 }
 
+// tělo požadavku – rozbitý JSON nesmí shodit funkci
+function teloPozadavku(req) {
+  if (typeof req.body !== "string") return req.body || {};
+  try { return JSON.parse(req.body || "{}"); } catch { return {}; }
+}
+
 const jeChybnyText = (t) => !t || t.trim().length < 300 || /^\s*⚠️/.test(t.trim());
 
 module.exports = {
   OD, ROLE, odGet, nactiKonstanty, najdiHrace, shrnuti, pripravData, cas, cached, matchupy, hracInfo, dnes,
   streamText, textOnce, stavRadek, rozebrat, guideBody, MODEL, MODEL_LEVNY, webTool,
   znalosti, ulozZnalosti, nastaveni, ulozNastaveni, guideJeStary, STITKY, KATEGORIE, normalizujHodnoceni,
-  maUloziste, redis, klicRozboru, ulozRozbor, zaznam, seznamRozboru, smazRozbor, smazane, jeChybnyText,
+  maUloziste, redis, klicRozboru, teloPozadavku, ulozRozbor, zaznam, seznamRozboru, smazRozbor, smazane, jeChybnyText,
 };

@@ -84,7 +84,7 @@ Struktura:
 Max. ~700 slov. Nevypisuj postup hledání. Čísla ber jen z dat.`;
 
 const protiBody = (data) => ({
-  model: T.MODEL(), max_tokens: 6000, ...T.webTool(4),
+  model: T.MODEL(), max_tokens: 16000, ...T.webTool(4),
   system: PROTI_SYSTEM.replace("${X}", data.souper),
   messages: [{ role: "user", content: `Dnešní datum: ${T.dnes()}.\nData:\n${JSON.stringify(data, null, 2)}` }],
 });
@@ -142,7 +142,7 @@ Struktura:
 Max. ~650 slov. Čísla jen z dat. Nevypisuj postup hledání.`;
 
 const poolBody = (data) => ({
-  model: T.MODEL(), max_tokens: 6000, ...T.webTool(3), system: POOL_SYSTEM,
+  model: T.MODEL(), max_tokens: 16000, ...T.webTool(3), system: POOL_SYSTEM,
   messages: [{ role: "user", content: `Dnešní datum: ${T.dnes()}.\nData:\n${JSON.stringify(data, null, 2)}` }],
 });
 
@@ -176,7 +176,7 @@ ji a napiš to). Shrň česky v Markdownu jen to, co je důležité pro tohoto h
 Max. ~700 slov. Nevymýšlej změny – co nenajdeš, to nepiš. Nevypisuj postup hledání.`;
 
 const patchBody = (data) => ({
-  model: T.MODEL(), max_tokens: 6000, ...T.webTool(5), system: PATCH_SYSTEM,
+  model: T.MODEL(), max_tokens: 16000, ...T.webTool(5), system: PATCH_SYSTEM,
   messages: [{ role: "user", content: `Dnešní datum: ${T.dnes()}.\nData:\n${JSON.stringify(data, null, 2)}` }],
 });
 
