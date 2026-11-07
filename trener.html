@@ -798,7 +798,8 @@ function vykresliZnamky(h) {
     const r = pd.rozpad || {};
     html += `<div class="pickkarta"><h4>Pick podle dat: <span class="${tridaZnamky(pd.znamka)}"><b>${pd.znamka}/10</b></span></h4><div class="radek">`
       + (r.proti_videnym_souperum ? `<span>Proti soupeřům: <b>${esc(r.proti_videnym_souperum)}</b></span>` : "")
-      + (r.meta_v_mem_ranku ? `<span>Meta: <b>${esc(r.meta_v_mem_ranku)}</b></span>` : "")
+      + (r.meta_divine_plus || r.meta_v_mem_ranku ? `<span>Meta: <b>${esc(r.meta_divine_plus || r.meta_v_mem_ranku)}</b></span>` : "")
+      + (r.zdroj_matchupu ? `<span>Matchupy: <b>${esc(r.zdroj_matchupu)}</b></span>` : "")
       + (r.osobni_komfort ? `<span>Tvoje hry: <b>${esc(r.osobni_komfort)}</b></span>` : "")
       + "</div>";
     if ((pd.alternativy || []).length)

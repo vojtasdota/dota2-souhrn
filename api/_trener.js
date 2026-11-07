@@ -197,6 +197,37 @@ async function matchupy(heroId) {
   });
 }
 
+// matchupy jen z her Divine+ (STRATZ, potřebuje STRATZ_TOKEN); při chybě null → použije se OpenDota
+const DIVINE_PLUS = [7, 8];
+async function matchupyDivine(heroId) {
+  if (!process.env.STRATZ_TOKEN) return null;
+  try {
+    return await cached(`cache:matchup_divine:${heroId}`, 86400, async () => {
+      const r = await fetch("https://api.stratz.com/graphql", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + process.env.STRATZ_TOKEN, "User-Agent": "STRATZ_API" },
+        body: JSON.stringify({
+          query: `query M($heroId: Short!, $brackets: [RankBracketBasicEnum]) { heroStats { matchUp(heroId: $heroId, bracketBasicIds: $brackets) { heroId vs { heroId2 matchCount winCount } } } }`,
+          variables: { heroId: Number(heroId), brackets: ["DIVINE_IMMORTAL"] },
+        }),
+      });
+      if (!r.ok) throw new Error("STRATZ " + r.status);
+      const j = await r.json();
+      if (j.errors) throw new Error("STRATZ GraphQL chyba");
+      const mu = j.data?.heroStats?.matchUp;
+      const entry = Array.isArray(mu) ? (mu.find((e) => e && e.heroId === Number(heroId)) || mu[0]) : mu;
+      const m = {}; let G = 0, W = 0;
+      for (const v of entry?.vs || []) {
+        if (v?.heroId2 == null || !v.matchCount) continue;
+        m[v.heroId2] = { g: v.matchCount, w: v.winCount || 0 }; G += v.matchCount; W += v.winCount || 0;
+      }
+      if (!G) throw new Error("STRATZ bez dat");
+      return { m, base: W / G, games: G, zdroj: "STRATZ Divine+" };
+    });
+  } catch { return null; }
+}
+const matchupyPick = async (heroId) => (await matchupyDivine(heroId)) || (await matchupy(heroId));
+
 // výhoda hrdiny proti soupeřům v procentních bodech (malé vzorky se tlumí)
 function vyhoda(mu, enemyIds, jm) {
   const det = {}; let soucet = 0;
@@ -221,7 +252,7 @@ function metaVRanku(hs, bracket) {
   const out = {};
   for (const h of Array.isArray(hs) ? hs : []) {
     let p = 0, w = 0;
-    const br = bracket ? [bracket] : [1, 2, 3, 4, 5, 6, 7, 8];
+    const br = Array.isArray(bracket) ? bracket : bracket ? [bracket] : [1, 2, 3, 4, 5, 6, 7, 8];
     for (const b of br) { p += h[`${b}_pick`] || 0; w += h[`${b}_win`] || 0; }
     if (p) out[h.id] = { wr: w / p, pick: p };
   }
@@ -256,9 +287,10 @@ async function draft(zapas, ja, { heroes }) {
 
   // můj pick proti soupeřům + meta v mém ranku
   const [muMuj, hs, info] = await Promise.all([
-    matchupy(ja.hero_id), heroStats().catch(() => null), hracInfo(ja.account_id).catch(() => null),
+    matchupyPick(ja.hero_id), heroStats().catch(() => null), hracInfo(ja.account_id).catch(() => null),
   ]);
-  const meta = metaVRanku(hs, info?.bracket);
+  // winrate hrdiny vždy z her Divine+ (Divine + Immortal), bez ohledu na rank hráče
+  const meta = metaVRanku(hs, DIVINE_PLUS);
   const metaBody = (id) => (meta[id] ? (meta[id].wr - 0.5) * 100 : 0);
   const metaText = (id) => (meta[id] ? `${(meta[id].wr * 100).toFixed(1)} %` : "bez dat");
   const vsVse = vyhoda(muMuj, enemyAll, jm);
@@ -287,14 +319,15 @@ async function draft(zapas, ja, { heroes }) {
   }
   const osobniBody = (z) => (z && z.games ? (z.win / z.games - 0.5) * 100 * (z.games / (z.games + 20)) : 0);
 
-  // skóre = výhoda proti viditelným soupeřům + meta winrate v ranku + polovina osobní výhody
+  // skóre = výhoda proti viditelným soupeřům + meta winrate Divine+ + polovina osobní výhody
   const mojeOsobni = osobniBody(muj_zaznam);
   const mojeSkore = vsVidet.soucet + metaBody(ja.hero_id) + 0.5 * mojeOsobni;
   d.skore_meho_picku = Math.round(mojeSkore * 10) / 10;
   d.pick_znamka_z_dat = znamkaZeSkore(mojeSkore);
   d.pick_rozpad = {
     proti_videnym_souperum: `${vsVidet.soucet >= 0 ? "+" : ""}${vsVidet.soucet} b.`,
-    meta_v_mem_ranku: `${metaText(ja.hero_id)} WR (${info?.rank || "všechny ranky"})`,
+    meta_divine_plus: meta[ja.hero_id] ? `${metaText(ja.hero_id)} WR (Divine+)` : "bez dat",
+    zdroj_matchupu: muMuj.zdroj || "OpenDota (všechny ranky)",
     osobni_komfort: muj_zaznam ? `${muj_zaznam.games} her, ${Math.round((100 * muj_zaznam.win) / muj_zaznam.games)} % WR` : "bez dat",
   };
 
@@ -315,7 +348,7 @@ async function draft(zapas, ja, { heroes }) {
 
   const hodnoceni = await Promise.all(kandidati.map(async (h) => {
     const id = Number(h.hero_id);
-    const v = vyhoda(await matchupy(id), enemyVidet, jm);
+    const v = vyhoda(await matchupyPick(id), enemyVidet, jm);
     const sk = v.soucet + metaBody(id) + 0.5 * osobniBody(h);
     return {
       hrdina: jm(id), role: (heroes[id]?.roles || []).slice(0, 3).join("/"),
@@ -330,7 +363,7 @@ async function draft(zapas, ja, { heroes }) {
   d.poradi_picku_v_poolu = hodnoceni.length
     ? (lepsi ? `${lepsi} z ${hodnoceni.length} hrdinů z poolu by podle dat byli lepší volba` : `lepší volbu z poolu data nenabízí (porovnáno ${hodnoceni.length} hrdinů)`)
     : "v poolu nejsou alternativy na porovnání";
-  d.vysvetlivky = "výhoda = o kolik procentních bodů má hrdina proti danému soupeři vyšší winrate než je jeho průměr (matchupy z OpenDoty, malé vzorky tlumené); skóre = výhoda proti soupeřům viditelným při picku + (meta winrate v ranku hráče − 50) + polovina osobní výhody; pick_znamka_z_dat = skóre převedené na 1–10 (0 b. = 6)";
+  d.vysvetlivky = "výhoda = o kolik procentních bodů má hrdina proti danému soupeři vyšší winrate než je jeho průměr (matchupy ze STRATZ Divine+, když je nastavený STRATZ_TOKEN, jinak z OpenDoty; malé vzorky tlumené); skóre = výhoda proti soupeřům viditelným při picku + (winrate hrdiny v Divine+ − 50) + polovina osobní výhody; pick_znamka_z_dat = skóre převedené na 1–10 (0 b. = 6)";
   return d;
 }
 
@@ -648,7 +681,7 @@ Struktura:
 lajny, účasti ve fightech a pick-offů) – když se od nich výrazně odchýlíš, napiš proč.
 ## 2. Pick – hodnocení 1–10 a co jiného picknout
 Vyjdi ze známky picku spočítané z dat ("draft.pick_znamka_z_dat" a "pick_rozpad": matchupy proti
-soupeřům viditelným při picku, winrate hrdiny v hráčově ranku, jeho vlastní výsledky na hrdinovi).
+soupeřům viditelným při picku, winrate hrdiny v Divine+, jeho vlastní výsledky na hrdinovi).
 Od ní se odchyl nejvýš o 1 a jen s jasným důvodem (synergie s týmem, role, stav patche).
 Zohledni, kteří soupeři byli vidět v době picku – za counter-pick, který přišel až po hráči,
 nemůže ("counterpick_po_mne"). Doporuč 2–3 alternativy POUZE z jeho hero poolu
