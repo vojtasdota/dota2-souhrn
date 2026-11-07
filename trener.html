@@ -284,6 +284,30 @@
   .legenda { font-size: 13px; color: var(--muted); margin: 4px 0 10px; }
   .legenda b { color: var(--text); font-weight: 600; }
   .chipy { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+  .tilt { margin: 0 0 14px; padding: 12px 14px; border: 1px solid #6b2e25; background: #2a1714; color: #f0b3a8; border-radius: 3px; font-size: 15px; }
+  .tilt b { color: #fff; }
+  .mini-tab { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .mini-tab th, .mini-tab td { padding: 4px 6px; border-bottom: 1px solid var(--line); text-align: left; }
+  .mini-tab th { font: 600 11px var(--display); text-transform: uppercase; letter-spacing: .5px; color: var(--muted); }
+  .mini-tab tr.pod td { color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--line); padding-top: 0; }
+  .mini-tab tr.ja td { color: var(--accent2); font-weight: 700; }
+  .lepsi { color: var(--good); } .horsi { color: var(--bad); }
+  .karta h4 { font: 700 13px var(--display); text-transform: uppercase; letter-spacing: 1px; margin: 12px 0 6px; color: var(--muted); }
+  .karta .radek-i { font-size: 14px; margin: 3px 0; }
+  .detail-karty { margin-top: 12px; }
+  .fight-box, .chat-box { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); padding: 12px 16px; }
+  .fight-box h3, .chat-box h3 { font: 700 15px var(--display); text-transform: uppercase; letter-spacing: 1px; margin: 0 0 6px; color: var(--muted); }
+  .chat-log .q { margin: 12px 0 4px; font-weight: 700; color: var(--accent2); }
+  .chat-log .a { background: var(--panel2); border: 1px solid var(--line); padding: 2px 14px; }
+  .chat-form { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .chat-form input { flex: 1 1 240px; }
+  .cviceni { background: var(--panel); border: 1px solid var(--line); padding: 12px 16px; margin-top: 10px; }
+  .cviceni h3 { margin: 0 0 4px; font: 700 18px var(--display); }
+  .cviceni .stopa { display: block; height: 8px; background: var(--panel2); border: 1px solid var(--line); margin: 8px 0 4px; }
+  .cviceni .stopa i { display: block; height: 100%; background: var(--good); }
+  .odznaky { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .odznak { padding: 4px 10px; border: 1px solid var(--line); border-radius: 12px; font-size: 13px; color: var(--muted); }
+  .odznak.ma { color: var(--accent2); border-color: var(--accent2); }
   .chipy button { font-size: 14px; padding: 5px 10px; }
   .prepinac { display: flex; gap: 8px; align-items: center; font-size: 14px; color: var(--muted); }
   .prepinac input { width: 18px; height: 18px; accent-color: var(--accent); padding: 0; }
@@ -315,6 +339,7 @@
     <button data-tab="rozbor" class="akt">Rozbor</button>
     <button data-tab="rozbory">Moje rozbory</button>
     <button data-tab="statistiky">Statistiky</button>
+    <button data-tab="trenink">Trénink</button>
     <button data-tab="starsi">Historie zápasů</button>
     <button data-tab="proti">Proti hrdinovi</button>
     <button data-tab="pool">Hero pool</button>
@@ -324,6 +349,7 @@
 
   <!-- ================= ROZBOR ================= -->
   <section class="tab akt" id="tab-rozbor">
+    <div class="tilt" id="tilt" hidden></div>
     <form class="panel lepkavy" id="f">
       <label>Číslo zápasu
         <input id="match" autocomplete="off" placeholder="Vyber zápas v seznamu níž, nebo vlož číslo / odkaz" required>
@@ -347,6 +373,7 @@
     </div>
     <div id="hlava"></div>
     <div class="znamky" id="znamky"></div>
+    <div class="detail-karty" id="detailKarty" hidden></div>
     <details class="mapa-box" id="mapaBox" hidden open>
       <summary>2D mapa zápasu</summary>
       <div class="radek" style="justify-content:space-between;margin:8px 0 0">
@@ -402,6 +429,23 @@
       <button class="vedl" id="kopir" type="button">Kopírovat rozbor</button>
       <button class="vedl" id="znovu" type="button" hidden>Rozebrat znovu</button>
     </div>
+    <div class="fight-box" id="fightBox" hidden>
+      <h3>Rozbor teamfightu</h3>
+      <p class="info-text" style="margin:0">Vyber fight a AI rozebere jen ten: kdo začal, co jsi použil, proč se vyhrál nebo prohrál. Uložený rozbor se načte zdarma.</p>
+      <div class="chipy" id="fightChipy"></div>
+      <div class="stav" id="fightStav"></div>
+      <div class="md samostatny" id="fightOut" style="display:none"></div>
+    </div>
+    <div class="chat-box" id="chatBox" hidden>
+      <h3>Zeptej se trenéra</h3>
+      <p class="info-text" style="margin:0">Např. „Proč jsem měl koupit BKB dřív?“ nebo „Co jsem měl dělat v 16:45?“. Odpovídá s daty zápasu (levnější model).</p>
+      <div class="chat-log" id="chatLog"></div>
+      <form class="chat-form" id="chatForm">
+        <input id="chatQ" autocomplete="off" maxlength="1000" placeholder="Tvoje otázka k tomuhle zápasu…">
+        <button type="submit" id="chatGo">Zeptat se</button>
+      </form>
+      <div class="stav" id="chatStav"></div>
+    </div>
   </section>
 
   <!-- ================= MOJE ROZBORY ================= -->
@@ -422,6 +466,24 @@
   <section class="tab" id="tab-statistiky">
     <p class="info-text">Statistiky se počítají z rozborů, které mají strukturované hodnocení (známky a štítky chyb). Starší rozbory bez hodnocení se nezapočítají.</p>
     <div id="stat"></div>
+  </section>
+
+  <!-- ================= TRÉNINK ================= -->
+  <section class="tab" id="tab-trenink">
+    <div class="panel">
+      <h2 class="sek">Tréninkový plán</h2>
+      <p class="info-text" style="margin-top:0">2–3 měřitelná cvičení na týden podle tvých nejčastějších chyb. Plnění se počítá samo z dalších rozborů.</p>
+      <div class="radek"><button id="planGo" type="button">Vytvořit plán na týden</button><span class="info-text" id="planDatum"></span></div>
+    </div>
+    <div class="stav" id="planStav"></div>
+    <div id="planOut"></div>
+    <div class="panel" style="margin-top:22px">
+      <h2 class="sek">Hráčský profil</h2>
+      <p class="info-text" style="margin-top:0">AI shrne tvůj styl ze všech rozborů: silné stránky, slabiny, typické chyby a vývoj. Sám se obnoví po každých 10 nových rozborech.</p>
+      <div class="radek"><button id="profilGo" type="button">Vytvořit / aktualizovat profil</button><span class="info-text" id="profilDatum"></span></div>
+    </div>
+    <div class="stav" id="profilStav"></div>
+    <div class="md samostatny" id="profilOut" style="display:none"></div>
   </section>
 
   <!-- ================= STARŠÍ ZÁPASY ================= -->
@@ -506,10 +568,12 @@
         </label>
         <div class="radek"><button id="znUlozit" type="button">Uložit poznámky</button>
           <button id="znGuide" class="vedl" type="button">Najít aktuální guide (AI)</button>
+          <button id="znTahak" class="vedl" type="button">Tahák před hrou (AI)</button>
           <span class="info-text" id="znGuideDatum"></span></div>
       </div>
     </div>
     <div class="stav" id="znStav"></div>
+    <div class="md samostatny" id="znTahakOut" style="display:none"></div>
     <div class="md samostatny" id="znOut" style="display:none"></div>
   </section>
 
@@ -539,7 +603,7 @@ function prepni(tab) {
   if (location.hash.slice(1) !== tab) history.replaceState(null, "", "#" + tab);
   if (tab === "statistiky") vykresliStatistiky();
   if (tab === "starsi" && !starsi.length && hracId()) nactiStarsi();
-  if (["proti", "pool", "patch"].includes(tab)) nactiUlozeneNastroje();
+  if (["proti", "pool", "patch", "trenink"].includes(tab)) nactiUlozeneNastroje();
   if (tab === "znalosti") nactiNastaveni();
 }
 for (const b of document.querySelectorAll("#zalozky button")) b.addEventListener("click", () => prepni(b.dataset.tab));
@@ -690,6 +754,7 @@ function poNacteni() {
   vykresliSeznam();
   if (starsi.length) vykresliStarsi();
   if ($("tab-statistiky").classList.contains("akt")) vykresliStatistiky();
+  try { kontrolaTiltu(); if ($("tab-trenink").classList.contains("akt") && nastrojeUlozene) vykresliPlan(nastrojeUlozene.plan); } catch { /* ještě nenačteno */ }
 }
 
 function infoAuto(msg, spin) {
@@ -816,6 +881,8 @@ function vykresliZnamky(h) {
   for (const s of h.stitky_chyb || []) html += `<span class="stitek chyba-tag" title="${esc(s.popis || "")}">${esc(s.stitek)}${s.cas ? " · " + esc(s.cas) : ""}</span>`;
   for (const s of h.silne_stranky || []) html += `<span class="stitek ok">${esc(s)}</span>`;
   html += "</div>";
+  if (h.cil_z_minule_splnen === true) html += '<div class="cil">✅ Cíl z minulé hry splněn.</div>';
+  else if (h.cil_z_minule_splnen === false) html += '<div class="cil">❌ Cíl z minulé hry nesplněn.</div>';
   if (h.cil_na_dalsi_hru) html += `<div class="cil"><b>Cíl na další hru:</b> ${esc(h.cil_na_dalsi_hru)}</div>`;
   el.innerHTML = html;
   el.style.display = "block";
@@ -839,6 +906,8 @@ function ukazUlozeny(z, zprava) {
   $("znovu").hidden = false;
   stav(zprava || `Uložený rozbor z ${datum(z.datum)}.`);
   zobrazMapu(z.match, z.hrdina, text);
+  vykresliDetail(z.detail);
+  ukazChat(z);
   setTimeout(() => $("hlava").scrollIntoView({ behavior: "smooth", block: "start" }), 50);
 }
 
@@ -859,6 +928,7 @@ async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
   seznamZapasu(false);
   $("go").disabled = true; $("bez").hidden = true; $("znovu").hidden = true;
   $("hlava").style.display = "none"; $("vystup").style.display = "none"; $("znamky").style.display = "none"; $("akce").style.display = "none";
+  $("detailKarty").hidden = true; $("chatBox").hidden = true; $("fightBox").hidden = true;
   $("mapaBox").hidden = true;
   text = "";
   try {
@@ -886,6 +956,7 @@ async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
       text = r.meta?.text || r.text;
       ukazMd($("vystup"), text, true);
       vykresliZnamky(r.meta?.hodnoceni);
+      vykresliDetail(r.meta?.detail);
       $("akce").style.display = "flex"; $("znovu").hidden = false;
       zobrazMapu(match, hrdinaJm, text);
 
@@ -893,9 +964,10 @@ async function rozbor(bezReplaye = false, znovu = false, maxPokusu = 24) {
       if (chyba) { stav("Rozbor se nedokončil (chyba nebo vypršel čas serveru), nic se neuložilo. Zkus to znovu.", { chyba: true }); return "chyba"; }
       // záloha v prohlížeči
       const zaz = { match, hrac, hrdinaZadany: hrdina, hrdina: hrdinaJm, vysledek: vys, datum: new Date().toISOString(),
-                    text, hodnoceni: r.meta?.hodnoceni || null };
+                    text, hodnoceni: r.meta?.hodnoceni || null, detail: r.meta?.detail || null };
       ulozLokal([zaz, ...nactiLokal().filter((z) => !stejny(z, match, hrac))]);
       aktualni = zaz;
+      ukazChat(zaz);
       await nactiHistorii();
       const casti = ["Rozbor uložen do „Moje rozbory“."];
       if (r.meta?.opravy) casti.push(`Kontrola faktů opravila ${r.meta.opravy} ${r.meta.opravy === 1 ? "údaj" : "údaje"}.`);
@@ -977,7 +1049,9 @@ function vykresliStatistiky() {
     for (const [n, a] of hr.slice(0, 10)) html += `<div class="bar"><span>${esc(n)} <small>(${a.length}×)</small></span><span class="stopa"><i class="${prumer(a) >= 7 ? "good" : ""}" style="width:${prumer(a) * 10}%"></i></span><span><b>${prumer(a).toFixed(1)}</b></span></div>`;
     html += "</div>";
   }
+  html += statistikyNavic(s);
   el.innerHTML = html;
+  for (const b of el.querySelectorAll("[data-proti]")) b.addEventListener("click", () => { $("protiHero").value = b.dataset.proti; prepni("proti"); });
 }
 
 // ---------------------------------------------------------------- historie zápasů
@@ -1167,6 +1241,11 @@ function vykresliUlozeneNastroje() {
     $("patchDatum").textContent = `Uloženo: patch ${u.patch.patch} (${datum(u.patch.datum)})`;
     if ($("patchOut").style.display === "none") ukazMd($("patchOut"), u.patch.text, true);
   }
+  vykresliPlan(u.plan);
+  if (u.profil) {
+    $("profilDatum").textContent = `Aktualizováno ${datum(u.profil.datum)} (z ${u.profil.pocet} rozborů)`;
+    if ($("profilOut").style.display === "none") ukazMd($("profilOut"), u.profil.text, true);
+  }
 }
 async function spustNastroj(body, stavElm, outElm, potvrzeni) {
   if (stavElm.dataset.bezi) return false;
@@ -1225,6 +1304,7 @@ async function otevriZnalosti() {
   $("znPoznamky").value = r.json.poznamky || "";
   $("znGuideDatum").textContent = r.json.guide_datum ? `Guide z ${datum(r.json.guide_datum)}` : "Guide zatím není.";
   if (r.json.guide) ukazMd($("znOut"), r.json.guide, true); else $("znOut").style.display = "none";
+  if (r.json.tahak) ukazMd($("znTahakOut"), r.json.tahak, true); else $("znTahakOut").style.display = "none";
   stavEl($("znStav"), "");
 }
 $("znNacist").addEventListener("click", otevriZnalosti);
@@ -1292,6 +1372,7 @@ async function nactiRychleZapasy() {
   const list = await r.json();
   if (!Array.isArray(list)) throw new Error(list.error || "OpenDota nevrátila seznam");
   rychleZapasy = list.map((z) => ({ ...z, hrdina: hj[z.hero_id] || "?", vyhra: (z.player_slot < 128) === z.radiant_win }));
+  kontrolaTiltu();
 }
 $("hrac").addEventListener("change", () => { rychleZapasy = null; });
 // seznam zápasů pod formulářem rozboru
@@ -1780,7 +1861,8 @@ async function zobrazMapu(matchId, hrdinaJm, textRozboru) {
   } catch (e) { if (tok === mapaToken) $("mapaInfo").textContent = "Mapu se nepodařilo načíst: " + (e.message || e); return; }
   if (tok !== mapaToken) return;
   mapa = d;
-  if (mapa.neparsovany) { $("mapaInfo").textContent = "Mapa potřebuje rozparsovaný replay – u tohohle zápasu ho OpenDota nemá."; return; }
+  if (mapa.neparsovany) { $("mapaInfo").textContent = "Mapa potřebuje rozparsovaný replay – u tohohle zápasu ho OpenDota nemá."; $("fightBox").hidden = true; return; }
+  vykresliFighty(matchId, mapa.fighty || []);
   $("mapaObsah").hidden = false;
   const chybiSmrti = (mapa.hraci || []).reduce((a, h) => a + h.chybi, 0);
   $("mapaInfo").textContent = "Nahoře kdo je živý a kdo mrtvý (s odhadem respawnu) a stav Roshana; na mapě wardy, smrti v teamfightech, tvoje lajnování a věže. "
@@ -1894,6 +1976,224 @@ function kresliHud(t) {
 $("heslo").addEventListener("change", () => { store.set("trener_heslo", $("heslo").value); nastrojeUlozene = null; nactiHistorii().then(automatika); });
 prepni(location.hash.slice(1) || "rozbor");
 nactiHistorii().then(() => { ukazCip(); automatika(); });
+// ---------------------------------------------------------------- karty pod rozborem (smrti, Divine+, spoluhráči)
+function vykresliDetail(d) {
+  const el = $("detailKarty");
+  const sm = d?.smrti, dv = d?.divine, sp = d?.spoluhraci;
+  if (!sm?.smrti?.length && !sm?.itemy_bez_smrti?.length && !dv?.minuty?.length && !sp?.length) { el.hidden = true; el.innerHTML = ""; return; }
+  let html = '<div class="karty">';
+  if (sm && (sm.smrti?.length || sm.itemy_bez_smrti?.length)) {
+    html += '<div class="karta"><h3>Smrti a co stály</h3>';
+    if (sm.smrti?.length) {
+      html += '<table class="mini-tab"><tr><th>Čas</th><th>Zabil</th><th>Typ</th><th>Zlato</th><th>Mrtvý</th></tr>';
+      for (const x of sm.smrti) {
+        html += `<tr><td>${esc(x.cas)}</td><td>${esc(x.zabil)}</td><td class="${x.typ === "pick-off" ? "horsi" : ""}">${esc(x.typ)}</td><td>−${Number(x.celkem_zlata) || 0}</td><td>${Number(x.respawn_s) || 0} s</td></tr>`;
+        if (x.tym_ztratil_do_90s?.length) html += `<tr class="pod"><td colspan="5">→ tým do 90 s ztratil: ${esc(x.tym_ztratil_do_90s.join(", "))}</td></tr>`;
+      }
+      html += "</table>";
+    }
+    html += `<p class="info-text">${esc(sm.souhrn || "")} (odhad)</p>`;
+    if (sm.itemy_bez_smrti?.length) {
+      html += "<h4>Co kdyby: itemy bez smrtí</h4>";
+      for (const i of sm.itemy_bez_smrti) html += `<div class="radek-i">${esc(i.item)}: ${esc(i.koupeno)} → <b class="lepsi">${esc(i.bez_smrti_cca)}</b> <small>(o ${esc(i.driv_o)} dřív)</small></div>`;
+    }
+    html += "</div>";
+  }
+  if (dv?.minuty?.length) {
+    const sr = (ja, dvn) => (ja == null ? "–" : `<span class="${ja >= dvn ? "lepsi" : "horsi"}">${ja}</span> / ${dvn}`);
+    html += `<div class="karta"><h3>Ty vs. Divine+ (${esc(dv.pozice || "")})</h3><table class="mini-tab"><tr><th>Min</th><th>LH ty / D+</th><th>Zlato ty / D+</th><th>Smrti ty / D+</th></tr>`;
+    for (const m of dv.minuty) html += `<tr><td>${m.min}.</td><td>${sr(m.LH?.ja, m.LH?.divine)}</td><td>${sr(m.zlato?.ja, m.zlato?.divine)}</td><td>${m.smrti?.ja == null ? "–" : `<span class="${m.smrti.ja <= m.smrti.divine ? "lepsi" : "horsi"}">${m.smrti.ja}</span>`} / ${m.smrti?.divine ?? "–"}</td></tr>`;
+    html += "</table>";
+    if (dv.itemy?.length) {
+      html += '<h4>Itemy: tvůj čas vs. medián Divine+</h4>';
+      for (const i of dv.itemy) html += `<div class="radek-i">${esc(i.item)}: ${esc(i.ja)} vs. ${esc(i.divine_median)} <small class="${i.rozdil_min > 1 ? "horsi" : i.rozdil_min < -1 ? "lepsi" : ""}">(${i.rozdil_min > 0 ? "+" : ""}${i.rozdil_min} min)</small></div>`;
+    }
+    html += `<p class="info-text">Průměr z ${Number(dv.vzorek_zapasu || 0).toLocaleString("cs-CZ")} zápasů Divine+ na stejném hrdinovi a pozici (STRATZ).</p></div>`;
+  }
+  if (sp?.length) {
+    html += '<div class="karta"><h3>Tvůj tým</h3><table class="mini-tab"><tr><th>Hrdina</th><th>KDA</th><th>GPM</th><th>Perc.</th><th>TF</th></tr>';
+    for (const x of sp) html += `<tr class="${x.ja ? "ja" : ""}"><td>${esc(x.hrdina)} <small>${esc(x.pozice || "")}</small></td><td>${esc(x.KDA)}</td><td>${Number(x.GPM) || 0}</td><td>${x.GPM_percentil != null ? x.GPM_percentil + "." : "–"}</td><td>${x.ucast_tf_pct != null ? x.ucast_tf_pct + " %" : "–"}</td></tr>`;
+    html += '</table><p class="info-text">Perc. = GPM percentil proti hráčům na stejném hrdinovi. Jen pro kontext: prohrál jsem já, nebo tým?</p></div>';
+  }
+  el.innerHTML = html + "</div>";
+  el.hidden = false;
+}
+
+// ---------------------------------------------------------------- teamfighty (rozbor jednoho fightu)
+let fightMatch = null;
+function vykresliFighty(matchId, fighty) {
+  fightMatch = String(matchId);
+  const el = $("fightChipy"); el.innerHTML = "";
+  $("fightOut").style.display = "none"; stavEl($("fightStav"), "");
+  if (!fighty.length) { $("fightBox").hidden = true; return; }
+  fighty.forEach((f, i) => {
+    const b = document.createElement("button"); b.type = "button"; b.className = "vedl";
+    b.textContent = `⚔ ${Math.floor(f.od / 60)}:${String(f.od % 60).padStart(2, "0")} (padlo ${f.smrti})`;
+    b.addEventListener("click", () => spustNastroj({ akce: "fight", match: fightMatch, idx: i, hrdina: aktualni?.hrdinaZadany || $("hrdina").value.trim() },
+      $("fightStav"), $("fightOut"), null));
+    el.appendChild(b);
+  });
+  $("fightBox").hidden = false;
+}
+
+// ---------------------------------------------------------------- otázky k rozboru
+let chatHistorie = [], chatMatch = null;
+function ukazChat(z) {
+  if (!z || !z.match) { $("chatBox").hidden = true; return; }
+  if (chatMatch !== String(z.match)) { chatHistorie = []; $("chatLog").innerHTML = ""; chatMatch = String(z.match); }
+  stavEl($("chatStav"), "");
+  $("chatBox").hidden = false;
+}
+$("chatForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const otazka = $("chatQ").value.trim();
+  if (!otazka || !aktualni || $("chatGo").disabled) return;
+  if (!$("heslo").value) return stavEl($("chatStav"), "Nahoře vyplň heslo.", { chyba: true });
+  $("chatGo").disabled = true;
+  const q = document.createElement("div"); q.className = "q"; q.textContent = otazka;
+  const a = document.createElement("div"); a.className = "a md";
+  $("chatLog").append(q, a);
+  $("chatQ").value = "";
+  stavEl($("chatStav"), "Trenér přemýšlí…", { spin: true });
+  try {
+    const r = await post("/api/nastroje", { akce: "otazka", match: aktualni.match, hrdina: aktualni.hrdinaZadany || "", otazka,
+      rozbor: text, historie: chatHistorie }, { onText: (t) => { if (t.trim()) a.innerHTML = md(t); } });
+    if (r.json) { a.remove(); q.remove(); $("chatQ").value = otazka; return stavEl($("chatStav"), r.json.error || `Chyba ${r.status}`, { chyba: true }); }
+    a.innerHTML = md(r.text);
+    chatHistorie.push({ q: otazka, a: r.text });
+    stavEl($("chatStav"), "");
+  } catch (err) {
+    stavEl($("chatStav"), "Spojení selhalo: " + (err.message || err), { chyba: true });
+  } finally { $("chatGo").disabled = false; }
+});
+
+// ---------------------------------------------------------------- tahák k hrdinovi
+$("znTahak").addEventListener("click", () => {
+  if (!znHeroId) return;
+  spustNastroj({ akce: "tahak", hero: znHeroId }, $("znStav"), $("znTahakOut"), `Vytvořit tahák pro ${heroJm[znHeroId]}? Stojí to kredit.`);
+});
+
+// ---------------------------------------------------------------- tréninkový plán a profil
+const METRIKY_JM = { smrti_do_10: "smrti do 10. min", LH_10: "LH v 10. min", pickoffy: "smrti mimo teamfight", smrti: "smrti za zápas",
+  ucast_tf: "účast ve fightech (%)", GPM: "GPM", obs: "observer wardy" };
+function vykresliPlan(plan) {
+  const el = $("planOut");
+  if (!plan || !plan.cviceni?.length) { el.innerHTML = '<p class="prazdno">Zatím žádný plán. Potřebuje aspoň 3 rozbory s hodnocením.</p>'; $("planDatum").textContent = ""; return; }
+  $("planDatum").textContent = `Plán z ${datum(plan.datum)}`;
+  const hry = historie.filter((z) => (z.hrano || 0) >= (plan.od || 0) && z.detail?.metriky).sort((a, b) => (a.hrano || 0) - (b.hrano || 0));
+  let html = plan.shrnuti ? `<p class="info-text">${esc(plan.shrnuti)}</p>` : "";
+  for (const c of plan.cviceni) {
+    const vals = hry.map((z) => z.detail.metriky[c.metrika]).filter((v) => v != null).slice(0, c.her);
+    const ok = vals.filter((v) => (c.operator === ">=" ? v >= c.cil : v <= c.cil)).length;
+    const pct = Math.round((100 * ok) / c.her);
+    html += `<div class="cviceni"><h3>${esc(c.nazev)}</h3><div>${esc(c.popis)}</div>
+      <div class="info-text">Cíl: ${esc(METRIKY_JM[c.metrika] || c.metrika)} ${c.operator === ">=" ? "≥" : "≤"} ${c.cil} · ${c.her} her</div>
+      <span class="stopa"><i style="width:${Math.min(100, pct)}%"></i></span>
+      <div class="info-text">Splněno ${ok} z ${vals.length} odehraných (rozebraných) her${vals.length ? " · poslední: " + vals.slice(-5).join(", ") : ""}${vals.length >= c.her ? (ok >= Math.ceil(c.her * 0.7) ? " · ✅ cvičení zvládnuto" : " · cvičení skončilo") : ""}</div></div>`;
+  }
+  el.innerHTML = html;
+}
+$("planGo").addEventListener("click", async () => {
+  if (!$("heslo").value) return stavEl($("planStav"), "Nahoře vyplň heslo.", { chyba: true });
+  if (!confirm("Vytvořit nový tréninkový plán? Stojí to kredit (málo).")) return;
+  $("planGo").disabled = true;
+  stavEl($("planStav"), "Trenér skládá plán z tvých rozborů…", { spin: true });
+  try {
+    const r = await post("/api/nastroje", { akce: "plan" });
+    if (r.status !== 200) return stavEl($("planStav"), r.json?.error || `Chyba ${r.status}`, { chyba: true });
+    nastrojeUlozene = { ...(nastrojeUlozene || {}), plan: r.json };
+    vykresliPlan(r.json);
+    stavEl($("planStav"), "Plán uložen. Plnění se počítá z dalších rozborů.");
+  } catch (e) { stavEl($("planStav"), "Spojení selhalo: " + (e.message || e), { chyba: true }); }
+  finally { $("planGo").disabled = false; }
+});
+$("profilGo").addEventListener("click", () => spustNastroj({ akce: "profil" }, $("profilStav"), $("profilOut"), "Vytvořit hráčský profil ze všech rozborů? Stojí to kredit."));
+
+// ---------------------------------------------------------------- statistiky navíc: série cílů, délka hry, nejhorší matchupy
+function delkaZaznamu(z) {
+  if (z.detail?.metriky?.delka_s) return z.detail.metriky.delka_s;
+  const m = String(z.vysledek || "").match(/(\d+):(\d{2})\s*$/);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+}
+function statistikyNavic(s) {
+  let html = '<div class="karty">';
+  // série cílů
+  const chron = s.slice().sort((a, b) => (a.hrano || 0) - (b.hrano || 0)).filter((z) => z.hodnoceni.cil_z_minule_splnen != null);
+  let rada = 0, nej = 0, akt = 0;
+  for (const z of chron) { if (z.hodnoceni.cil_z_minule_splnen) { akt++; nej = Math.max(nej, akt); } else akt = 0; }
+  rada = akt;
+  const splneno = chron.filter((z) => z.hodnoceni.cil_z_minule_splnen).length;
+  html += `<div class="karta"><h3>Série splněných cílů</h3>`;
+  if (!chron.length) html += '<p class="prazdno">Plnění cílů se vyhodnocuje od nových rozborů.</p>';
+  else {
+    html += `<div class="radek-i">Aktuální série: <b>${rada > 0 ? "🔥 " : ""}${rada}</b></div>
+      <div class="radek-i">Nejdelší série: <b>${nej}</b></div>
+      <div class="radek-i">Splněno celkem: <b>${splneno} z ${chron.length}</b></div>
+      <div class="odznaky">${[[3, "🥉 3 v řadě"], [5, "🥈 5 v řadě"], [10, "🥇 10 v řadě"]].map(([n, t]) => `<span class="odznak ${nej >= n ? "ma" : ""}">${t}</span>`).join("")}</div>`;
+  }
+  html += "</div>";
+
+  // výkon podle délky hry
+  const kosiky = [[0, 1500, "do 25 min"], [1500, 2100, "25–35 min"], [2100, 2700, "35–45 min"], [2700, 1e9, "45+ min"]];
+  const zOD = (rychleZapasy || []).filter((z) => z.duration >= 600);
+  html += '<div class="karta"><h3>Výkon podle délky hry</h3><table class="mini-tab"><tr><th>Délka</th><th>Winrate</th><th>Ø známka</th></tr>';
+  const radky = kosiky.map(([a, b, n]) => {
+    const hry = zOD.filter((z) => z.duration >= a && z.duration < b);
+    const zn = s.filter((z) => { const d = delkaZaznamu(z); return d != null && d >= a && d < b; }).map((z) => z.hodnoceni.celkem);
+    const wr = hry.length ? Math.round((100 * hry.filter((z) => z.vyhra).length) / hry.length) : null;
+    return { n, wr, her: hry.length, zn: prumer(zn), znN: zn.length };
+  });
+  for (const r of radky) html += `<tr><td>${r.n}</td><td>${r.wr != null ? `<b class="${r.wr >= 52 ? "lepsi" : r.wr <= 48 ? "horsi" : ""}">${r.wr} %</b> <small>(${r.her})</small>` : "–"}</td><td>${r.zn != null ? `${r.zn.toFixed(1)} <small>(${r.znN})</small>` : "–"}</td></tr>`;
+  html += "</table>";
+  const kratke = radky.slice(0, 2).filter((r) => r.wr != null), dlouhe = radky.slice(2).filter((r) => r.wr != null);
+  const vazeny = (a) => { const h = a.reduce((x, r) => x + r.her, 0); return h >= 8 ? a.reduce((x, r) => x + r.wr * r.her, 0) / h : null; };
+  const k = vazeny(kratke), d = vazeny(dlouhe);
+  if (k != null && d != null && Math.abs(k - d) >= 6) html += `<p class="info-text">Víc ti jdou <b>${k > d ? "kratší hry (early/mid game)" : "delší hry (late game)"}</b>: ${Math.round(k)} % vs. ${Math.round(d)} % výher.</p>`;
+  html += `<p class="info-text">Winrate z posledních ${zOD.length || 0} zápasů (OpenDota)${zOD.length ? "" : " – načte se, až se zobrazí tvoje zápasy"}, známka z rozborů.</p></div>`;
+
+  // nejhorší matchupy z rozborů
+  const mu = {};
+  for (const z of s) for (const h of z.souperi || []) {
+    const x = (mu[h] = mu[h] || { n: 0, zn: 0, prohry: 0, chyby: {} });
+    x.n++; x.zn += z.hodnoceni.celkem; if (!String(z.vysledek).startsWith("VÝHRA")) x.prohry++;
+    for (const t of z.hodnoceni.stitky_chyb || []) x.chyby[t.stitek] = (x.chyby[t.stitek] || 0) + 1;
+  }
+  const nejhorsi = Object.entries(mu).filter(([, x]) => x.n >= 2).map(([h, x]) => ({ h, ...x, prum: x.zn / x.n }))
+    .sort((a, b) => a.prum - b.prum || b.prohry / b.n - a.prohry / a.n).slice(0, 6);
+  html += '<div class="karta"><h3>Nejhorší matchupy</h3>';
+  if (!nejhorsi.length) html += '<p class="prazdno">Potřeba aspoň 2 rozbory proti stejnému hrdinovi.</p>';
+  for (const x of nejhorsi) {
+    const ch = Object.entries(x.chyby).sort((a, b) => b[1] - a[1])[0];
+    html += `<div class="radek-i"><b>${esc(x.h)}</b> – Ø ${x.prum.toFixed(1)}, prohry ${x.prohry}/${x.n}${ch ? `, nejčastěji: ${esc(ch[0])}` : ""}
+      <button class="vedl mini" type="button" data-proti="${esc(x.h)}">Jak hrát proti</button></div>`;
+  }
+  html += "</div></div>";
+  return html;
+}
+
+// ---------------------------------------------------------------- tilt detektor
+function kontrolaTiltu() {
+  const el = $("tilt");
+  const ted = Date.now() / 1000;
+  const posl = (rychleZapasy || []).slice().sort((a, b) => b.start_time - a.start_time);
+  let prohry = 0;
+  for (const z of posl) {
+    if (ted - z.start_time > 5 * 3600) break;
+    if (z.vyhra) break;
+    prohry++;
+  }
+  const hod = historie.filter((z) => z.hodnoceni?.celkem && z.hrano).sort((a, b) => b.hrano - a.hrano);
+  const tri = hod.slice(0, 3), predtim = hod.slice(3, 13);
+  const padaji = tri.length === 3 && predtim.length >= 5 && ted - tri[0].hrano < 24 * 3600
+    && prumer(tri.map((z) => z.hodnoceni.celkem)) <= prumer(predtim.map((z) => z.hodnoceni.celkem)) - 1.5;
+  const zpravy = [];
+  if (prohry >= 3) zpravy.push(`<b>${prohry} prohry v řadě</b> během posledních hodin.`);
+  if (padaji) zpravy.push(`Tvoje <b>poslední 3 známky</b> (Ø ${prumer(tri.map((z) => z.hodnoceni.celkem)).toFixed(1)}) jsou výrazně pod tvým průměrem (Ø ${prumer(predtim.map((z) => z.hodnoceni.celkem)).toFixed(1)}).`);
+  if (!zpravy.length) { el.hidden = true; return; }
+  el.innerHTML = "⚠️ Možný tilt: " + zpravy.join(" ") + " Dej si pauzu aspoň 20–30 minut, projdi si cíl z posledního rozboru a vrať se s čistou hlavou.";
+  el.hidden = false;
+}
+
 hrdinove().catch(() => {}).then(nactiZapasyRozbor);
 ukazCip();
 </script>

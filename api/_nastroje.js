@@ -178,4 +178,187 @@ const patchBody = (data) => ({
   messages: [{ role: "user", content: `Dnešní datum: ${T.dnes()}.\nData:\n${JSON.stringify(data, null, 2)}` }],
 });
 
-module.exports = { protiData, protiBody, poolData, poolBody, patchData, patchBody, posledniPatch };
+
+// ------------------------------------------------------------ Rozbor jednoho teamfightu
+
+function fightData(zapas, ja, k, idx) {
+  const f = (zapas.teamfights || [])[idx];
+  if (!f) { const e = new Error("Teamfight v zápase není."); e.code = 400; throw e; }
+  const jm = (id) => k.heroes[id]?.localized_name || "?";
+  const podleNpc = {};
+  for (const h of Object.values(k.heroes)) podleNpc[h.name] = h.localized_name;
+  const radiant = (ja.player_slot < 128);
+  const mujTym = (p) => (p.player_slot < 128) === radiant;
+  const m = Math.max(0, Math.floor(f.start / 60));
+  const soucet = (tym, rada) => tym.reduce((a, p) => a + (Array.isArray(p[rada]) && p[rada].length > m ? p[rada][m] : 0), 0);
+  const nas = zapas.players.filter(mujTym), jejich = zapas.players.filter((p) => !mujTym(p));
+  const hraci = zapas.players.map((p, i) => {
+    const t = (f.players || [])[i] || {};
+    return {
+      hrdina: jm(p.hero_id), tym: mujTym(p) ? "můj" : "soupeř", ja: p === ja, pozice: `pos ${T.pozice(zapas, p)}`,
+      damage: t.damage || 0, healing: t.healing || 0, smrti: t.deaths || 0,
+      zabil: Object.entries(t.killed || {}).map(([npc, n]) => `${podleNpc[npc] || npc}${n > 1 ? " ×" + n : ""}`),
+      schopnosti: Object.entries(t.ability_uses || {}).map(([a, n]) => `${a} ×${n}`),
+      itemy: Object.entries(t.item_uses || {}).map(([it, n]) => `${k.items[it]?.dname || it} ×${n}`),
+      zlato: t.gold_delta || 0, xp: t.xp_delta || 0, buyback: t.buybacks || 0,
+    };
+  });
+  const poradiKillu = [];
+  for (const p of zapas.players) for (const kl of p.kills_log || [])
+    if (kl.time >= f.start - 10 && kl.time <= f.end + 10) poradiKillu.push([kl.time, `${T.cas(kl.time)} ${jm(p.hero_id)}${mujTym(p) ? " (náš)" : ""} zabil ${podleNpc[kl.key] || kl.key}`]);
+  poradiKillu.sort((a, b) => a[0] - b[0]);
+  const objektivy = (zapas.objectives || []).filter((o) => o.time >= f.start - 30 && o.time <= f.end + 90)
+    .map((o) => `${T.cas(o.time)} ${o.type === "building_kill" ? "padla budova " + String(o.key || "").replace(/npc_dota_/, "") : o.type === "CHAT_MESSAGE_ROSHAN_KILL" ? "Roshan" : o.type.replace("CHAT_MESSAGE_", "").toLowerCase()}`);
+  return {
+    fight: `${T.cas(f.start)}–${T.cas(f.end)}, padlo ${f.deaths} hrdinů`,
+    stav_pred_fightem: {
+      zlato_nas_tym: soucet(nas, "gold_t"), zlato_souper: soucet(jejich, "gold_t"),
+      xp_nas_tym: soucet(nas, "xp_t"), xp_souper: soucet(jejich, "xp_t"),
+    },
+    poradi_killu: poradiKillu.map((x) => x[1]),
+    hraci, objektivy_kolem_fightu: objektivy,
+    vysledek_pro_muj_tym: hraci.filter((h) => h.tym === "soupeř").reduce((a, h) => a + h.smrti, 0) - hraci.filter((h) => h.tym === "můj").reduce((a, h) => a + h.smrti, 0),
+    vysvetlivky: "vysledek_pro_muj_tym = smrti soupeře − naše smrti; zlato/xp = stav na začátku minuty fightu; schopnosti a itemy = počet použití během fightu",
+  };
+}
+
+const FIGHT_SYSTEM = `Jsi trenér Doty 2. Rozeber česky v Markdownu JEDEN teamfight podle dat. Hráč je ten s "ja": true.
+Struktura:
+## Výsledek a výchozí stav (kdo vyhrál, kolik padlo, kdo měl před fightem náskok)
+## Jak fight probíhal (kdo začal – odhad z pořadí killů a damage, klíčové schopnosti a itemy obou týmů)
+## Co jsi dělal ty (damage, schopnosti, itemy – použil BKB/blink/defenzivní item? umřel jsi a kdy?)
+## Proč se vyhrál / prohrál (2–3 hlavní důvody)
+## Co příště (2–3 konkrétní věci pro hráče)
+Max. ~400 slov. Čísla jen z dat; pozice na mapě nemáš, mluv o pravděpodobných příčinách. Nezmiňuj názvy polí z dat.`;
+
+const fightBody = (data, rank) => ({
+  model: T.MODEL(), max_tokens: 8000, system: FIGHT_SYSTEM,
+  messages: [{ role: "user", content: `Rank hráče: ${rank || "neznámý"}.\nData fightu:\n${JSON.stringify(data, null, 2)}` }],
+});
+
+// ------------------------------------------------------------ Tréninkový plán
+
+const METRIKY = {
+  smrti_do_10: "smrti do 10. minuty",
+  LH_10: "last hity v 10. minutě",
+  pickoffy: "smrti mimo teamfight",
+  smrti: "smrti za zápas",
+  ucast_tf: "účast v teamfightech v %",
+  GPM: "GPM",
+  obs: "položené observer wardy",
+};
+
+async function planData(hrac) {
+  const rozbory = ((await T.seznamRozboru(60)) || []).filter((r) => String(r.hrac) === String(hrac) && r.hodnoceni);
+  const posl = rozbory.slice(0, 20);
+  const pocty = {};
+  for (const r of posl) for (const st of r.hodnoceni.stitky_chyb || []) pocty[st.stitek] = (pocty[st.stitek] || 0) + 1;
+  const prumer = (f) => { const a = posl.map(f).filter((x) => x != null && Number.isFinite(x)); return a.length ? Math.round((a.reduce((x, y) => x + y, 0) / a.length) * 10) / 10 : null; };
+  const metr = {};
+  for (const m of Object.keys(METRIKY)) metr[m] = prumer((r) => r.detail?.metriky?.[m]);
+  const zn = {};
+  for (const kat of T.KATEGORIE) zn[kat] = prumer((r) => r.hodnoceni[kat]);
+  return {
+    pocet_rozboru: posl.length,
+    nejcastejsi_chyby: Object.entries(pocty).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([st, n]) => `${st} (${n}×)`),
+    prumerne_znamky: zn, prumerne_metriky: metr,
+    hrdinove: [...new Set(posl.map((r) => r.hrdina))].slice(0, 8),
+    posledni_cile: posl.slice(0, 5).map((r) => r.hodnoceni.cil_na_dalsi_hru).filter(Boolean),
+  };
+}
+
+const PLAN_SYSTEM = `Jsi trenér Doty 2. Z dat hráče (opakované chyby, průměrné známky a metriky z posledních rozborů)
+navrhni tréninkový plán na tento týden: 2–3 cvičení zaměřená na nejdražší opakované chyby.
+Každé cvičení musí být měřitelné JEDNOU z metrik: ${Object.entries(METRIKY).map(([k, v]) => `${k} (${v})`).join(", ")}.
+Cíl nastav realisticky podle hráčova průměru (zlepšení o 15–30 %, ne zázrak).
+Vrať POUZE JSON bez dalšího textu:
+{"shrnuti":"1–2 věty proč tyhle cviky","cviceni":[{"nazev":"krátce","popis":"co konkrétně dělat ve hře (1–2 věty)","metrika":"smrti_do_10","operator":"<=","cil":1,"her":10}]}
+operator je "<=" (méně je lépe) nebo ">=" (víc je lépe); "her" = kolik her má cvičení trvat (5–15).`;
+
+function normalizujPlan(j) {
+  const cv = (Array.isArray(j?.cviceni) ? j.cviceni : []).map((c) => ({
+    nazev: String(c?.nazev || "").slice(0, 80), popis: String(c?.popis || "").slice(0, 300),
+    metrika: METRIKY[c?.metrika] ? c.metrika : null, operator: c?.operator === ">=" ? ">=" : "<=",
+    cil: Number(c?.cil), her: Math.min(20, Math.max(3, Math.round(Number(c?.her) || 10))),
+  })).filter((c) => c.nazev && c.metrika && Number.isFinite(c.cil)).slice(0, 3);
+  return cv.length ? { shrnuti: String(j.shrnuti || "").slice(0, 400), cviceni: cv } : null;
+}
+
+const planBody = (data) => ({
+  model: T.MODEL(), max_tokens: 6000, system: PLAN_SYSTEM,
+  messages: [{ role: "user", content: `Dnešní datum: ${T.dnes()}.\nData:\n${JSON.stringify(data, null, 2)}` }],
+});
+
+// ------------------------------------------------------------ Tahák k hrdinovi
+
+const TAHAK_SYSTEM = `Jsi trenér Doty 2. Napiš česky v Markdownu TAHÁK k hrdinovi na jeden pohled před hrou (aktuální patch –
+ověř přes webové vyhledávání, max. 3). Žádný úvod, jen tohle, stručně v odrážkách:
+## Skill build (pořadí + klíčové talenty)
+## Itemy (start → lajna → core → situační s podmínkou KDY)
+## Power spiky (level/item → co můžeš dělat)
+## Pozor na (3–5 nejhorších soupeřů a proč, jedna věta)
+## 3 pravidla (nejdůležitější rady pro tohohle hrdinu)
+Max. ~250 slov. Pokud dostaneš hráčovy poznámky nebo uložený guide, zohledni je. Nevypisuj postup hledání.`;
+
+const tahakBody = (hrdina, kontext) => ({
+  model: T.MODEL(), max_tokens: 8000, ...T.webTool(3), system: TAHAK_SYSTEM,
+  messages: [{ role: "user", content: `Hrdina: ${hrdina}. Dnešní datum: ${T.dnes()}.\nKontext hráče:\n${JSON.stringify(kontext, null, 2)}` }],
+});
+
+// ------------------------------------------------------------ Profil hráče
+
+async function profilData(hrac) {
+  const rozbory = ((await T.seznamRozboru(200)) || []).filter((r) => String(r.hrac) === String(hrac) && r.hodnoceni);
+  const pocty = {}, silne = {};
+  for (const r of rozbory) {
+    for (const st of r.hodnoceni.stitky_chyb || []) pocty[st.stitek] = (pocty[st.stitek] || 0) + 1;
+    for (const x of r.hodnoceni.silne_stranky || []) silne[x] = (silne[x] || 0) + 1;
+  }
+  const prumer = (a) => (a.length ? Math.round((a.reduce((x, y) => x + y, 0) / a.length) * 10) / 10 : null);
+  const zn = {};
+  for (const kat of T.KATEGORIE) zn[kat] = prumer(rozbory.map((r) => r.hodnoceni[kat]).filter(Boolean));
+  const podleHrdiny = {};
+  for (const r of rozbory) (podleHrdiny[r.hrdina] = podleHrdiny[r.hrdina] || []).push(r.hodnoceni.celkem);
+  return {
+    pocet_rozboru: rozbory.length,
+    prumerne_znamky: zn,
+    nejcastejsi_chyby: Object.entries(pocty).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([s2, n]) => `${s2} (${n}×)`),
+    casto_zminene_silne_stranky: Object.entries(silne).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([s2, n]) => `${s2} (${n}×)`),
+    hrdinove: Object.entries(podleHrdiny).sort((a, b) => b[1].length - a[1].length).slice(0, 10).map(([h, a]) => `${h}: ${a.length}×, průměr ${prumer(a)}`),
+    posledni_rozbory: rozbory.slice(0, 15).map((r) => ({ hrdina: r.hrdina, vysledek: r.vysledek, znamky: Object.fromEntries(T.KATEGORIE.map((kat) => [kat, r.hodnoceni[kat]])), chyby: (r.hodnoceni.stitky_chyb || []).map((st) => st.stitek), metriky: r.detail?.metriky || null })),
+  };
+}
+
+const PROFIL_SYSTEM = `Jsi trenér Doty 2. Ze všech rozborů hráče napiš česky v Markdownu jeho HRÁČSKÝ PROFIL:
+## Styl hry (2–3 věty: jak hraje, jaké role, agresivní/pasivní, farm/fight)
+## Silné stránky (3–4, s čísly z dat)
+## Slabiny a typické chyby (3–4, s čísly – kolikrát se opakují)
+## Vývoj (zlepšuje se? v čem? podle posledních rozborů vs. celku)
+## Na co se teď zaměřit (2–3 priority)
+Max. ~450 slov. Čísla jen z dat. Buď upřímný, ne pochvalný.`;
+
+const profilBody = (data) => ({
+  model: T.MODEL(), max_tokens: 8000, system: PROFIL_SYSTEM,
+  messages: [{ role: "user", content: `Data:\n${JSON.stringify(data, null, 2)}` }],
+});
+
+// ------------------------------------------------------------ Otázky k rozboru
+
+const OTAZKA_SYSTEM = `Jsi trenér Doty 2. Hráč se ptá na svůj zápas. Máš DATA zápasu a ROZBOR, který k němu napsal trenér.
+Odpovídej česky, stručně (max. ~200 slov, pokud otázka nevyžaduje víc), konkrétně a s čísly a časy z dat.
+Když se data k otázce nedají použít, řekni to a odpověz obecně podle znalostí hry (případně ověř přes web).
+Nevymýšlej události, které v datech nejsou. Nezmiňuj technické názvy polí z dat.`;
+
+const otazkaBody = (data, rozbor, historie, otazka) => {
+  const messages = [{ role: "user", content: `DATA:\n${JSON.stringify(data)}\n\nROZBOR:\n${String(rozbor || "").slice(0, 20000)}\n\nPotvrď, že máš podklady.` },
+    { role: "assistant", content: "Mám data zápasu i rozbor. Ptej se." }];
+  for (const h of (Array.isArray(historie) ? historie : []).slice(-6)) {
+    if (!h || !h.q || !h.a) continue;
+    messages.push({ role: "user", content: String(h.q).slice(0, 1000) }, { role: "assistant", content: String(h.a).slice(0, 4000) });
+  }
+  messages.push({ role: "user", content: String(otazka).slice(0, 1000) });
+  return { model: T.MODEL_LEVNY(), max_tokens: 6000, ...T.webTool(2), system: OTAZKA_SYSTEM, messages };
+};
+
+module.exports = { protiData, protiBody, poolData, poolBody, patchData, patchBody, posledniPatch,
+  fightData, fightBody, METRIKY, planData, planBody, normalizujPlan, tahakBody, profilData, profilBody, otazkaBody };

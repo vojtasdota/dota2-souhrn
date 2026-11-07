@@ -25,6 +25,21 @@ async function zkontrolujPatch(hrac, out) {
   } catch (e) { out.chyby.push("patch: " + e.message); }
 }
 
+// hráčský profil se obnoví sám po každých 10 nových rozborech (když zbývá čas)
+async function aktualizujProfil(hrac, out, start) {
+  if (!out.rozebrano.length || Date.now() - start > 150000) return;
+  try {
+    const data = await N.profilData(hrac);
+    if (data.pocet_rozboru < 5) return;
+    const ulozeny = JSON.parse((await T.redis("GET", "profil:posledni")) || "null");
+    if (ulozeny && data.pocet_rozboru - (ulozeny.pocet || 0) < 10) return;
+    const { text } = await T.textOnce(N.profilBody(data));
+    if (T.jeChybnyText(text)) return;
+    await T.redis("SET", "profil:posledni", JSON.stringify({ datum: new Date().toISOString(), pocet: data.pocet_rozboru, text }));
+    out.profil = true;
+  } catch (e) { out.chyby.push("profil: " + e.message); }
+}
+
 async function sync(hrac) {
   const start = Date.now();
   const out = { nove: 0, rozebrano: [], ceka: [], chyby: [], limit: false, bezi: false };
@@ -93,6 +108,7 @@ async function sync(hrac) {
         out.chyby.push(`${m.match_id}: ${e.message}`);
       }
     }));
+    await aktualizujProfil(hrac, out, start);
     return out;
   } finally {
     await T.redis("DEL", "trener:zamek").catch(() => {});

@@ -23,7 +23,7 @@ const BRACKETS = {
 const QUERY = `
 query Matchups($heroId: Short!, $brackets: [RankBracketBasicEnum]) {
   heroStats {
-    matchUp(heroId: $heroId, bracketBasicIds: $brackets) {
+    matchUp(heroId: $heroId, bracketBasicIds: $brackets, take: 200) {
       heroId
       vs {
         heroId2

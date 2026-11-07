@@ -8,6 +8,7 @@
 //   TRENER_HRAC        (pro automatiku) – tvoje account ID, jehož zápasy se rozebírají samy
 //   TRENER_MAX_DENNE   (volitelné) – max. automatických rozborů za den, výchozí 5
 //   KV_REST_API_URL / KV_REST_API_TOKEN – přidá Vercel sám po připojení Upstash Redis
+//   STRATZ_TOKEN       (doporučené) – matchupy a srovnání s Divine+ hráči (stratz.com/api)
 
 const OD = "https://api.opendota.com/api";
 const STEAM64 = 76561197960265728n;
@@ -217,7 +218,7 @@ async function matchupyDivine(heroId) {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: "Bearer " + process.env.STRATZ_TOKEN, "User-Agent": "STRATZ_API" },
         body: JSON.stringify({
-          query: `query M($heroId: Short!, $brackets: [RankBracketBasicEnum]) { heroStats { matchUp(heroId: $heroId, bracketBasicIds: $brackets) { heroId vs { heroId2 matchCount winCount } } } }`,
+          query: `query M($heroId: Short!, $brackets: [RankBracketBasicEnum]) { heroStats { matchUp(heroId: $heroId, bracketBasicIds: $brackets, take: 200) { heroId vs { heroId2 matchCount winCount } } } }`,
           variables: { heroId: Number(heroId), brackets: ["DIVINE_IMMORTAL"] },
         }),
       });
@@ -595,6 +596,217 @@ const guideJeStary = (zn, dni) => !zn?.guide || !zn.guide_datum || Date.now() - 
 
 // ------------------------------------------------------------ příprava dat pro rozbor
 
+// ------------------------------------------------------------ STRATZ (Divine+ statistiky)
+
+async function stratz(query, variables) {
+  if (!process.env.STRATZ_TOKEN) throw new Error("chybí STRATZ_TOKEN");
+  const r = await fetch("https://api.stratz.com/graphql", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: "Bearer " + process.env.STRATZ_TOKEN, "User-Agent": "STRATZ_API" },
+    body: JSON.stringify({ query, variables }),
+  });
+  if (!r.ok) throw new Error("STRATZ vrátil " + r.status);
+  const j = await r.json();
+  if (j.errors) throw new Error("STRATZ: " + (j.errors[0]?.message || "chyba dotazu"));
+  return j.data;
+}
+
+// core/support podle pořadí net worthu v týmu
+function jeSupportV(zapas, ja) {
+  const tym = zapas.players.filter((p) => jeRadiant(p) === jeRadiant(ja)).sort((a, b) => (b.net_worth || 0) - (a.net_worth || 0));
+  return { support: tym.indexOf(ja) >= 3, poradi: tym.indexOf(ja) };
+}
+// pozice 1–5 (odhad z lajny a net worthu)
+function pozice(zapas, ja) {
+  const { support, poradi } = jeSupportV(zapas, ja);
+  if (!support) return [1, 2, 3].includes(ja.lane_role) ? ja.lane_role : Math.min(3, poradi + 1);
+  if (ja.lane_role === 1) return 5;
+  if (ja.lane_role === 3) return 4;
+  return poradi === 3 ? 4 : 5;
+}
+
+// průměr Divine+ hráčů na stejném hrdinovi a pozici: LH, zlato, XP po minutách + časy nákupů itemů
+async function srovnaniDivine(zapas, ja, k) {
+  if (!process.env.STRATZ_TOKEN || !Array.isArray(ja.lh_t)) return null;
+  const pos = pozice(zapas, ja);
+  const hero = ja.hero_id;
+  const d = await cached(`cache:divine:${hero}:${pos}`, 86400, () => stratz(`query D($h: Short!, $hs: [Short]) { heroStats {
+      stats(heroIds: $hs, bracketBasicIds: [DIVINE_IMMORTAL], positionIds: [POSITION_${pos}], groupByTime: true, maxTime: 20) { time matchCount cs dn networth xp level deaths }
+      itemFullPurchase(heroId: $h, bracketBasicIds: [DIVINE_IMMORTAL], positionIds: [POSITION_${pos}]) { itemId time matchCount instance }
+    } }`, { h: hero, hs: [hero] }));
+  const stats = d?.heroStats?.stats || [];
+  if (!stats.length) return null;
+  const vMinute = (m) => stats.find((x) => x.time === m);
+  const mujNpc = k.heroes[hero]?.name;
+  const casySmrti = [];
+  for (const p of zapas.players) for (const kl of p.kills_log || []) if (kl.key === mujNpc) casySmrti.push(kl.time);
+  const smrtiDo = (m) => (zapas.version != null ? casySmrti.filter((t) => t <= m * 60).length : null);
+  const minuty = [];
+  for (const m of [5, 10, 15, 20]) {
+    const s = vMinute(m);
+    if (!s || vMin(ja.lh_t, m) == null) continue;
+    minuty.push({
+      min: m,
+      LH: { ja: vMin(ja.lh_t, m), divine: Math.round(s.cs) },
+      zlato: { ja: vMin(ja.gold_t, m), divine: Math.round(s.networth) },
+      XP: { ja: vMin(ja.xp_t, m), divine: Math.round(s.xp) },
+      smrti: { ja: smrtiDo(m), divine: Math.round(s.deaths * 10) / 10 },
+    });
+  }
+  // medián času nákupu (první kus) každého itemu
+  const podleItemu = {};
+  for (const x of d.heroStats.itemFullPurchase || []) {
+    if (x.instance && x.instance > 1) continue;
+    (podleItemu[x.itemId] = podleItemu[x.itemId] || []).push(x);
+  }
+  const median = (rows) => {
+    const sum = rows.reduce((a, r) => a + r.matchCount, 0);
+    let acc = 0;
+    for (const r of rows.slice().sort((a, b) => a.time - b.time)) { acc += r.matchCount; if (acc >= sum / 2) return { min: r.time, n: sum }; }
+    return null;
+  };
+  const videno = new Set(), itemy = [];
+  for (const n of ja.purchase_log || []) {
+    const it = k.items[n.key];
+    if (!it || n.key.startsWith("recipe_") || (it.cost || 0) < 1500 || videno.has(n.key)) continue;
+    videno.add(n.key);
+    const md = podleItemu[it.id] ? median(podleItemu[it.id]) : null;
+    if (!md || md.n < 100) continue;
+    const rozdil = Math.round(n.time / 60 - md.min);
+    itemy.push({ item: it.dname || n.key, ja: cas(n.time), divine_median: `${md.min}:00`, rozdil_min: rozdil });
+    if (itemy.length >= 6) break;
+  }
+  return { pozice: `pos ${pos}`, vzorek_zapasu: stats[0].matchCount, minuty, itemy,
+    poznamka: "průměr Divine+ hráčů na stejném hrdinovi a pozici (STRATZ); zlato = OpenDota zlato vs STRATZ net worth, orientačně" };
+}
+
+// ------------------------------------------------------------ smrti: co stály, a o kolik později byly itemy
+
+const XP_LEVEL = [0, 240, 640, 1160, 1760, 2440, 3200, 4000, 4900, 5900, 7000, 8200, 9500, 10900, 12400, 14000, 15700,
+  17500, 19400, 21400, 23600, 26000, 28600, 31400, 34400, 37400, 40400, 43400, 46400, 49400];
+const RESPAWN = [6, 8, 10, 14, 16, 26, 28, 30, 32, 34, 36, 44, 46, 48, 50, 52, 54, 65, 70, 75, 80, 85, 90, 95, 100, 100, 100, 100, 100, 100];
+const levelZXp = (xp) => { let l = 1; while (l < XP_LEVEL.length && xp >= XP_LEVEL[l]) l++; return l; };
+const zaMinutu = (rada, m) => {
+  if (!Array.isArray(rada) || rada.length < 2) return 0;
+  const a = Math.max(0, m - 2), b = Math.min(rada.length - 1, m + 2);
+  return b > a ? (rada[b] - rada[a]) / (b - a) : 0;
+};
+
+function smrtiCena(zapas, ja, k) {
+  if (!Array.isArray(ja.gold_t) || !Array.isArray(ja.xp_t)) return null;
+  const mujNpc = k.heroes[ja.hero_id]?.name;
+  const jm = (p) => k.heroes[p.hero_id]?.localized_name || "?";
+  const radiant = jeRadiant(ja), nasStr = radiant ? "goodguys" : "badguys", mujTymId = radiant ? 2 : 3;
+  const fighty = zapas.teamfights || [];
+  const smrti = [];
+  for (const p of zapas.players) for (const kl of p.kills_log || []) if (kl.key === mujNpc) smrti.push({ t: kl.time, kdo: jm(p) });
+  smrti.sort((a, b) => a.t - b.t);
+  const out = smrti.map(({ t, kdo }) => {
+    const m = Math.max(0, Math.floor(t / 60));
+    const xp = vMin(ja.xp_t, m) ?? ja.xp_t[ja.xp_t.length - 1];
+    const lvl = levelZXp(xp);
+    const respawn = RESPAWN[lvl - 1] || 100;
+    const gpm = zaMinutu(ja.gold_t, m), xpm = zaMinutu(ja.xp_t, m);
+    const nw = vMin(ja.gold_t, m) ?? 0;
+    const ztraceno = Math.round(50 + nw / 40);
+    const nevyfarmeno = Math.round((respawn * gpm) / 60);
+    const vTf = fighty.some((f) => f.start - 5 <= t && t <= f.end + 5);
+    const ztraty = (zapas.objectives || []).filter((o) => o.time > t && o.time <= t + 90).map((o) => {
+      if (o.type === "building_kill" && (o.key || "").includes(nasStr)) return `naše ${(o.key || "").replace(/npc_dota_(goodguys|badguys)_/, "")}`;
+      if (o.type === "CHAT_MESSAGE_ROSHAN_KILL" && o.team && o.team !== mujTymId) return "Roshan pro soupeře";
+      return null;
+    }).filter(Boolean);
+    return { t, cas: cas(t), zabil: kdo, typ: vTf ? "teamfight" : "pick-off", level: lvl, respawn_s: respawn,
+      ztracene_zlato: ztraceno, nevyfarmene_zlato: nevyfarmeno, ztracene_XP: Math.round((respawn * xpm) / 60),
+      celkem_zlata: ztraceno + nevyfarmeno, tym_ztratil_do_90s: ztraty };
+  });
+  // o kolik dřív by byly klíčové itemy bez smrtí (cena smrtí před nákupem / průměrné GPM do té doby)
+  const itemy = [], videno = new Set();
+  for (const n of ja.purchase_log || []) {
+    const it = k.items[n.key];
+    if (!it || n.key.startsWith("recipe_") || (it.cost || 0) < 2000 || videno.has(n.key) || n.time <= 0) continue;
+    videno.add(n.key);
+    const pred = out.filter((s) => s.t < n.time);
+    if (!pred.length) continue;
+    const cena = pred.reduce((a, s) => a + s.celkem_zlata, 0);
+    const gps = (vMin(ja.gold_t, Math.floor(n.time / 60)) || 0) / Math.max(60, n.time);
+    if (gps <= 0) continue;
+    const posun = Math.min(n.time - 60, Math.round(cena / gps));
+    itemy.push({ item: it.dname || n.key, koupeno: cas(n.time), bez_smrti_cca: cas(n.time - posun), driv_o: cas(posun), smrti_pred_nakupem: pred.length });
+    if (itemy.length >= 5) break;
+  }
+  const celkem = out.reduce((a, s) => a + s.celkem_zlata, 0);
+  return {
+    smrti: out.map(({ t, ...x }) => x),
+    souhrn: out.length ? `${out.length} smrtí, celkem cca ${celkem} zlata a ${Math.round(out.reduce((a, s) => a + s.respawn_s, 0) / 60 * 10) / 10} min mrtvý` : "bez smrtí od hrdinů",
+    itemy_bez_smrti: itemy,
+    poznamka: "odhad: ztracené zlato = 50 + zlato/40; nevyfarmené = respawn × GPM v té minutě; respawn podle levelu (přibližná tabulka)",
+  };
+}
+
+// ------------------------------------------------------------ draft obou týmů a spoluhráči
+
+const ATRIBUT = { str: "síla", agi: "obratnost", int: "inteligence", all: "univerzální" };
+function draftTymu(zapas, ja, k) {
+  const radiant = jeRadiant(ja);
+  const popis = (p) => {
+    const h = k.heroes[p.hero_id] || {};
+    return { hrdina: h.localized_name || "?", pozice: `pos ${pozice(zapas, p)}`, role: (h.roles || []).join("/"),
+      utok: h.attack_type === "Melee" ? "melee" : h.attack_type ? "ranged" : "?", atribut: ATRIBUT[h.primary_attr] || h.primary_attr || "?" };
+  };
+  const soucty = (tym) => {
+    const c = {};
+    for (const p of tym) for (const r of k.heroes[p.hero_id]?.roles || []) c[r] = (c[r] || 0) + 1;
+    return c;
+  };
+  const muj = zapas.players.filter((p) => jeRadiant(p) === radiant), soup = zapas.players.filter((p) => jeRadiant(p) !== radiant);
+  return {
+    muj_tym: muj.map(popis), souperi: soup.map(popis),
+    role_v_tymu: { muj: soucty(muj), souperi: soucty(soup) },
+    vysvetlivky: "role = role hrdinů z OpenDoty (Carry, Support, Nuker, Disabler, Initiator, Durable, Escape, Pusher); pozice odhadnuta z lajny a net worthu",
+  };
+}
+
+function spoluhraci(zapas, ja, k) {
+  const radiant = jeRadiant(ja);
+  const pct = (p, key) => (p.benchmarks && p.benchmarks[key] && p.benchmarks[key].pct != null ? Math.round(p.benchmarks[key].pct * 100) : null);
+  const radek = (p) => ({
+    hrdina: k.heroes[p.hero_id]?.localized_name || "?", pozice: `pos ${pozice(zapas, p)}`, ja: p === ja,
+    KDA: `${p.kills}/${p.deaths}/${p.assists}`, GPM: p.gold_per_min, net_worth: p.net_worth,
+    GPM_percentil: pct(p, "gold_per_min"), hero_damage: p.hero_damage,
+    ucast_tf_pct: p.teamfight_participation != null ? Math.round(p.teamfight_participation * 100) : null,
+  });
+  const tym = zapas.players.filter((p) => jeRadiant(p) === radiant).map(radek);
+  const ost = tym.filter((x) => !x.ja && x.GPM_percentil != null);
+  const muj = tym.find((x) => x.ja);
+  return {
+    muj_tym: tym,
+    prumerny_GPM_percentil_spoluhracu: ost.length ? Math.round(ost.reduce((a, x) => a + x.GPM_percentil, 0) / ost.length) : null,
+    muj_GPM_percentil: muj?.GPM_percentil ?? null,
+    smrti_tymu_celkem: zapas.players.filter((p) => jeRadiant(p) === radiant).reduce((a, p) => a + (p.deaths || 0), 0),
+    vysvetlivky: "GPM percentil = proti hráčům na stejném hrdinovi (OpenDota benchmarky)",
+  };
+}
+
+// měřitelné metriky zápasu (pro tréninkový plán a statistiky)
+function metriky(zapas, ja, k, data) {
+  const mujNpc = k.heroes[ja.hero_id]?.name;
+  let smrti10 = 0;
+  for (const p of zapas.players) for (const kl of p.kills_log || []) if (kl.key === mujNpc && kl.time <= 600) smrti10++;
+  const parsed = zapas.version != null;
+  return {
+    smrti: ja.deaths ?? null,
+    smrti_do_10: parsed ? smrti10 : null,
+    LH_10: vMin(ja.lh_t, 10),
+    pickoffy: parsed && Array.isArray(data.smrti) ? data.smrti.filter((t) => t.includes("MIMO teamfight")).length : null,
+    ucast_tf: ja.teamfight_participation != null ? Math.round(ja.teamfight_participation * 100) : null,
+    GPM: ja.gold_per_min ?? null,
+    obs: ja.obs_placed ?? null,
+    delka_s: zapas.duration,
+    vyhra: (ja.player_slot < 128) === zapas.radiant_win,
+  };
+}
+
 // ------------------------------------------------------------ známky z dat (objektivní kotva pro AI)
 
 const prumerZ = (a) => (a.length ? a.reduce((x, y) => x + y, 0) / a.length : null);
@@ -712,6 +924,13 @@ async function pripravData(zapas, ja, k) {
     };
   }
   data.znamky_z_dat = znamkyZDat(zapas, ja, data);
+  try { data.smrti_a_co_staly = smrtiCena(zapas, ja, k); } catch { /* bez rozparsovaného replaye */ }
+  try { data.draft_obou_tymu = draftTymu(zapas, ja, k); } catch {}
+  try { data.spoluhraci = spoluhraci(zapas, ja, k); } catch {}
+  data.srovnani_s_divine_plus = await srovnaniDivine(zapas, ja, k).catch((e) => ({ chyba: e.message }));
+  if (!data.srovnani_s_divine_plus) delete data.srovnani_s_divine_plus;
+  // metriky nejdou do AI, jen do uloženého záznamu
+  Object.defineProperty(data, "_metriky", { value: metriky(zapas, ja, k, data), enumerable: false });
   return data;
 }
 
@@ -735,9 +954,10 @@ Postup hledání nevypisuj.
 
 Struktura (drž se jí, nadpisy přesně takhle):
 ## Shrnutí
-Přesně 3 odrážky: **Známka X/10** a jednou větou proč (kotvou jsou "znamky_z_dat"; když se od nich
+Přesně 4 odrážky: **Známka X/10** a jednou větou proč (kotvou jsou "znamky_z_dat"; když se od nich
 výrazně odchýlíš, řekni proč) · **Co rozhodlo zápas** (konkrétní moment nebo fáze s časem) ·
-**Hlavní věc na zlepšení** (jedna, nejdražší chyba).
+**Já, nebo tým?** (z "spoluhraci": byl hráč nad/pod průměrem svého týmu – GPM percentil, KDA, účast
+ve fightech, smrti týmu; férově, bez shazování spoluhráčů) · **Hlavní věc na zlepšení** (jedna, nejdražší chyba).
 ## Pick
 Vyjdi ze známky picku z dat ("draft.pick_znamka_z_dat", "pick_rozpad": matchupy proti soupeřům
 viditelným při picku, winrate hrdiny v Divine+, hráčovy výsledky na hrdinovi); odchyl se nejvýš o 1
@@ -746,22 +966,32 @@ a jen s jasným důvodem (synergie s týmem, patch). Za counterpick, který při
 roli "moje_role_v_zapase", mají vlastní známku) – 2–3, každá jednou větou proč. Pokud je v datech
 "poznamka_k_poolu" a "k_nauceni_pro_tuhle_roli", řekni na rovinu, že pro tuhle roli nemá pool, a
 doporuč 2 hrdiny k naučení z "k_nauceni_pro_tuhle_roli". Nikdy nedoporučuj hrdinu z jiné role.
+## Draft obou týmů
+3–4 odrážky z "draft_obou_tymu": silné a slabé stránky obou sestav (iniciace, disable, push, late game,
+melee/ranged, magický vs. fyzický damage), co měl hráčův tým v plánu (kdy je silný, o co hrát) a jak
+měl hrát proti soupeřově sestavě.
 ## Lajna (0–10 min)
 Z "lajna_detail": kdo lajnu vyhrál a kdy se zlomila (nejvetsi_zvrat). Krátká tabulka jen klíčových
-minut (3–5 řádků: minuta, tvoje LH, LH soupeře, rozdíl zlata). Srovnej LH a zlato v 10. minutě
-s profíkem ("srovnani_s_profikem": LH_10min, zlato_10min – jeden konkrétní zápas, ne pravidlo).
+minut (3–5 řádků: minuta, tvoje LH, LH soupeře, rozdíl zlata). Pokud je v datech
+"srovnani_s_divine_plus", srovnej LH v 5. a 10. minutě s průměrem Divine+ hráčů na stejném hrdinovi
+a pozici (to je hlavní měřítko; zlato a XP jen orientačně). Jinak srovnej s profíkem
+("srovnani_s_profikem": LH_10min, zlato_10min – jeden konkrétní zápas, ne pravidlo).
 Pak 1–2 konkrétní věci, co měl hráč na lajně udělat jinak (co, kdy, proč).
 ## Největší chyby
 3–4 chyby seřazené podle dopadu (nejdražší první). Každá přesně v tomhle tvaru:
-**MM:SS – krátký název** · *Dopad:* co to stálo podle dat (smrt → co náš tým ztratil do 90 s, viz
-"smrti"; ztracené zlato/XP, věž, Roshan, prohraný fight) · *Co se stalo:* 1–2 věty · *Co udělat místo
-toho:* konkrétní alternativní akce v té situaci (kam jít, co koupit, kdy se stáhnout), ne obecná rada.
+**MM:SS – krátký název** · *Dopad:* co to stálo podle dat (u smrtí čísla ze "smrti_a_co_staly":
+zlato, XP, doba mrtvý, co tým ztratil do 90 s; jinak věž, Roshan, prohraný fight) · *Tvoje chyba?*
+ano / spíš ano / nevyhnutelné (pick-off na farmě bez vize = chyba; smrt při obraně high ground nebo
+výměna za objektiv = často v pořádku) · *Co se stalo:* 1–2 věty · *Co udělat místo toho:* konkrétní
+alternativní akce v té situaci (kam jít, co koupit, kdy se stáhnout), ne obecná rada.
 ## Co šlo dobře
 2–4 odrážky s čísly a časy. Přidej srovnání s hráčovými minulými hrami ("srovnani_s_mym_prumerem",
 např. „3. nejlepší GPM z posledních 20“) a z "pamet_trenera", jestli splnil cíl z minulé hry
 ("cil_z_minule_hry") a jestli se opakují stejné chyby.
 ## Build a timingy
-Byl build rozumný vůči soupeřům a patchi? Porovnej timingy klíčových itemů s profíkem v malé tabulce.
+Byl build rozumný vůči soupeřům a patchi? Malá tabulka timingů klíčových itemů: tvůj čas, medián
+Divine+ ("srovnani_s_divine_plus.itemy", jinak profík) a „bez smrtí cca“ ("smrti_a_co_staly.itemy_bez_smrti"
+– o kolik dřív by item byl bez smrtí). Zmiň i zbytečné nebo pozdní nákupy, pokud jsou z dat vidět.
 ## Momenty k shlédnutí v replayi
 4–6 časových úseků seřazených podle času: - **MM:SS–MM:SS** – na co se dívat (minimapa, pozice, vize,
 co měl soupeř). Okno začínej cca 20–30 s před událostí.
@@ -774,7 +1004,7 @@ Délku zápasu ber výhradně z "zapas.delka". V textu nikdy nezmiňuj technick�
 Nemáš pozice na mapě, takže u smrtí mluv o pravděpodobných příčinách. Pokud replay není
 rozparsovaný nebo nějaká data chybí, řekni to a hodnoť jen to, co máš.
 Žádné obecné fráze typu „hraj opatrněji“ nebo „sleduj minimapu“ bez konkrétní situace a času.
-Buď přímý jako dobrý trenér, ne zbytečně pochvalný, ale ani zlý. Max. ~900 slov, krátké odstavce.`;
+Buď přímý jako dobrý trenér, ne zbytečně pochvalný, ale ani zlý. Max. ~1100 slov, krátké odstavce.`;
 
 function rozborBody(data, stream) {
   return {
@@ -936,7 +1166,9 @@ Vrať POUZE JSON, bez dalšího textu a bez Markdownu:
 {"opravy":[{"puvodni":"...","nove":"..."}],
  "hodnoceni":{"celkem":7,"pick":6,"lajna":8,"farma":7,"teamfighty":5,"pozicovani":4,"build":6,
   "stitky_chyb":[{"stitek":"smrt mimo teamfight","cas":"36:48","popis":"krátce"}],
-  "silne_stranky":["krátce"],"cil_na_dalsi_hru":"..."}}`;
+  "silne_stranky":["krátce"],"cil_na_dalsi_hru":"...","cil_z_minule_splnen":true}}
+"cil_z_minule_splnen": true/false podle toho, jestli hráč v tomhle zápase splnil "pamet_trenera.cil_z_minule_hry"
+(posuď z dat, ne z rozboru); null, když cíl v datech není nebo se z dat nedá posoudit.`;
 
 function parseJson(t) {
   if (!t) return null;
@@ -966,6 +1198,7 @@ function normalizujHodnoceni(h) {
   });
   out.silne_stranky = (Array.isArray(n.silne_stranky) ? n.silne_stranky : []).slice(0, 5).map((x) => String(x).slice(0, 200));
   out.cil_na_dalsi_hru = n.cil_na_dalsi_hru ? String(n.cil_na_dalsi_hru).slice(0, 300) : null;
+  out.cil_z_minule_splnen = n.cil_z_minule_splnen === true ? true : n.cil_z_minule_splnen === false ? false : null;
   if (!out.celkem) {
     // celková známka chybí → průměr ostatních
     const ost = KATEGORIE.filter((k) => out[k]).map((k) => out[k]);
@@ -1054,7 +1287,15 @@ const zaznam = (zapas, data, vysledek, extra) => ({
   match: String(zapas.match_id), hrdina: data.hrac.hrdina,
   vysledek: data.zapas.vysledek + " · " + data.zapas.delka,
   souperi: data.zapas.souperi, hrano: zapas.start_time, datum: new Date().toISOString(),
-  text: vysledek.text, hodnoceni: vysledek.hodnoceni || null, ...extra,
+  text: vysledek.text, hodnoceni: vysledek.hodnoceni || null,
+  detail: detailZaznamu(data), ...extra,
+});
+// kompaktní data pro karty na stránce (smrti, Divine+, spoluhráči, metriky)
+const detailZaznamu = (data) => ({
+  metriky: data._metriky || null,
+  smrti: data.smrti_a_co_staly || null,
+  divine: data.srovnani_s_divine_plus && !data.srovnani_s_divine_plus.chyba ? data.srovnani_s_divine_plus : null,
+  spoluhraci: data.spoluhraci ? data.spoluhraci.muj_tym : null,
 });
 
 async function seznamRozboru(limit = 200) {
@@ -1086,7 +1327,7 @@ function teloPozadavku(req) {
 const jeChybnyText = (t) => !t || t.trim().length < 300 || /^\s*⚠️/.test(t.trim());
 
 module.exports = {
-  OD, ROLE, odGet, nactiKonstanty, heroStats, znamkyZDat, zkombinujHodnoceni, najdiHrace, shrnuti, pripravData, cas, cached, matchupy, hracInfo, dnes,
+  OD, ROLE, odGet, nactiKonstanty, heroStats, stratz, pozice, smrtiCena, draftTymu, spoluhraci, metriky, detailZaznamu, srovnaniDivine, znamkyZDat, zkombinujHodnoceni, najdiHrace, shrnuti, pripravData, cas, cached, matchupy, hracInfo, dnes,
   streamText, textOnce, stavRadek, rozebrat, guideBody, MODEL, MODEL_LEVNY, webTool,
   znalosti, ulozZnalosti, nastaveni, ulozNastaveni, guideJeStary, STITKY, KATEGORIE, normalizujHodnoceni,
   maUloziste, redis, klicRozboru, teloPozadavku, ulozRozbor, zaznam, seznamRozboru, smazRozbor, smazane, jeChybnyText,

@@ -70,7 +70,7 @@ module.exports = async (req, res) => {
     }
     res.write("\u001e" + JSON.stringify({
       text: vysledek.text, hodnoceni: vysledek.hodnoceni, opravy: vysledek.opravy,
-      chybaKontroly: vysledek.chybaKontroly || null, ulozeno, chybaUlozeni,
+      chybaKontroly: vysledek.chybaKontroly || null, ulozeno, chybaUlozeni, detail: T.detailZaznamu(data),
     }));
   } catch (e) {
     res.write("\n\n⚠️ " + e.message);
