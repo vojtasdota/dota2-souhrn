@@ -2244,7 +2244,7 @@ async function nactiKdyHrat(vynutit) {
 }
 
 function spocitejKdyHrat(zapasy, jenRanked) {
-  const hry = zapasy.filter((z) => z.duration >= 600 && z.lobby_type === 7)
+  const hry = zapasy.filter((z) => z.duration >= 600 && z.lobby_type === 7 && z.radiant_win != null && z.start_time > 0)
     .map((z) => ({ t: z.start_time, d: z.duration, w: (z.player_slot < 128) === z.radiant_win }))
     .sort((a, b) => a.t - b.t);
   const N = hry.length;
@@ -2265,7 +2265,7 @@ function spocitejKdyHrat(zapasy, jenRanked) {
       (tab[kl] = tab[kl] || pocitadlo()).n++; if (h.w) tab[kl].w++;
     }
     // session: pauza od konce předchozí hry < 45 min
-    const pauza = i ? h.t - (hry[i - 1].t + hry[i - 1].d) : 1e12;
+    const pauza = i ? Math.max(0, h.t - (hry[i - 1].t + hry[i - 1].d)) : 1e12; // překryv v datech OpenDoty = 0
     idxSession = pauza < 2700 ? idxSession + 1 : 1;
     const si = String(Math.min(idxSession, 6));
     (vSession[si] = vSession[si] || pocitadlo()).n++; if (h.w) vSession[si].w++;
@@ -2313,6 +2313,10 @@ function spocitejKdyHrat(zapasy, jenRanked) {
 
 function vykresliKdyHrat() {
   if (!khZapasy) return;
+  try { vykresliKdyHratVnitrek(); }
+  catch (e) { $("khOut").innerHTML = ""; stavEl($("khStav"), "Statistiky se nepodařilo spočítat: " + (e.message || e), { chyba: true }); }
+}
+function vykresliKdyHratVnitrek() {
   const st = spocitejKdyHrat(khZapasy, true);
   khStat = st;
   const el = $("khOut");
