@@ -544,9 +544,15 @@
     .bar{width:64px}
   }
 </style>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/theme.css">
 </head>
-<body>
+<body class="p-index">
 <div class="wrap">
+  <div class="topbar">
+    <a class="znacka" href="/"><i>⚔</i>Dota 2 souhrn</a>
+    <nav><a href="/" class="akt">Statistiky</a><a href="/trener.html">🧠 AI trenér</a></nav>
+  </div>
   <header>
     <div class="kicker">Statistiky zápasů</div>
     <h1>Dota&nbsp;2 Souhrn</h1>
@@ -1141,8 +1147,10 @@ function renderPanel(){
   renderTable();
 }
 
+const TAB_IKONY = {"self": "<circle cx=\"12\" cy=\"8\" r=\"4\"/><path d=\"M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1\"/>", "with": "<circle cx=\"9\" cy=\"8\" r=\"3.5\"/><path d=\"M2.5 20a6.5 6.5 0 0 1 13 0\"/><path d=\"M16 4.5a3.5 3.5 0 0 1 0 7\"/><path d=\"M18 14a6.5 6.5 0 0 1 3.5 6\"/>", "against": "<path d=\"M14.5 17.5 3 6V3h3l11.5 11.5\"/><path d=\"m13 19 6-6\"/><path d=\"m16 16 4 4\"/><path d=\"m19 21 2-2\"/><path d=\"M14.5 6.5 18 3h3v3l-3.5 3.5\"/><path d=\"m5 14 4 4\"/><path d=\"m7 17-3 3\"/><path d=\"m3 19 2 2\"/>", "matches": "<path d=\"M9 6h12M9 12h12M9 18h12\"/><circle cx=\"4\" cy=\"6\" r=\"1.2\"/><circle cx=\"4\" cy=\"12\" r=\"1.2\"/><circle cx=\"4\" cy=\"18\" r=\"1.2\"/>", "farm": "<circle cx=\"8\" cy=\"8\" r=\"6\"/><path d=\"M18.09 10.37A6 6 0 1 1 10.34 18\"/><path d=\"M7 6h1v4\"/>", "records": "<path d=\"M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z\"/><path d=\"M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3\"/>", "analysis": "<path d=\"M3 3v18h18\"/><path d=\"m7 15 4-4 3 3 5-6\"/>", "draft": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><circle cx=\"12\" cy=\"12\" r=\"5\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/>", "counter": "<path d=\"M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6z\"/><path d=\"m9 12 2 2 4-4\"/>", "world": "<circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18\"/>", "meta": "<path d=\"M12 3c1 3 5 5 5 10a5 5 0 0 1-10 0c0-2 1-3.5 2-4.5 0 2 1 3 2 3 0-3-1-5 1-8.5z\"/>", "live": "<path d=\"M3 12h4l3-8 4 16 3-8h4\"/>"};
 function tabBtn(key,label,desc){
-  return `<button class="tab ${state.tab===key?'active':''}" data-tab="${key}">${label}<small>${desc}</small></button>`;
+  const ik = TAB_IKONY[key] ? `<svg class="ikona" viewBox="0 0 24 24" aria-hidden="true">${TAB_IKONY[key]}</svg>` : "";
+  return `<button class="tab ${state.tab===key?'active':''}" data-tab="${key}" title="${desc}">${ik}<span class="popis">${label}</span><small>${desc}</small></button>`;
 }
 function setActiveTab(){
   document.querySelectorAll(".tab").forEach(t=>t.classList.toggle("active",t.dataset.tab===state.tab));
