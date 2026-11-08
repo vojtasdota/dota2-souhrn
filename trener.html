@@ -2447,6 +2447,14 @@ $("hrac").addEventListener("change", () => {
 
 hrdinove().catch(() => {}).then(nactiZapasyRozbor);
 ukazCip();
+// odkaz z hlavní stránky: /trener.html?tahak=Juggernaut#znalosti → otevřít znalosti hrdiny
+if (q.get("tahak")) {
+  prepni("znalosti");
+  $("znHero").value = q.get("tahak");
+  hrdinove().then(() => otevriZnalosti()).then(() => {
+    if ($("znTahakOut").style.display === "none") stavEl($("znStav"), "Tahák k tomuhle hrdinovi zatím nemáš – klikni na „Tahák před hrou (AI)“.");
+  }).catch(() => {});
+}
 </script>
 </body>
 </html>

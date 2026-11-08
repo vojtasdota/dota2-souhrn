@@ -994,10 +994,11 @@ async function loadProfile(id){
       });
     }
 
+    const qs = filtrQS();
     const [profile, wl, hstats] = await Promise.all([
       getJSON(`https://api.opendota.com/api/players/${id}`),
-      getJSON(`https://api.opendota.com/api/players/${id}/wl`),
-      getJSON(`https://api.opendota.com/api/players/${id}/heroes`),
+      getJSON(`https://api.opendota.com/api/players/${id}/wl${qs ? "?" + qs : ""}`),
+      getJSON(`https://api.opendota.com/api/players/${id}/heroes${qs ? "?" + qs : ""}`),
     ]);
     if(seq!==state.profileSeq) return;
 
@@ -1023,17 +1024,12 @@ async function loadProfile(id){
     state.buildHero = null; state.buildPickerSearch = "";
     state.tab = "self"; state.sortKey = "g"; state.sortDir = -1;
 
-    state.heroes = (hstats||[]).map(h=>{
-      const meta = heroMap[h.hero_id] || {name:"Hrdina #"+h.hero_id, short:""};
-      return {
-        id:h.hero_id, name:meta.name, short:meta.short,
-        self:{ g:h.games||0, w:h.win||0 },
-        with:{ g:h.with_games||0, w:h.with_win||0 },
-        against:{ g:h.against_games||0, w:h.against_win||0 },
-      };
-    });
+    state.heroes = prevedHrdiny(hstats);
+    state.profileData = profile; state.wlData = wl;
+    state.mojeZapasy = null; state.heroAgg = {}; state.forma = null; state.heroDetail = null; state.detailCache = {};
 
     render(profile, wl);
+    nactiMojeZapasy();
   }catch(e){
     content.innerHTML = '<div class="status error">Nepodařilo se načíst data ('+escapeHtml(e.message)+').<br>Zkontroluj ID a připojení. OpenDota má limit ~60 dotazů/min.</div>';
   }finally{
@@ -1053,13 +1049,14 @@ function render(profile, wl){
       <img class="avatar" src="${p.avatarfull||p.avatar||''}" alt="" onerror="this.style.visibility='hidden'">
       <div class="pmeta">
         <div class="pname">${escapeHtml(p.personaname||"Neznámý hráč")}</div>
-        <div class="prank">${rankText(profile.rank_tier)}${profile.leaderboard_rank?" · #"+profile.leaderboard_rank:""}</div>
+        <div class="prank">${medaileHTML(profile.rank_tier, profile.leaderboard_rank)}<span>${rankText(profile.rank_tier)}${profile.leaderboard_rank?" · #"+profile.leaderboard_rank:""}</span></div>
       </div>
       <div class="ptotals">
         <div class="tstat w"><div class="n">${wl.win||0}</div><div class="l">Výhry</div></div>
         <div class="tstat l"><div class="n">${wl.lose||0}</div><div class="l">Prohry</div></div>
         <div class="tstat wr"><div class="n">${wr}%</div><div class="l">Win rate</div></div>
       </div>
+      <div class="pextra" id="profilExtra">${profilExtraHTML()}</div>
     </div>`;
   } else {
     card = `<div class="profile noprof">
@@ -1134,16 +1131,31 @@ function renderPanel(){
   $("#panel").innerHTML = `
     <div class="controls">
       <input type="text" id="search" placeholder="Hledat hrdinu…" value="${escapeHtml(state.search)}" autocomplete="off">
+      <label class="minsel">Období:
+        <select id="fObdobi">
+          ${[[0,"celá historie"],[365,"poslední rok"],[90,"3 měsíce"],[30,"30 dní"]].map(([v,t])=>`<option value="${v}" ${state.filtr.obdobi===v?"selected":""}>${t}</option>`).join("")}
+        </select>
+      </label>
+      <label class="minsel">Role:
+        <select id="fRole">
+          ${[[0,"všechny"],[1,"Pos 1 carry"],[2,"Pos 2 mid"],[3,"Pos 3 offlane"],[4,"Pos 4"],[5,"Pos 5"]].map(([v,t])=>`<option value="${v}" ${state.roleFiltr===v?"selected":""}>${t}</option>`).join("")}
+        </select>
+      </label>
       <label class="minsel">Min. zápasů:
         <select id="minGames">
           ${[1,3,5,10,20,50].map(v=>`<option value="${v}" ${state.minGames===v?"selected":""}>${v}</option>`).join("")}
         </select>
       </label>
+      <label class="minsel chk-r"><input type="checkbox" id="fRanked" ${state.filtr.ranked?"checked":""}> Jen ranked</label>
     </div>
+    <div class="filtr-info" id="filtrInfo">${filtrInfoHTML()}</div>
     <div class="tablewrap"><div id="tbl"></div></div>
   `;
   $("#search").oninput = e=>{ state.search=e.target.value; renderTable(); };
   $("#minGames").onchange = e=>{ state.minGames=+e.target.value; renderTable(); };
+  $("#fRole").onchange = e=>{ state.roleFiltr=+e.target.value; renderTable(); };
+  $("#fObdobi").onchange = e=>{ state.filtr.obdobi=+e.target.value; zmenaFiltru(); };
+  $("#fRanked").onchange = e=>{ state.filtr.ranked=e.target.checked; zmenaFiltru(); };
   renderTable();
 }
 
@@ -1162,46 +1174,67 @@ function renderTable(){
 }
 
 function renderHeroTable(){
-  const k = state.tab;
+  const k = state.tab, ja = k==="self";
+  const agg = state.heroAgg || {};
+  const dv = state.divineWR || {};
   let rows = state.heroes.map(h=>{
     const d = h[k];
     const g = d.g, w = d.w, l = g-w;
-    return { name:h.name, short:h.short, g, w, l, wr: g? w/g : 0 };
+    const r = { id:h.id, name:h.name, short:h.short, g, w, l, wr: g? w/g : 0, sila: (w + 10)/(g + 20) };
+    if(ja){
+      const a = agg[h.id];
+      r.trend = a && a.g >= 25 && a.p20.g >= 10 ? (a.p20.w/a.p20.g - a.w/a.g)*100 : null;
+      r.vsMeta = dv[h.id]!=null && g >= 5 ? (r.wr - dv[h.id])*100 : null;
+      r.kda = a && a.g ? (a.k + a.as)/Math.max(1, a.d) : null;
+      r.gpm = a && a.gpmN ? a.gpm/a.gpmN : null;
+      r.last = a ? a.last : null;
+      r.stitek = stitekHrdiny(r);
+    }
+    return r;
   }).filter(r=> r.g >= state.minGames);
 
+  if(state.roleFiltr) rows = rows.filter(r=> heroPositions(r.id).includes(state.roleFiltr));
   if(state.search.trim()){
     const q = state.search.trim().toLowerCase();
     rows = rows.filter(r=> r.name.toLowerCase().includes(q));
   }
 
-  const dir = state.sortDir;
+  const dir = state.sortDir, key = state.sortKey;
   rows.sort((a,b)=>{
-    const av=a[state.sortKey], bv=b[state.sortKey];
+    const av=a[key], bv=b[key];
+    if(av==null && bv==null) return b.g-a.g;
+    if(av==null) return 1; if(bv==null) return -1;
     if(av<bv) return -1*dir;
     if(av>bv) return 1*dir;
-    return b.g-a.g; // tiebreak
+    return b.g-a.g;
   });
 
-  const labelSelf = state.tab==="self";
-  const arr = key => state.sortKey===key ? `<span class="arr">${state.sortDir<0?"▼":"▲"}</span>` : "";
-
-  let html = `<table>
+  const arr = kk => key===kk ? `<span class="arr">${dir<0?"▼":"▲"}</span>` : "";
+  const th = (kk, t, cls="", tip="") => `<th class="sortable ${cls}" data-k="${kk}"${tip?` title="${tip}"`:""}>${t}${arr(kk)}</th>`;
+  const nacita = ja && !state.mojeZapasy;
+  const ncol = ja ? 11 : 6;
+  let html = `<table class="hero-tab">
     <thead><tr>
       <th>Hrdina</th>
-      <th class="sortable" data-k="g">Zápasy${arr("g")}</th>
-      <th class="sortable" data-k="w">Výhry${arr("w")}</th>
-      <th class="sortable" data-k="l">Prohry${arr("l")}</th>
-      <th class="sortable wrcell" data-k="wr">Win rate${arr("wr")}</th>
+      ${th("g","Zápasy")}${th("w","Výhry")}${th("l","Prohry")}${th("wr","Win rate","wrcell")}
+      ${ja ? th("trend","Trend","","Win rate posledních 20 her na hrdinovi oproti celku (od 25 her)") : ""}
+      ${ja ? th("vsMeta","vs D+","","Tvoje win rate minus win rate Divine+ hráčů na hrdinovi") : ""}
+      ${th("sila","Síla","","Win rate tlumená podle počtu her – malé vzorky se táhnou k 50 %")}
+      ${ja ? th("kda","KDA","hide-m") + th("gpm","GPM","hide-m") + th("last","Naposledy","hide-m") : ""}
     </tr></thead><tbody>`;
 
   if(!rows.length){
-    html += `</tbody></table><div class="empty">Žádní hrdinové neodpovídají filtru (zkus snížit „min. zápasů“).</div>`;
+    html += `</tbody></table><div class="empty">Žádní hrdinové neodpovídají filtru (zkus snížit „min. zápasů“ nebo změnit roli/období).</div>`;
   } else {
+    const barva = (v, hranice=3)=> v==null ? "" : v>=hranice ? "var(--win-glow)" : v<=-hranice ? "var(--loss-glow)" : "var(--muted)";
+    const zn = v=> v==null ? "–" : (v>0?"+":"")+v.toFixed(1);
     rows.forEach(r=>{
       const pct = Math.round(r.wr*1000)/10;
       const icon = r.short ? `<img src="${HERO_CDN}${r.short}.png" alt="" onerror="this.style.visibility='hidden'">` : `<img alt="" style="visibility:hidden">`;
-      html += `<tr>
-        <td class="hero">${icon}<span>${escapeHtml(r.name)}</span></td>
+      const st = r.stitek ? `<span class="hstitek ${r.stitek.c}" title="${r.stitek.tip}">${r.stitek.t}</span>` : "";
+      const otevreny = ja && state.heroDetail===r.id;
+      html += `<tr class="${ja?"klik":""} ${otevreny?"otevreny":""}" data-hid="${r.id}">
+        <td class="hero">${icon}<span>${escapeHtml(r.name)}</span>${st}</td>
         <td class="cg">${r.g}</td>
         <td class="cw">${r.w}</td>
         <td class="cl">${r.l}</td>
@@ -1209,7 +1242,12 @@ function renderHeroTable(){
           <span class="pct" style="color:${pct>=50?'var(--win-glow)':'var(--loss-glow)'}">${pct}%</span>
           <div class="bar"><div class="fill" style="width:${pct}%"></div></div>
         </div></td>
+        ${ja ? `<td style="color:${barva(r.trend,5)}">${nacita?"…":r.trend==null?"–":(r.trend>=5?"▲ ":r.trend<=-5?"▼ ":"")+zn(r.trend)}</td>` : ""}
+        ${ja ? `<td style="color:${barva(r.vsMeta)}">${state.divineWR?zn(r.vsMeta):"…"}</td>` : ""}
+        <td>${(r.sila*100).toFixed(1)}%</td>
+        ${ja ? `<td class="hide-m">${nacita?"…":r.kda==null?"–":r.kda.toFixed(2)}</td><td class="hide-m">${nacita?"…":r.gpm==null?"–":Math.round(r.gpm)}</td><td class="hide-m muted-c">${nacita?"…":r.last?predCasem(r.last):"–"}</td>` : ""}
       </tr>`;
+      if(otevreny) html += `<tr class="hd-row"><td colspan="${ncol}"><div id="heroDetail" class="hero-detail"></div></td></tr>`;
     });
     html += `</tbody></table>`;
   }
@@ -1218,12 +1256,237 @@ function renderHeroTable(){
 
   document.querySelectorAll("th.sortable").forEach(th=>{
     th.onclick = ()=>{
-      const key = th.dataset.k;
-      if(state.sortKey===key){ state.sortDir*=-1; }
-      else { state.sortKey=key; state.sortDir=-1; }
+      const kk = th.dataset.k;
+      if(state.sortKey===kk){ state.sortDir*=-1; }
+      else { state.sortKey=kk; state.sortDir= kk==="last"||kk==="trend"||kk==="vsMeta"||kk==="sila"||kk==="kda"||kk==="gpm"||kk==="wr"||kk==="g"||kk==="w" ? -1 : -1; }
       renderTable();
     };
   });
+  if(ja){
+    document.querySelectorAll("tr.klik").forEach(tr=>{
+      tr.onclick = ()=>{ const id=+tr.dataset.hid; state.heroDetail = state.heroDetail===id ? null : id; renderTable(); };
+    });
+    if(state.heroDetail && $("#heroDetail")) vyplnDetailHrdiny(state.heroDetail);
+  }
+}
+
+// ---------- filtry, zápasy hráče, forma, detail hrdiny
+Object.assign(state, { filtr:{obdobi:0, ranked:false}, roleFiltr:0, mojeZapasy:null, heroAgg:{}, forma:null, heroDetail:null, detailCache:{}, divineWR:null });
+
+function filtrQS(){
+  const p=[];
+  if(state.filtr.obdobi) p.push("date="+state.filtr.obdobi);
+  if(state.filtr.ranked) p.push("lobby_type=7");
+  return p.join("&");
+}
+function filtrInfoHTML(){
+  const o = {0:"celá historie",365:"poslední rok",90:"poslední 3 měsíce",30:"posledních 30 dní"}[state.filtr.obdobi];
+  return `Filtr: <b>${o}</b>${state.filtr.ranked?", <b>jen ranked</b>":""} – platí pro tabulky hrdinů a kartu profilu.${state.tab==="self"?" Klikni na hrdinu pro detail.":""}`;
+}
+function prevedHrdiny(hstats){
+  return (hstats||[]).map(h=>{
+    const meta = heroMap[h.hero_id] || {name:"Hrdina #"+h.hero_id, short:""};
+    return {
+      id:+h.hero_id, name:meta.name, short:meta.short,
+      self:{ g:h.games||0, w:h.win||0 },
+      with:{ g:h.with_games||0, w:h.with_win||0 },
+      against:{ g:h.against_games||0, w:h.against_win||0 },
+    };
+  });
+}
+async function zmenaFiltru(){
+  const id=state.accId; if(!id) return;
+  const seq=(state.filtrSeq=(state.filtrSeq||0)+1);
+  if($("#tbl")) $("#tbl").innerHTML='<div class="status"><div class="spinner"></div>Načítám data pro zvolený filtr…</div>';
+  try{
+    const qs=filtrQS();
+    const [wl, hstats] = await Promise.all([
+      getJSON(`https://api.opendota.com/api/players/${id}/wl${qs?"?"+qs:""}`),
+      getJSON(`https://api.opendota.com/api/players/${id}/heroes${qs?"?"+qs:""}`),
+    ]);
+    if(seq!==state.filtrSeq || id!==state.accId) return;
+    state.heroes = prevedHrdiny(hstats); state.wlData = wl;
+    state.mojeZapasy=null; state.heroAgg={}; state.forma=null; state.heroDetail=null; state.detailCache={};
+    render(state.profileData, wl);
+    nactiMojeZapasy();
+  }catch(e){
+    if($("#tbl")) $("#tbl").innerHTML='<div class="status error">Nepodařilo se načíst data ('+escapeHtml(e.message)+').</div>';
+  }
+}
+
+async function nactiMojeZapasy(){
+  const id=state.accId; if(!id) return;
+  const qs=filtrQS();
+  const pole=["hero_id","radiant_win","player_slot","start_time","kills","deaths","assists","gold_per_min","duration","lobby_type"].map(x=>"project="+x).join("&");
+  try{
+    const [list] = await Promise.all([
+      getJSON(`https://api.opendota.com/api/players/${id}/matches?${qs?qs+"&":""}${pole}`),
+      nactiDivineMeta(),
+    ]);
+    if(id!==state.accId || qs!==filtrQS()) return;
+    const zap=(Array.isArray(list)?list:[]).filter(z=>z && z.hero_id && z.radiant_win!=null).sort((a,b)=>b.start_time-a.start_time);
+    state.mojeZapasy=zap;
+    const agg={};
+    for(const z of zap){
+      const a = agg[z.hero_id] || (agg[z.hero_id]={g:0,w:0,k:0,d:0,as:0,gpm:0,gpmN:0,last:0,lastMatch:null,p20:{g:0,w:0},posl:[],rada:[]});
+      const v=(z.player_slot<128)===z.radiant_win;
+      a.g++; if(v) a.w++;
+      a.k+=z.kills||0; a.d+=z.deaths||0; a.as+=z.assists||0;
+      if(z.gold_per_min!=null){ a.gpm+=z.gold_per_min; a.gpmN++; }
+      if(!a.last){ a.last=z.start_time; a.lastMatch=z.match_id; }
+      if(a.p20.g<20){ a.p20.g++; if(v) a.p20.w++; }
+      if(a.posl.length<10) a.posl.push({v, t:z.start_time, mid:z.match_id, kda:`${z.kills}/${z.deaths}/${z.assists}`});
+      a.rada.push(v?1:0);
+    }
+    state.heroAgg=agg;
+    state.forma=spocitejFormu(zap);
+    const pe=$("#profilExtra"); if(pe) pe.innerHTML=profilExtraHTML();
+    if(state.tab==="self" && !state.matchDetailId && $("#tbl")) renderTable();
+  }catch(e){
+    state.mojeZapasy=[];
+    const pe=$("#profilExtra"); if(pe) pe.innerHTML='<div class="muted-c">Formu se nepodařilo načíst ('+escapeHtml(e.message)+').</div>';
+    if(state.tab==="self" && $("#tbl")) renderTable();
+  }
+}
+
+async function nactiDivineMeta(){
+  if(state.divineWR) return state.divineWR;
+  try{
+    const data=(state.metaStats && state.metaStats.length) ? state.metaStats : await getJSON("https://api.opendota.com/api/heroStats");
+    if(!state.metaStats || !state.metaStats.length) state.metaStats=data;
+    const m={};
+    for(const h of data||[]){ const p=(h["7_pick"]||0)+(h["8_pick"]||0), w=(h["7_win"]||0)+(h["8_win"]||0); if(p) m[h.id]=w/p; }
+    state.divineWR=m;
+  }catch(e){ state.divineWR={}; }
+  return state.divineWR;
+}
+
+function stitekHrdiny(r){
+  if(r.g>=30 && r.sila>=0.52) return {t:"jádro", c:"st-jadro", tip:"Hraješ ho hodně a dobře – drž ho v poolu"};
+  if(r.g>=20 && (r.sila<0.47 || (r.vsMeta!=null && r.vsMeta<=-6))) return {t:"vyřadit?", c:"st-vyradit", tip:"Hodně her a slabé výsledky (i proti Divine+ průměru)"};
+  if(r.g>=5 && r.g<30 && r.wr>=0.58 && (r.vsMeta==null || r.vsMeta>=2)) return {t:"hraj víc", c:"st-vic", tip:"Málo her, ale jde ti to"};
+  return null;
+}
+
+function predCasem(ts){
+  const d=(Date.now()/1000-ts)/86400;
+  if(d<1) return "dnes"; if(d<2) return "včera"; if(d<30) return `před ${Math.floor(d)} dny`;
+  if(d<365) return `před ${Math.floor(d/30)} měs.`; const r=Math.floor(d/365); return `před ${r} ${r===1?"rokem":"lety"}`;
+}
+
+function spocitejFormu(zap){
+  if(!zap.length) return null;
+  const p20=zap.slice(0,20), w20=p20.filter(z=>(z.player_slot<128)===z.radiant_win).length;
+  const prvni=(zap[0].player_slot<128)===zap[0].radiant_win;
+  let serie=0; for(const z of zap){ if(((z.player_slot<128)===z.radiant_win)===prvni) serie++; else break; }
+  const mesic=Date.now()/1000-30*86400, cnt={};
+  for(const z of zap){ if(z.start_time<mesic) break; cnt[z.hero_id]=(cnt[z.hero_id]||0)+1; }
+  const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+  const role={1:{g:0,w:0},2:{g:0,w:0},3:{g:0,w:0},4:{g:0,w:0},5:{g:0,w:0}};
+  for(const z of zap){ const pos=heroPositions(z.hero_id)[0]; if(!role[pos]) continue; role[pos].g++; if((z.player_slot<128)===z.radiant_win) role[pos].w++; }
+  return { w20, g20:p20.length, serie, serieVyhry:prvni, top: top ? {id:+top[0], n:top[1]} : null, role, celkem:zap.length };
+}
+
+function profilExtraHTML(){
+  if(!state.loaded) return "";
+  const f=state.forma;
+  if(!f) return '<div class="muted-c"><span class="spinner mini"></span> Počítám formu a role…</div>';
+  const wr20=f.g20?Math.round(100*f.w20/f.g20):0;
+  const top=f.top && heroMap[f.top.id] ? `<span class="fchip">🔥 Tento měsíc: <b>${escapeHtml(heroMap[f.top.id].name)}</b> (${f.top.n}×)</span>` : "";
+  const posl=(state.mojeZapasy||[]).slice(0,20).reverse().map(z=>`<i class="${(z.player_slot<128)===z.radiant_win?"v":"p"}" title="${new Date(z.start_time*1000).toLocaleDateString("cs-CZ")}"></i>`).join("");
+  const maxG=Math.max(1,...Object.values(f.role).map(r=>r.g));
+  const role=[1,2,3,4,5].map(p=>{ const r=f.role[p]; const wr=r.g?Math.round(100*r.w/r.g):null;
+    return `<div class="rola"><span>Pos ${p}</span><div class="rola-bar"><i style="width:${Math.round(100*r.g/maxG)}%"></i></div><b>${r.g}</b><em style="color:${wr==null?"var(--muted)":wr>=52?"var(--win-glow)":wr<=48?"var(--loss-glow)":"var(--text)"}">${wr==null?"–":wr+" %"}</em></div>`; }).join("");
+  return `<div class="forma">
+      <div class="forma-h">Forma</div>
+      <div class="fchipy"><span class="fchip">Posl. ${f.g20}: <b style="color:${wr20>=50?"var(--win-glow)":"var(--loss-glow)"}">${f.w20}–${f.g20-f.w20} (${wr20} %)</b></span>
+      <span class="fchip">Série: <b style="color:${f.serieVyhry?"var(--win-glow)":"var(--loss-glow)"}">${f.serie} ${f.serieVyhry?(f.serie===1?"výhra":f.serie<5?"výhry":"výher"):(f.serie===1?"prohra":f.serie<5?"prohry":"proher")}</b></span>${top}</div>
+      <div class="vp-rada" title="Posledních 20 her (vlevo nejstarší)">${posl}</div>
+    </div>
+    <div class="role-box"><div class="forma-h">Role <small>(odhad podle hrdiny, ${f.celkem} her)</small></div>${role}</div>`;
+}
+
+function medaileHTML(tier, lb){
+  if(!tier) return "";
+  const m=Math.floor(tier/10), st=tier%10;
+  if(m<1||m>8) return "";
+  const base="https://www.opendota.com/assets/images/dota2/rank_icons/";
+  return `<span class="medaile" title="${rankText(tier)}"><img src="${base}rank_icon_${m}.png" alt="" onerror="this.parentNode.style.display='none'">${st&&m<8?`<img src="${base}rank_star_${st}.png" alt="" onerror="this.style.display='none'">`:""}${m===8&&lb?`<b>${lb}</b>`:""}</span>`;
+}
+
+async function vyplnDetailHrdiny(id){
+  const el=$("#heroDetail"); if(!el) return;
+  const a=(state.heroAgg||{})[id], h=heroMap[id]||{name:"?"};
+  const acc=state.accId, qs=filtrQS();
+  // graf: klouzavá win rate (20 her) přes všechny hry na hrdinovi, od nejstarší
+  let graf='<div class="muted-c">Graf se načte s historií zápasů…</div>';
+  if(a && a.rada.length>=5){
+    const r=a.rada.slice().reverse(), N=r.length, okno=Math.min(20, Math.max(5, Math.floor(N/4)));
+    const body=[]; let sum=0;
+    for(let i=0;i<N;i++){ sum+=r[i]; if(i>=okno) sum-=r[i-okno]; if(i>=okno-1) body.push(sum/okno); }
+    const W=560,H=120,P=8, x=i=>P+i*(W-2*P)/Math.max(1,body.length-1), y=v=>H-P-v*(H-2*P);
+    const cesta=body.map((v,i)=>`${i?"L":"M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+    graf=`<svg class="hd-graf" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none"><line x1="${P}" x2="${W-P}" y1="${y(.5)}" y2="${y(.5)}" class="g50"/><path d="${cesta} L${x(body.length-1)},${H-P} L${x(0)},${H-P} Z" class="gplocha"/><path d="${cesta}" class="gcara"/></svg><div class="muted-c">Klouzavá win rate (okno ${okno} her) přes ${N} her, zleva nejstarší. Čára uprostřed = 50 %.</div>`;
+  }
+  const posl=a ? a.posl.map(p=>`<button class="dot ${p.v?"v":"p"}" data-mid="${p.mid}" title="${new Date(p.t*1000).toLocaleDateString("cs-CZ")} · ${p.kda}"></button>`).join("") : "";
+  const tahak=`/trener.html?tahak=${encodeURIComponent(h.name)}#znalosti`;
+  const rozbor=a&&a.lastMatch ? `/trener.html?match=${a.lastMatch}&hrac=${acc}#rozbor` : null;
+  el.innerHTML=`<div class="hd-grid">
+    <div class="hd-box hd-siroky"><div class="hd-h">Win rate v čase</div>${graf}
+      <div class="hd-h" style="margin-top:10px">Posledních 10 her <small>(klikni pro detail zápasu)</small></div><div class="dots">${posl||'<span class="muted-c">–</span>'}</div>
+      <div class="hd-akce"><a class="hd-btn" href="${tahak}">🧠 Tahák k hrdinovi (AI trenér)</a>${rozbor?`<a class="hd-btn alt" href="${rozbor}">Rozebrat poslední hru</a>`:""}</div></div>
+    <div class="hd-box"><div class="hd-h">Tvoje matchupy na ${escapeHtml(h.name)}</div><div id="hdMu"><div class="muted-c"><span class="spinner mini"></span> Načítám…</div></div></div>
+    <div class="hd-box"><div class="hd-h">Itemy: ty vs. Divine+</div><div id="hdIt"><div class="muted-c"><span class="spinner mini"></span> Načítám…</div></div></div>
+  </div>`;
+  el.querySelectorAll(".dot").forEach(b=>b.onclick=e=>{ e.stopPropagation(); openMatchDetail(+b.dataset.mid); });
+  el.onclick=e=>e.stopPropagation();
+
+  const cache=state.detailCache[id+"|"+qs] || (state.detailCache[id+"|"+qs]={});
+  // matchupy na hrdinovi
+  (async()=>{
+    try{
+      if(!cache.mu) cache.mu=await getJSON(`https://api.opendota.com/api/players/${acc}/heroes?hero_id=${id}${qs?"&"+qs:""}`);
+      if(state.heroDetail!==id || acc!==state.accId) return;
+      const rows=(cache.mu||[]).filter(x=>x.against_games>=3 && +x.hero_id!==id).map(x=>({id:+x.hero_id, g:x.against_games, w:x.against_win, s:(x.against_win+5)/(x.against_games+10)}));
+      const t=rows.slice().sort((p,q)=>q.s-p.s);
+      const radek=x=>{ const m=heroMap[x.id]||{name:"?",short:""}; const wr=Math.round(100*x.w/x.g);
+        return `<div class="mu-r"><img src="${HERO_CDN}${m.short}.png" alt="" onerror="this.style.visibility='hidden'"><span>${escapeHtml(m.name)}</span><b style="color:${wr>=50?"var(--win-glow)":"var(--loss-glow)"}">${wr} %</b><small>${x.g}</small></div>`; };
+      $("#hdMu") && ($("#hdMu").innerHTML = rows.length<4 ? '<div class="muted-c">Málo her proti jednotlivým hrdinům (potřeba aspoň 3).</div>'
+        : `<div class="mu-sl"><div><div class="mu-t good">Proti nim ti to jde</div>${t.slice(0,Math.min(5,Math.floor(t.length/2))).map(radek).join("")}</div><div><div class="mu-t bad">Proti nim ne</div>${t.slice(Math.min(5,Math.floor(t.length/2))).slice(-5).reverse().map(radek).join("")}</div></div>`);
+    }catch(e){ $("#hdMu") && ($("#hdMu").innerHTML='<div class="muted-c">Nepodařilo se načíst ('+escapeHtml(e.message)+').</div>'); }
+  })();
+  // itemy
+  (async()=>{
+    try{
+      const ic=await ensureItemConst();
+      const pos=heroPositions(id)[0]||1;
+      const pole=["item_0","item_1","item_2","item_3","item_4","item_5","radiant_win","player_slot"].map(x=>"project="+x).join("&");
+      const [moje, dv] = await Promise.all([
+        cache.it ? cache.it : getJSON(`https://api.opendota.com/api/players/${acc}/matches?hero_id=${id}&limit=50${qs?"&"+qs:""}&${pole}`),
+        cache.dv ? cache.dv : fetch(`/api/divine?hero=${id}&pos=${pos}`).then(r=>r.json()).catch(()=>({error:"nedostupné"})),
+      ]);
+      cache.it=moje; cache.dv=dv;
+      if(state.heroDetail!==id || acc!==state.accId) return;
+      const N=(moje||[]).length, cnt={};
+      for(const z of moje||[]) for(let i=0;i<6;i++){ const it=z["item_"+i]; if(it) cnt[it]=(cnt[it]||0)+1; }
+      const mojePodil=itId=> N ? Math.round(100*(cnt[itId]||0)/N) : null;
+      let html="";
+      if(dv && Array.isArray(dv.itemy) && dv.itemy.length){
+        html+=`<table class="it-tab"><thead><tr><th>Item</th><th title="Kolik % Divine+ hráčů ho kupuje">D+ %</th><th title="Medián času nákupu u Divine+">D+ čas</th><th title="V kolika % tvých posledních ${N} her ho máš v konečném inventáři">Ty %</th></tr></thead><tbody>`;
+        for(const x of dv.itemy.filter(x=>(ic.byId[x.id]?.cost||0)>=500).slice(0,9)){
+          const m=ic.byId[x.id]; if(!m) continue;
+          const ty=mojePodil(x.id);
+          html+=`<tr><td class="it-n">${itemImg(m)}<span>${escapeHtml(m.dname)}</span></td><td>${x.podil!=null?x.podil+" %":"–"}</td><td>${x.median_min!=null?x.median_min+". min":"–"}</td><td style="color:${ty==null?"var(--muted)":ty>=x.podil-15?"var(--win-glow)":ty<=x.podil-40?"var(--loss-glow)":"var(--text)"}">${ty==null?"–":ty+" %"}</td></tr>`;
+        }
+        html+=`</tbody></table><div class="muted-c">Divine+ pos ${pos} (${(dv.zapasu||0).toLocaleString("cs-CZ")} zápasů, STRATZ). „Ty %“ = konečný inventář v posledních ${N} hrách (rozebrané itemy se tam neobjeví).</div>`;
+      } else {
+        const top=Object.entries(cnt).map(([k2,n])=>({m:ic.byId[k2],n})).filter(x=>x.m && (x.m.cost||0)>=1000).sort((p,q)=>q.n-p.n).slice(0,8);
+        html+= top.length ? `<div class="it-moje">${top.map(x=>`<span class="it-chip">${itemImg(x.m)}${escapeHtml(x.m.dname)} <b>${Math.round(100*x.n/N)} %</b></span>`).join("")}</div>` : '<div class="muted-c">Žádná data o itemech.</div>';
+        html+=`<div class="muted-c">Tvoje nejčastější itemy v posledních ${N} hrách. Srovnání s Divine+ není k dispozici${dv&&dv.error?" ("+escapeHtml(dv.error)+")":""}.</div>`;
+      }
+      $("#hdIt") && ($("#hdIt").innerHTML=html);
+    }catch(e){ $("#hdIt") && ($("#hdIt").innerHTML='<div class="muted-c">Nepodařilo se načíst ('+escapeHtml(e.message)+').</div>'); }
+  })();
 }
 
 /* ---------- Farm / benchmarks ---------- */
