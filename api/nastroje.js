@@ -42,7 +42,7 @@ module.exports = async (req, res) => {
     res.status(401).json({ error: "Špatné heslo." }); return;
   }
   const akce = body.akce;
-  const potrebujeAI = ["proti", "pool", "patch", "guide", "fight", "plan", "tahak", "profil", "otazka", "kdyhrat"].includes(akce);
+  const potrebujeAI = ["proti", "pool", "patch", "guide", "fight", "plan", "tahak", "profil", "otazka", "kdyhrat", "souhrn"].includes(akce);
   if (potrebujeAI && !process.env.ANTHROPIC_API_KEY) { res.status(500).json({ error: "Chybí ANTHROPIC_API_KEY." }); return; }
   const potrebujeDB = ["znalosti_ulozit", "nastaveni_ulozit"].includes(akce);
   if (potrebujeDB && !T.maUloziste()) { res.status(501).json({ error: "Úložiště není nastavené." }); return; }
@@ -56,7 +56,7 @@ module.exports = async (req, res) => {
     }
     const hrac = hracZ(body);
     const K = (klic) => T.proHrace(klic, hrac);
-    if (["proti", "pool", "patch", "plan", "profil"].includes(akce) && !hrac) { res.status(400).json({ error: "Chybí ID hráče." }); return; }
+    if (["proti", "pool", "patch", "plan", "profil", "souhrn"].includes(akce) && !hrac) { res.status(400).json({ error: "Chybí ID hráče." }); return; }
     if (["plan", "profil"].includes(akce) && !T.maUloziste()) { res.status(501).json({ error: "Úložiště není nastavené – plán i profil se počítají z uložených rozborů." }); return; }
 
     switch (akce) {
@@ -148,6 +148,13 @@ module.exports = async (req, res) => {
         res.end();
         return;
       }
+      case "souhrn": {
+        const pocet = Math.min(50, Math.max(2, Math.round(Number(body.pocet) || 10)));
+        const typ = ["ranked", "unranked"].includes(body.typ) ? body.typ : "";
+        const data = await N.souhrnData(hrac, pocet, typ, k);
+        return streamAUloz(res, N.souhrnBody(data), (text) =>
+          T.redis("SET", K("souhrn:posledni"), JSON.stringify({ datum: new Date().toISOString(), pocet: data.zapasy.length, typ, obdobi: data.obdobi, text })));
+      }
       case "kdyhrat": {
         const stat = body.statistiky;
         if (!stat || typeof stat !== "object" || !stat.celkem_her) { res.status(400).json({ error: "Chybí statistiky." }); return; }
@@ -177,11 +184,11 @@ module.exports = async (req, res) => {
         if (!T.maUloziste()) { res.status(200).json({ proti: [], pool: null, patch: null, plan: null, profil: null }); return; }
         const ids = (await T.redis("SMEMBERS", K("proti:seznam"))) || [];
         const proti = ids.length ? (await T.redis("MGET", ...ids.map((i) => K(`proti:${i}`)))) : [];
-        const [pool, patch, plan, profil, kdyhrat] = await Promise.all(["pool:posledni", "patch:posledni", "plan:aktualni", "profil:posledni", "kdyhrat:posledni"].map((x) => T.redis("GET", K(x))));
+        const [pool, patch, plan, profil, kdyhrat, souhrn] = await Promise.all(["pool:posledni", "patch:posledni", "plan:aktualni", "profil:posledni", "kdyhrat:posledni", "souhrn:posledni"].map((x) => T.redis("GET", K(x))));
         const parse = (v) => { try { return JSON.parse(v); } catch { return null; } };
         res.status(200).json({
           proti: proti.map(parse).filter(Boolean).sort((a, b) => b.datum.localeCompare(a.datum)),
-          pool: parse(pool), patch: parse(patch), plan: parse(plan), profil: parse(profil), kdyhrat: parse(kdyhrat),
+          pool: parse(pool), patch: parse(patch), plan: parse(plan), profil: parse(profil), kdyhrat: parse(kdyhrat), souhrn: parse(souhrn),
         });
         return;
       }

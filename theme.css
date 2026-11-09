@@ -452,3 +452,14 @@ body.p-trener .hz .ai { flex-wrap: wrap; row-gap: 5px; justify-content: flex-end
 body.p-trener .hz .ai .male { flex-basis: 100%; line-height: 1.25; }
 body.p-trener .hz .ai .stitek { white-space: nowrap; }
 body.p-trener .hz .ai button.mini { padding: 6px 12px; }
+
+/* ---------------------------------------------------------------- AI trenér: rozbor posledních N zápasů */
+body.p-trener .hromadny { margin-top: 14px; background: var(--t-surface); border: 1px solid var(--t-line); border-radius: 18px; padding: 14px 18px; box-shadow: var(--t-shadow); }
+body.p-trener .hromadny > summary { cursor: pointer; font: 700 15px var(--t-display); color: var(--t-text); list-style: none; display: flex; align-items: center; gap: 10px; }
+body.p-trener .hromadny > summary::-webkit-details-marker { display: none; }
+body.p-trener .hromadny > summary::before { content: "▸"; color: var(--t-accent-2); transition: transform .15s; }
+body.p-trener .hromadny[open] > summary::before { transform: rotate(90deg); }
+body.p-trener .hr-ovl { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin: 14px 0 6px; }
+body.p-trener .hr-ovl label { flex: 0 1 170px; }
+body.p-trener .hromadny .info-text b { color: var(--t-text); }
+body.p-trener .hromadny .md.samostatny { margin-top: 12px; }

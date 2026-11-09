@@ -379,6 +379,24 @@
       </div>
     </form>
     <div class="stav" id="stav"></div>
+    <details class="hromadny" id="hromadny">
+      <summary>Rozebrat posledních několik zápasů</summary>
+      <div class="hr-ovl">
+        <label>Počet zápasů
+          <select id="hrPocet"><option>3</option><option selected>5</option><option>10</option><option>15</option><option>20</option><option>30</option></select>
+        </label>
+        <label>Typ her
+          <select id="hrTyp"><option value="ranked">Jen ranked</option><option value="">Vše (bez Turba)</option><option value="unranked">Jen unranked</option></select>
+        </label>
+        <button id="hrSouhrn" type="button">Souhrnný rozbor</button>
+        <button id="hrKazdy" class="vedl" type="button">Rozebrat každý zvlášť</button>
+      </div>
+      <p class="info-text"><b>Souhrnný rozbor</b> = jeden rozbor všech vybraných zápasů dohromady: trendy, co se opakuje, hrdinové a na co se zaměřit (stojí jako jeden rozbor).
+        <b>Každý zvlášť</b> = plný rozbor každého zápasu, který ještě nemáš rozebraný (stojí za každý zápas; průběh uvidíš v Historii zápasů).</p>
+      <div class="stav" id="hrStav"></div>
+      <div class="info-text" id="hrDatum"></div>
+      <div class="md samostatny" id="hrOut" style="display:none"></div>
+    </details>
     <div id="zapasyBox">
       <div class="radek" style="justify-content:space-between;margin:16px 0 6px">
         <h2 class="sek" style="margin:0">Tvoje zápasy</h2><span class="info-text" id="zapasyInfo"></span>
@@ -1289,6 +1307,10 @@ function vykresliUlozeneNastroje() {
     if ($("patchOut").style.display === "none") ukazMd($("patchOut"), u.patch.text, true);
   }
   vykresliPlan(u.plan);
+  if (u.souhrn) {
+    $("hrDatum").textContent = `Poslední souhrnný rozbor: ${u.souhrn.pocet} zápasů (${u.souhrn.obdobi || ""}), vytvořen ${datum(u.souhrn.datum)}`;
+    if ($("hrOut").style.display === "none") ukazMd($("hrOut"), u.souhrn.text, true);
+  }
   if (u.kdyhrat) {
     $("khDatum").textContent = `Poslední doporučení: ${datum(u.kdyhrat.datum)}`;
     if ($("khAiOut").style.display === "none") ukazMd($("khAiOut"), u.kdyhrat.text, true);
@@ -2434,7 +2456,8 @@ $("hrac").addEventListener("change", () => {
   nastrojeUlozene = null;
   khZapasy = null; khHrac = null; khStat = null;
   $("khOut").innerHTML = ""; $("khAiOut").style.display = "none"; $("khAiNadpis").hidden = true; $("khDatum").textContent = "";
-  for (const x of ["protiOut", "poolOut", "patchOut", "profilOut"]) $(x).style.display = "none";
+  for (const x of ["protiOut", "poolOut", "patchOut", "profilOut", "hrOut"]) $(x).style.display = "none";
+  $("hrDatum").textContent = ""; stavEl($("hrStav"), "");
   for (const x of ["protiUlozene", "planOut"]) $(x).innerHTML = "";
   for (const x of ["poolDatum", "patchDatum", "planDatum", "profilDatum"]) $(x).textContent = "";
   for (const x of ["khStav", "protiStav", "poolStav", "patchStav", "planStav", "profilStav"]) stavEl($(x), "");
@@ -2443,6 +2466,38 @@ $("hrac").addEventListener("change", () => {
   poNacteni();
   const akt = document.querySelector("#zalozky button.akt")?.dataset.tab;
   if (akt && akt !== "rozbor") prepni(akt);
+});
+
+// ---------------------------------------------------------------- rozbor posledních N zápasů
+$("hromadny").addEventListener("toggle", () => { if ($("hromadny").open) nactiUlozeneNastroje(); });
+$("hrSouhrn").addEventListener("click", async () => {
+  const n = Number($("hrPocet").value), typ = $("hrTyp").value;
+  if (!hracId()) return stavEl($("hrStav"), "Nahoře vyhledej své jméno nebo zadej ID.", { chyba: true });
+  $("hrSouhrn").disabled = true;
+  const ok = await spustNastroj({ akce: "souhrn", pocet: n, typ }, $("hrStav"), $("hrOut"),
+    `Udělat souhrnný rozbor posledních ${n} zápasů? Stojí to kredit (jako jeden rozbor).`);
+  $("hrSouhrn").disabled = false;
+  if (ok) $("hrDatum").textContent = `Souhrnný rozbor posledních ${n} zápasů, vytvořen ${datum(new Date().toISOString())}`;
+});
+$("hrKazdy").addEventListener("click", async () => {
+  const n = Number($("hrPocet").value), typ = $("hrTyp").value;
+  if (!hracId()) return stavEl($("hrStav"), "Nahoře vyhledej své jméno nebo zadej ID.", { chyba: true });
+  if (!$("heslo").value) return stavEl($("hrStav"), "Nahoře vyplň heslo.", { chyba: true });
+  if (frontaBezi || bezi) return stavEl($("hrStav"), "Už běží jiný rozbor, počkej, až doběhne.", { chyba: true });
+  // načíst poslední zápasy se stejným filtrem v Historii a vybrat posledních N
+  $("hHrdina").value = ""; $("hVysledek").value = ""; $("hObdobi").value = ""; $("hTyp").value = typ;
+  stavEl($("hrStav"), "Načítám poslední zápasy…", { spin: true });
+  await nactiStarsi(false);
+  const posledni = starsi.filter((z) => (z.duration || 0) >= 600 && z.game_mode !== 23).slice(0, n);
+  const nove = posledni.filter((z) => !jeRozebrany(z));
+  if (!posledni.length) return stavEl($("hrStav"), "Nenašel jsem žádné zápasy (zkus jiný typ her).", { chyba: true });
+  if (!nove.length) return stavEl($("hrStav"), `Všech posledních ${posledni.length} zápasů už máš rozebraných – najdeš je v Moje rozbory.`);
+  stavEl($("hrStav"), `${nove.length} z posledních ${posledni.length} zápasů ještě nemáš rozebraných. Průběh je v Historii zápasů.`);
+  vybrane.clear();
+  for (const z of nove) vybrane.add(z.match_id);
+  vykresliStarsi();
+  prepni("starsi");
+  await rozebratVybrane();
 });
 
 hrdinove().catch(() => {}).then(nactiZapasyRozbor);

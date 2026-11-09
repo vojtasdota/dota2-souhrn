@@ -388,5 +388,80 @@ const kdyhratBody = (stat) => ({
   messages: [{ role: "user", content: `Dnešní datum: ${T.dnes()}.\nStatistiky:\n${JSON.stringify(stat, null, 2).slice(0, 30000)}` }],
 });
 
-module.exports = { kdyhratBody, protiData, protiBody, poolData, poolBody, patchData, patchBody, posledniPatch,
+// ------------------------------------------------------------ Souhrnný rozbor posledních N zápasů
+
+async function souhrnData(hrac, pocet, typ, k) {
+  const jm = (id) => k.heroes[id]?.localized_name || "?";
+  const pole = ["hero_id", "start_time", "duration", "radiant_win", "player_slot", "kills", "deaths", "assists", "gold_per_min",
+    "xp_per_min", "last_hits", "denies", "hero_damage", "tower_damage", "lane_role", "lobby_type", "game_mode", "party_size", "version"];
+  const filtr = typ === "ranked" ? "&lobby_type=7" : typ === "unranked" ? "&lobby_type=0" : "";
+  const [list, info, rozbory] = await Promise.all([
+    T.odGet(`/players/${hrac}/matches?limit=${pocet + 70}&significant=0${filtr}&${pole.map((x) => "project=" + x).join("&")}`),
+    T.hracInfo(hrac).catch(() => null),
+    T.seznamRozboru(300).catch(() => null),
+  ]);
+  const hry = (Array.isArray(list) ? list : []).filter((z) => z.duration >= 600 && z.game_mode !== 23);
+  const zap = hry.slice(0, pocet), pred = hry.slice(pocet, pocet + 50);
+  if (!zap.length) { const e = new Error("Žádné zápasy k rozboru (zkus jiný typ her)."); e.code = 400; throw e; }
+  const vyhral = (z) => (z.player_slot < 128) === z.radiant_win;
+  const podleZapasu = {};
+  for (const r of rozbory || []) if (String(r.hrac) === String(hrac)) podleZapasu[String(r.match)] = r;
+  const prumer = (a, f) => { const v = a.map(f).filter((x) => x != null && Number.isFinite(x)); return v.length ? Math.round((v.reduce((x, y) => x + y, 0) / v.length) * 10) / 10 : null; };
+  const souhrn = (a) => a.length ? {
+    her: a.length, winrate: `${Math.round((100 * a.filter(vyhral).length) / a.length)} %`,
+    KDA_pomer: prumer(a, (z) => (z.kills + z.assists) / Math.max(1, z.deaths)), smrti: prumer(a, (z) => z.deaths),
+    GPM: prumer(a, (z) => z.gold_per_min), XPM: prumer(a, (z) => z.xp_per_min),
+    LH_za_minutu: prumer(a, (z) => z.last_hits / (z.duration / 60)), hero_damage_za_minutu: prumer(a, (z) => z.hero_damage / (z.duration / 60)),
+  } : null;
+  const hrdinove = {};
+  for (const z of zap) { const h = (hrdinove[jm(z.hero_id)] = hrdinove[jm(z.hero_id)] || { her: 0, vyher: 0 }); h.her++; if (vyhral(z)) h.vyher++; }
+  let serie = 0; for (const z of zap) { if (vyhral(z) === vyhral(zap[0])) serie++; else break; }
+  const stitky = {};
+  const zapasy = zap.map((z) => {
+    const r = podleZapasu[String(z.match_id)];
+    for (const st of r?.hodnoceni?.stitky_chyb || []) stitky[st.stitek] = (stitky[st.stitek] || 0) + 1;
+    return {
+      datum: new Date(z.start_time * 1000).toISOString().slice(0, 10), match_id: z.match_id, hrdina: jm(z.hero_id),
+      vysledek: vyhral(z) ? "V" : "P", delka: T.cas(z.duration), KDA: `${z.kills}/${z.deaths}/${z.assists}`,
+      GPM: z.gold_per_min, XPM: z.xp_per_min, LH: z.last_hits, DN: z.denies, hero_damage: z.hero_damage, tower_damage: z.tower_damage,
+      lajna: T.ROLE[z.lane_role] || null, party: (z.party_size || 1) > 1 ? z.party_size : null,
+      ranked: z.lobby_type === 7,
+      rozbor: r?.hodnoceni ? { znamka: r.hodnoceni.celkem, chyby: (r.hodnoceni.stitky_chyb || []).map((st) => st.stitek), cil: r.hodnoceni.cil_na_dalsi_hru || null } : null,
+    };
+  });
+  return {
+    hrac_uroven: info?.rank || null,
+    obdobi: `${zapasy[zapasy.length - 1].datum} až ${zapasy[0].datum}`, typ_her: typ || "vše (bez Turba)",
+    tyto_zapasy: souhrn(zap), predchozich_az_50_her_pro_srovnani: souhrn(pred),
+    aktualni_serie: `${serie} ${vyhral(zap[0]) ? (serie === 1 ? "výhra" : serie < 5 ? "výhry" : "výher") : (serie === 1 ? "prohra" : serie < 5 ? "prohry" : "proher")} v řadě`,
+    hrdinove: Object.entries(hrdinove).sort((a, b) => b[1].her - a[1].her).map(([h, x]) => `${h}: ${x.her} her, ${x.vyher} výher`),
+    rozebrano_zapasu: zapasy.filter((z) => z.rozbor).length,
+    opakovane_chyby_z_rozboru: Object.entries(stitky).sort((a, b) => b[1] - a[1]).slice(0, 8).map(([st, n]) => `${st} (${n}×)`),
+    zapasy,
+  };
+}
+
+const SOUHRN_SYSTEM = `Jsi trenér Doty 2. Rozeber česky v Markdownu hráčových posledních N zápasů DOHROMADY – hledej trendy a vzorce,
+ne detail každé hry. Rady přizpůsob ranku hráče (u Divine+ žádné základy). Struktura:
+## Shrnutí
+3 odrážky: výsledky a forma (s čísly), srovnání s jeho předchozími hrami ("predchozich_az_50_her_pro_srovnani"), hlavní problém.
+## Zápasy přehledně
+Tabulka: datum | hrdina | V/P | KDA | GPM | LH | známka z rozboru (pokud je, jinak –). Všechny zápasy, nejnovější nahoře.
+## Co se opakuje
+3–5 vzorců z čísel a z rozborů (např. „v prohrách průměrně 9 smrtí vs. 4 ve výhrách“, „GPM na Ursovi pod tvým průměrem“,
+opakované štítky chyb). Každý s čísly.
+## Hrdinové a picky
+Co fungovalo a co ne, koho hrát víc / míň v dalších hrách.
+## Trend
+Zlepšuješ se, nebo zhoršuješ? Porovnej první a druhou polovinu období a předchozí hry.
+## Na co se zaměřit
+3 konkrétní body a na konec jeden měřitelný **Cíl na dalších 5 her**.
+Čísla jen z dat, nic si nevymýšlej. Nezmiňuj technické názvy polí. Max. ~750 slov mimo tabulku.`;
+
+const souhrnBody = (data) => ({
+  model: T.MODEL(), max_tokens: 16000, system: SOUHRN_SYSTEM,
+  messages: [{ role: "user", content: `Dnešní datum: ${T.dnes()}.\nData:\n${JSON.stringify(data, null, 2)}` }],
+});
+
+module.exports = { souhrnData, souhrnBody, kdyhratBody, protiData, protiBody, poolData, poolBody, patchData, patchBody, posledniPatch,
   fightData, fightBody, METRIKY, planData, planBody, normalizujPlan, tahakBody, profilData, profilBody, otazkaBody };
