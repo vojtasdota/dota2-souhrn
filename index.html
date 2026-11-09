@@ -1513,7 +1513,7 @@ function computeRecords(ms){
   const maxBy=(label,unit,fn,fmt)=>{
     let best=null,bv=-Infinity;
     ms.forEach(m=>{ const v=fn(m); if(v!=null && isFinite(v) && v>bv){ bv=v; best=m; } });
-    if(best) recs.push({label, unit, value:(fmt?fmt(bv):Math.round(bv)), m:best});
+    if(best) recs.push({label, unit, value:(fmt?fmt(bv):Math.round(bv)), raw:bv, m:best});
   };
   maxBy("Nejvíc killů","", m=>m.kills);
   maxBy("Nejvíc assistů","", m=>m.assists);
@@ -1532,8 +1532,8 @@ function computeRecords(ms){
     if(isWinM(m)){ curW++; curL=0; if(curW>bestW){bestW=curW;bestWm=m;} }
     else { curL++; curW=0; if(curL>bestL){bestL=curL;bestLm=m;} }
   });
-  if(bestWm) recs.push({label:"Nejdelší šňůra výher", unit:"v řadě", value:bestW, m:bestWm});
-  if(bestLm) recs.push({label:"Nejdelší šňůra proher", unit:"v řadě", value:bestL, m:bestLm});
+  if(bestWm) recs.push({label:"Nejdelší šňůra výher", unit:"v řadě", value:bestW, raw:bestW, m:bestWm});
+  if(bestLm) recs.push({label:"Nejdelší šňůra proher", unit:"v řadě", value:bestL, raw:bestL, m:bestLm});
   return recs;
 }
 function recCardHTML(r){
@@ -1565,8 +1565,120 @@ function renderRecords(){
     <div class="draft-intro">Tvoje osobní maxima ze <b>všech ${ms.length}</b> dostupných zápasů. Klikni na kartu → detail toho zápasu.</div>
     <div class="rec-grid">${recs.map(recCardHTML).join("")}</div>
     <div class="note">Počítá se z dat, která OpenDota u zápasů má (kills, GPM, LH, …). „Nejvíc smrtí" je tam pro pobavení. Šňůry se počítají z časové posloupnosti zápasů.</div>
+    <div class="cmp-box">
+      <div class="cmp-h">Porovnat s jiným účtem</div>
+      <form class="cmp-form" id="cmpForm">
+        <input type="text" id="cmpIn" placeholder="Steam jméno, account ID nebo odkaz na profil" autocomplete="off" value="${escapeHtml(state.recCmpVstup||"")}">
+        <button class="load" type="submit">Porovnat</button>
+      </form>
+      <div class="cmp-chips" id="cmpChips">${cmpChipsHTML()}</div>
+      <div id="recCmp"></div>
+    </div>
   `;
   document.querySelectorAll(".rec-card").forEach(el=>{ el.onclick=()=> openMatchDetail(+el.dataset.mid); });
+  $("#cmpForm").onsubmit = e=>{ e.preventDefault(); cmpZadat($("#cmpIn").value); };
+  zapojCmpChips();
+  if(state.recCmpId && String(state.recCmpId)!==String(state.accId)) porovnatS(state.recCmpId);
+}
+
+// ---------- porovnání rekordů s jiným účtem
+function cmpChipsHTML(lst){
+  const acc=(lst || (state.savedAccounts||[]).map(a=>({account_id:a.id, personaname:a.name, avatarfull:a.avatar})))
+    .filter(a=> String(a.account_id)!==String(state.accId)).slice(0,10);
+  if(!acc.length) return lst ? '<span class="muted-c">Nikdo nenalezen.</span>' : '<span class="muted-c">Tip: uložené účty („★ Uložit tenhle“) se tu objeví k rychlému výběru.</span>';
+  return acc.map(a=>`<button type="button" class="cmp-chip" data-id="${a.account_id}">${a.avatarfull?`<img src="${a.avatarfull}" alt="" onerror="this.style.display='none'">`:""}<span>${escapeHtml(a.personaname||("ID "+a.account_id))}</span></button>`).join("");
+}
+function zapojCmpChips(){
+  document.querySelectorAll(".cmp-chip").forEach(b=> b.onclick=()=>{ $("#cmpIn").value=b.textContent.trim(); porovnatS(b.dataset.id); });
+}
+async function cmpZadat(raw){
+  raw=(raw||"").trim(); state.recCmpVstup=raw;
+  if(!raw) return;
+  const id=parseId(raw);
+  if(id) return porovnatS(id);
+  $("#cmpChips").innerHTML='<span class="muted-c"><span class="spinner mini"></span> Hledám hráče…</span>';
+  try{
+    const list=await searchFetch(raw);
+    $("#cmpChips").innerHTML=cmpChipsHTML((list||[]).map(p=>({account_id:p.account_id, personaname:p.personaname, avatarfull:p.avatarfull})));
+    zapojCmpChips();
+  }catch(e){ $("#cmpChips").innerHTML='<span class="muted-c">Hledání selhalo ('+escapeHtml(e.message)+').</span>'; }
+}
+state.recCmpCache = state.recCmpCache || {};
+async function porovnatS(id){
+  id=String(id); state.recCmpId=id;
+  const el=$("#recCmp"); if(!el) return;
+  if(id===String(state.accId)){ el.innerHTML='<div class="muted-c">To jsi ty – vyber jiný účet.</div>'; return; }
+  const me=state.accId;
+  el.innerHTML='<div class="status"><div class="spinner"></div>Načítám zápasy druhého hráče…</div>';
+  try{
+    let d=state.recCmpCache[id];
+    if(!d){
+      const fields=["match_id","start_time","hero_id","player_slot","radiant_win","duration","kills","deaths","assists","gold_per_min","xp_per_min","last_hits","hero_damage","tower_damage"];
+      const [profile, matches]=await Promise.all([
+        getJSON(`https://api.opendota.com/api/players/${id}`),
+        getJSON(`https://api.opendota.com/api/players/${id}/matches?`+fields.map(f=>"project="+f).join("&")),
+      ]);
+      if(!profile || !profile.profile) throw new Error("hráč nenalezen nebo má skrytý profil");
+      d={profile, matches:(matches||[]).filter(m=>m && m.match_id)};
+      state.recCmpCache[id]=d;
+    }
+    if(!state.recPeers || state.recPeers.acc!==me){
+      state.recPeers={acc:me, list: await getJSON(`https://api.opendota.com/api/players/${me}/peers`).catch(()=>[])};
+    }
+    if(state.recCmpId!==id || me!==state.accId || !$("#recCmp")) return;
+    if(!d.matches.length){ $("#recCmp").innerHTML='<div class="muted-c">Druhý hráč nemá žádné veřejné zápasy.</div>'; return; }
+    $("#recCmp").innerHTML=porovnaniHTML(d);
+    $("#recCmp").querySelectorAll("[data-mid]").forEach(b=> b.onclick=()=> openMatchDetail(+b.dataset.mid));
+  }catch(e){
+    if(state.recCmpId===id && $("#recCmp")) $("#recCmp").innerHTML='<div class="status error">Porovnání se nepodařilo ('+escapeHtml(e.message)+').</div>';
+  }
+}
+function prumeryZapasu(ms){
+  const n=ms.length, w=ms.filter(isWinM).length, avg=f=>{ const a=ms.map(f).filter(v=>v!=null&&isFinite(v)); return a.length?a.reduce((x,y)=>x+y,0)/a.length:null; };
+  return { n, wr: n?w/n:null, k:avg(m=>m.kills), d:avg(m=>m.deaths), a:avg(m=>m.assists), kda:avg(m=>(m.kills+m.assists)/Math.max(1,m.deaths)),
+    gpm:avg(m=>m.gold_per_min), xpm:avg(m=>m.xp_per_min), lh:avg(m=>m.last_hits), dmg:avg(m=>m.hero_damage), delka:avg(m=>m.duration) };
+}
+function porovnaniHTML(d){
+  const ja=computeRecords(state.recMatches||[]), on=computeRecords(d.matches);
+  const onPodle=Object.fromEntries(on.map(r=>[r.label,r]));
+  const mensiLepsi=new Set(["Nejvíc smrtí (au)","Nejdelší šňůra proher"]);
+  const p=d.profile.profile, jmeno=escapeHtml(p.personaname||"Hráč"), jaJm=escapeHtml((state.curAccount&&state.curAccount.name)||"Ty");
+  let skJa=0, skOn=0;
+  const hrdina=r=>{ if(!r) return ""; const m=heroMap[r.m.hero_id]||{short:"",name:""}; return `<button class="cmp-zap" data-mid="${r.m.match_id}" title="${escapeHtml(m.name)} – detail zápasu"><img src="${HERO_CDN}${m.short}.png" alt="" onerror="this.style.visibility='hidden'"></button>`; };
+  const radky=ja.map(r=>{
+    const o=onPodle[r.label];
+    let vede=0;
+    if(o && r.raw!=null && o.raw!=null && r.raw!==o.raw){ const lepsiJa=mensiLepsi.has(r.label) ? r.raw<o.raw : r.raw>o.raw; vede=lepsiJa?1:-1; }
+    if(vede>0) skJa++; else if(vede<0) skOn++;
+    return `<tr><td class="cmp-l">${r.label}</td>
+      <td class="${vede>0?"cmp-win":""}"><div class="cmp-v">${hrdina(r)}<b>${r.value}</b></div></td>
+      <td class="${vede<0?"cmp-win":""}"><div class="cmp-v">${hrdina(o)}<b>${o?o.value:"–"}</b></div></td></tr>`;
+  }).join("");
+  const A=prumeryZapasu(state.recMatches||[]), B=prumeryZapasu(d.matches);
+  const fmt=(v,dec=0)=> v==null?"–":v.toFixed(dec);
+  const dur=v=> v==null?"–":Math.floor(v/60)+":"+String(Math.round(v%60)).padStart(2,"0");
+  const prum=[["Zápasů","n",v=>v,true],["Win rate","wr",v=>v==null?"–":(v*100).toFixed(1)+" %",true],["KDA poměr","kda",v=>fmt(v,2),true],
+    ["Killy / zápas","k",v=>fmt(v,1),true],["Smrti / zápas","d",v=>fmt(v,1),false],["Asistence / zápas","a",v=>fmt(v,1),true],
+    ["GPM","gpm",v=>fmt(v),true],["XPM","xpm",v=>fmt(v),true],["Last hity","lh",v=>fmt(v),true],["Hero damage","dmg",v=>fmt(v),true],["Průměrná délka","delka",dur,null]]
+    .map(([l,k,f,vic])=>{ const a=A[k], b=B[k]; const v= vic==null||a==null||b==null||a===b ? 0 : (vic? (a>b?1:-1) : (a<b?1:-1));
+      return `<tr><td class="cmp-l">${l}</td><td class="${v>0?"cmp-win":""}"><b>${f(a)}</b></td><td class="${v<0?"cmp-win":""}"><b>${f(b)}</b></td></tr>`; }).join("");
+  const peer=((state.recPeers&&state.recPeers.list)||[]).find(x=>String(x.account_id)===String(p.account_id||state.recCmpId));
+  const wrp=(w,g)=> g?Math.round(100*w/g)+" %":"–";
+  const spolu= peer && (peer.with_games||peer.against_games) ? `<div class="cmp-spolu">
+      <div><span>Spolu v týmu</span><b>${peer.with_games||0} her</b><em class="${(peer.with_win/peer.with_games)>=.5?"cw":"cl"}">${wrp(peer.with_win,peer.with_games)} výher</em></div>
+      <div><span>Proti sobě</span><b>${peer.against_games||0} her</b><em class="${(peer.against_win/peer.against_games)>=.5?"cw":"cl"}">${wrp(peer.against_win,peer.against_games)} pro tebe</em></div>
+    </div>` : '<div class="muted-c" style="margin-top:10px">Spolu ani proti sobě jste podle OpenDoty nehráli.</div>';
+  return `<div class="cmp-hlava">
+      <div class="cmp-hrac">${state.curAccount&&state.curAccount.avatar?`<img src="${state.curAccount.avatar}" alt="">`:""}<b>${jaJm}</b><small>${(state.recMatches||[]).length} zápasů</small></div>
+      <div class="cmp-skore"><b class="${skJa>skOn?"cw":""}">${skJa}</b><span>:</span><b class="${skOn>skJa?"cw":""}">${skOn}</b><small>rekordy</small></div>
+      <div class="cmp-hrac pravy">${p.avatarfull?`<img src="${p.avatarfull}" alt="">`:""}<b>${jmeno}</b><small>${rankText(d.profile.rank_tier)} · ${d.matches.length} zápasů</small></div>
+    </div>
+    ${spolu}
+    <div class="cmp-tabs">
+      <table class="cmp-tab"><thead><tr><th>Rekord</th><th>${jaJm}</th><th>${jmeno}</th></tr></thead><tbody>${radky}</tbody></table>
+      <table class="cmp-tab"><thead><tr><th>Průměr na zápas</th><th>${jaJm}</th><th>${jmeno}</th></tr></thead><tbody>${prum}</tbody></table>
+    </div>
+    <div class="muted-c">Zeleně = lepší hodnota. U „Nejvíc smrtí“ a „šňůry proher“ je lepší menší číslo. Ikona hrdiny otevře detail zápasu s rekordem.</div>`;
 }
 
 /* ---------- Analýza: co ti jde a co ne ---------- */
