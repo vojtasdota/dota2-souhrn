@@ -1017,7 +1017,18 @@ function rozborBody(data, stream) {
   };
 }
 
+// u nástrojů s hledáním na webu: zdroje bývají anglicky nebo rusky – výstup musí být celý česky
+const JAZYK_WEB = `
+
+JAZYK A ZDROJE: Piš VÝHRADNĚ česky. Nikdy necituj doslova text v jiném jazyce (ruština, angličtina…) –
+vše převyprávěj nebo přelož do češtiny; názvy hrdinů, itemů a schopností nech v původní anglické podobě
+(např. Strafe, Witch Blade). Čísla a hodnoty uváděj přesně (např. mana 60/70/80/90 → 55/60/65/70).
+Při hledání dávej přednost oficiálním patch notes (dota2.com), Liquipedii a anglickým zdrojům před ruskými.`;
+
 async function claudeFetch(body) {
+  if ((body.tools || []).some((t) => String(t.type || "").startsWith("web_search")) && typeof body.system === "string" && !body.system.includes("JAZYK A ZDROJE")) {
+    body = { ...body, system: body.system + JAZYK_WEB };
+  }
   const r = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -1047,7 +1058,7 @@ async function streamJednou(body, res, pis) {
   const r = await claudeFetch({ ...body, stream: true });
   const reader = r.body.getReader();
   const dec = new TextDecoder();
-  let buf = "", stop = null;
+  let buf = "", stop = null, predchozi = null;
   const bloky = [], jsonVstup = {};
   const zpracuj = (line) => {
     line = line.trim();
@@ -1057,7 +1068,9 @@ async function streamJednou(body, res, pis) {
     if (ev.type === "content_block_start") {
       const b = { ...ev.content_block };
       bloky[ev.index] = b;
-      if (b.type === "text") { b.text = b.text || ""; pis("\n\n", true); }
+      // navazující textové bloky (text rozdělený citacemi) spojit plynule; oddělit jen po hledání apod.
+      if (b.type === "text") { b.text = b.text || ""; if (predchozi !== "text") pis("\n\n", true); }
+      predchozi = b.type;
     } else if (ev.type === "content_block_delta") {
       const b = bloky[ev.index], d = ev.delta || {};
       if (!b) return;
@@ -1109,7 +1122,14 @@ async function textOnce(body) {
   for (let kolo = 0; kolo <= MAX_POKRACOVANI; kolo++) {
     const r = await claudeFetch({ ...body, messages, stream: false });
     j = await r.json();
-    casti.push(...(j.content || []).filter((b) => b.type === "text").map((b) => b.text));
+    let predchozi = null;
+    for (const b of j.content || []) {
+      if (b.type === "text") {
+        if (predchozi === "text" && casti.length) casti[casti.length - 1] += b.text;
+        else casti.push(b.text);
+      }
+      predchozi = b.type;
+    }
     if (j.stop_reason !== "pause_turn") break;
     messages = [...messages, { role: "assistant", content: j.content || [] }];
   }
